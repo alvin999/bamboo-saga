@@ -17,7 +17,7 @@
     <span class="icon">🎋</span>
     <span class="title">廣零散</span>
     <span class="sub">bamboo-saga</span>
-    <span class="badge" title="IntelliJ 級別防重開機不滅記憶">
+    <span class="badge" title="旗艦級防重開機不滅記憶">
       <span class="dot {isSaved ? 'synced' : 'saving'}"></span>
       {isSaved ? '藥帖秒存中' : '落墨入櫃...'}
     </span>

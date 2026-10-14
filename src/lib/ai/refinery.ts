@@ -141,3 +141,138 @@ function getModeSummary(mode: RefineryMode): string {
       return '🧹 代碼與格式自動排版';
   }
 }
+
+export interface AiSearchCandidate {
+  id: string;
+  title: string;
+  path?: string;
+  preview: string;
+}
+
+export interface AiSearchResultItem {
+  id: string;
+  title: string;
+  path?: string;
+  reason: string;
+  matchedSnippet: string;
+}
+
+export interface AiSearchRequest {
+  query: string;
+  candidates: AiSearchCandidate[];
+  model: 'groq' | 'gemini';
+  groqKey: string;
+  geminiKey: string;
+}
+
+/**
+ * 使用 AI 對話與語意理解協助在全庫/資料夾中精準尋找藥帖
+ */
+export async function searchVaultWithAi(req: AiSearchRequest): Promise<AiSearchResultItem[]> {
+  const { query, candidates, model, groqKey, geminiKey } = req;
+  if (!query.trim() || candidates.length === 0) return [];
+
+  // 取前 35 筆候選檔案摘要
+  const sampleList = candidates.slice(0, 35).map((c, idx) => ({
+    index: idx + 1,
+    id: c.id,
+    title: c.title,
+    path: c.path || '',
+    snippet: c.preview.slice(0, 200).replace(/\s+/g, ' '),
+  }));
+
+  const systemPrompt = `你是一位專業的筆記檢索助理。使用者正在筆記庫中尋找資料，請根據使用者的提問意圖，從候選清單中挑選最符合的 1 到 3 個筆記或檔案。
+請只輸出合法的 JSON 陣列，不得包含 Markdown 標籤或其餘非 JSON 內容：
+[
+  {
+    "id": "候選清單中的 id",
+    "title": "筆記標題",
+    "path": "檔案路徑或空字串",
+    "reason": "為什麼推薦這篇筆記的一句話繁體中文理由",
+    "matchedSnippet": "匹配或推測相關的重點字句片段"
+  }
+]`;
+
+  const userPrompt = `使用者查詢需求：「${query}」\n\n候選筆記與檔案清單：\n${JSON.stringify(sampleList, null, 2)}`;
+
+  // 1. Groq 呼叫
+  if (model === 'groq' && groqKey) {
+    try {
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${groqKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.1,
+          response_format: { type: 'json_object' },
+        }),
+      });
+      const data = await resp.json();
+      const content = data.choices?.[0]?.message?.content || '[]';
+      const parsed = JSON.parse(content);
+      return Array.isArray(parsed) ? parsed : (parsed.results || parsed.matches || []);
+    } catch (err) {
+      console.warn('[AI Search] Groq 檢索失敗，切換至備援：', err);
+    }
+  }
+
+  // 2. Gemini 呼叫
+  if (model === 'gemini' && geminiKey) {
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: `${systemPrompt}\n\n${userPrompt}` }
+                ]
+              }
+            ],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json',
+            }
+          }),
+        }
+      );
+      const data = await resp.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+      const parsed = JSON.parse(text);
+      return Array.isArray(parsed) ? parsed : (parsed.results || parsed.matches || []);
+    } catch (err) {
+      console.warn('[AI Search] Gemini 檢索失敗，切換至備援：', err);
+    }
+  }
+
+  // 3. 本地智慧關鍵字加權模擬（無 API Key 時的 Fallback）
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const scored = candidates.map((c) => {
+    let score = 0;
+    const full = (c.title + ' ' + c.preview).toLowerCase();
+    for (const term of terms) {
+      if (c.title.toLowerCase().includes(term)) score += 3;
+      if (full.includes(term)) score += 1;
+    }
+    return { candidate: c, score };
+  });
+
+  const best = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, 3);
+  return best.map(({ candidate }) => ({
+    id: candidate.id,
+    title: candidate.title,
+    path: candidate.path,
+    reason: `命中相關關鍵字（在標題或內容前段發現與「${query}」關聯的詞彙）`,
+    matchedSnippet: candidate.preview.slice(0, 100),
+  }));
+}

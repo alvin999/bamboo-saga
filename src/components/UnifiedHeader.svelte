@@ -59,7 +59,7 @@
     </div>
 
     <!-- HUD 戰術儀表標籤：致敬 Nothing OS / Raycast -->
-    <div class="hud-sync-badge" title="IntelliJ 級別防重開機不滅記憶 (毫秒級狀態持久化)">
+    <div class="hud-sync-badge" title="旗艦級防重開機不滅記憶 (毫秒級狀態持久化)">
       <span class="status-dot {isSaved ? 'synced' : 'saving'}"></span>
       <span class="hud-code">{isSaved ? 'SYNC // 0.01ms' : 'FLUSH // VAULT'}</span>
     </div>

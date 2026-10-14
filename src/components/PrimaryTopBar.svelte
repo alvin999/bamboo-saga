@@ -142,7 +142,7 @@
 
     <!-- 右側：SYNC 狀態、模式切換、偏好設定 -->
     <div class="deck-right">
-      <div class="sync-cluster" title="IntelliJ 級別防重開機不滅記憶">
+      <div class="sync-cluster" title="旗艦級防重開機不滅記憶">
         <span class="sync-dot {isSaved ? 'synced' : 'saving'}"></span>
         <span class="sync-readout">{isSaved ? 'SYNC // 0.01MS' : 'FLUSH // VAULT'}</span>
       </div>

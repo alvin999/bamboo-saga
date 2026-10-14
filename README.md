@@ -4,7 +4,7 @@
 > *Scatter thoughts on bamboo slips; forge an immortal saga with AI.*
 
 **《廣零散 (bamboo-saga)》** 是一款專為開發者與高頻率會議工作者打造的**跨平台極輕量隨手筆記工作台（Scratchpad Hub）**。  
-不綁定專案資料夾、完美相容中文注音輸入法（IME），結合 **Gruvbox 中藥百子櫃復古配色**、**Smear Cursor 絲滑殘影游標**、**IntelliJ 級別防重開機秒存機制**，以及支援**安全預覽與一鍵回溯（Rollback）的 Groq / Gemini 雙引擎 AI 整理師**。
+不綁定專案資料夾、完美相容中文注音輸入法（IME），結合 **Gruvbox 中藥百子櫃復古配色**、**Smear Cursor 絲滑殘影游標**、**旗艦級防重開機秒存機制**，以及支援**安全預覽與一鍵回溯（Rollback）的 Groq / Gemini 雙引擎 AI 整理師**。
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## ✨ 專案必備核心功能 (Core Features)
 
-### 1. 🛡️ IntelliJ 級別「防重開機」狀態記憶 (Immortal Persistence)
+### 1. 🛡️ 旗艦級「防重開機」狀態記憶 (Immortal Persistence)
 * **無檔案負擔（Zero-File Overhead）**：不需綁定專案目錄、不需手動按 `Ctrl+S` 取檔名，點開即寫。
 * **毫秒級硬碟持久化**：每一次鍵盤敲擊與注音落地，皆於底層即時同步寫入本地儲存空間（Local Vault / SQLite）。
 * **全狀態還原**：遭遇 Windows 強制更新重開機、當機或意外關閉時，重新開啟後 100% 原地還原所有開啟的分頁內容、分頁順序、語言模式與**游標所在座標**。

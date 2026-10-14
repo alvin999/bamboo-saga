@@ -24,6 +24,28 @@ export interface TabItem {
   aiPromptSummary?: string;
   // 停靠層級：主頂欄 (primary) 或是次頂 AI 煉丹欄 (secondary)
   deck?: 'primary' | 'secondary';
+  // 連接實體檔案系統路徑（選填）
+  filePath?: string;
+  isDirty?: boolean;
+}
+
+export interface RecentFileRecord {
+  path: string;
+  title: string;
+  lastOpened: number;
+  preview: string;
+  language: SupportedLanguage;
+  isLocalFile: boolean;
+}
+
+export interface VaultFileEntry {
+  path: string;
+  name: string;
+  rel_path: string;
+  size: number;
+  modified: number;
+  preview: string;
+  extension: string;
 }
 
 export interface VimKeyOverrides {
@@ -43,4 +65,6 @@ export interface AppState {
   groqApiKey: string;
   geminiApiKey: string;
   selectedAiModel: 'groq' | 'gemini';
+  vaultFolderPath?: string;
+  recentFiles?: RecentFileRecord[];
 }

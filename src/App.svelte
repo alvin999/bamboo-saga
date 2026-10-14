@@ -13,15 +13,37 @@
   import AiReviewBar from './components/AiReviewBar.svelte';
   import AiModal from './components/AiModal.svelte';
   import StatusBar from './components/StatusBar.svelte';
+  import FuzzyFindModal from './components/FuzzyFindModal.svelte';
+  import LocalHistoryModal from './components/LocalHistoryModal.svelte';
+  import PutLabelModal from './components/PutLabelModal.svelte';
+
+  import type { VaultFileEntry, RecentFileRecord } from './types/tab';
+  import { pickVaultFolder, scanVaultFolder, readVaultFile, writeVaultFile } from './lib/storage/fsBridge';
+  import { loadRecentFiles, recordFileOpened, clearRecentFiles } from './lib/storage/recent';
+  import { recordSnapshot, pruneOldSnapshots } from './lib/storage/localHistory';
+  import type { SnapshotReason } from './types/history';
 
   // 核心應用狀態
   let state = $state(loadVaultState());
   let isAiModalOpen = $state(false);
   let isFileBrowserOpen = $state(false);
+  let isFuzzyModalOpen = $state(false);
+  let isLocalHistoryOpen = $state(false);
+  let isPutLabelOpen = $state(false);
+  let fuzzyInitialMode = $state<'fuzzy' | 'ai'>('fuzzy');
   let showDiffView = $state(false);
   let smearEnabled = $state(true);
   let isSavingIndicator = $state(true);
   let isRefining = $state(false); // AI 提煉中的動態過場狀態
+
+  // 本地歷史自動快照狀態
+  let historyDebounceTimer: number | null = null;
+  const lastRecordedSnapshotMap = new Map<string, string>();
+
+  // 本機資料夾與最近開啟狀態
+  let vaultFiles = $state<VaultFileEntry[]>([]);
+  let recentFiles = $state<RecentFileRecord[]>(loadRecentFiles());
+  let isScanningFolder = $state(false);
 
   // 當前作用中分頁
   const activeTab = $derived(
@@ -39,14 +61,32 @@
       saveVaultState(state, true);
     };
 
-    // 全域快速鍵 Ctrl+K 直呼 AI 煉丹爐；Ctrl+B 開關檔案總管
+    // 若先前已連結過資料夾，自動重新整理檔案清單
+    if (state.vaultFolderPath) {
+      refreshVaultFiles(state.vaultFolderPath);
+    }
+
+    // 全域快速鍵：
+    // Ctrl+K: AI 煉丹爐
+    // Ctrl+B: 檔案總管抽屜
+    // Ctrl+P / Cmd+P: 全域 Fuzzy Find 模糊跳轉與 AI 助查
     const handleGlobalKeydown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        fuzzyInitialMode = 'fuzzy';
+        isFuzzyModalOpen = !isFuzzyModalOpen;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         isAiModalOpen = !isAiModalOpen;
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
         e.preventDefault();
         isFileBrowserOpen = !isFileBrowserOpen;
+      } else if (e.altKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        isLocalHistoryOpen = !isLocalHistoryOpen;
+      } else if (e.altKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        isPutLabelOpen = !isPutLabelOpen;
       }
     };
 
@@ -59,10 +99,116 @@
     };
   });
 
+  function detectLanguageByExtension(ext: string): SupportedLanguage {
+    switch (ext.toLowerCase()) {
+      case 'md':
+      case 'markdown':
+        return 'markdown';
+      case 'js':
+      case 'jsx':
+      case 'ts':
+      case 'tsx':
+        return 'javascript';
+      case 'py':
+        return 'python';
+      case 'json':
+        return 'json';
+      case 'sql':
+        return 'sql';
+      default:
+        return 'plaintext';
+    }
+  }
+
+  async function handlePickFolder() {
+    try {
+      const folder = await pickVaultFolder();
+      if (folder) {
+        state.vaultFolderPath = folder;
+        saveVaultState(state, true);
+        await refreshVaultFiles(folder);
+        showToast(`📁 已連接電腦資料夾：${folder.split(/[/|\\]/).pop()}`);
+      }
+    } catch (err: any) {
+      showToast(`⚠️ 連接資料夾失敗: ${err.message || err}`);
+    }
+  }
+
+  async function refreshVaultFiles(folderPath: string) {
+    if (!folderPath) return;
+    isScanningFolder = true;
+    try {
+      const files = await scanVaultFolder(folderPath);
+      vaultFiles = files;
+    } catch (err) {
+      console.error('[App] Failed to scan vault folder:', err);
+    } finally {
+      isScanningFolder = false;
+    }
+  }
+
+  async function handleOpenVaultFile(file: VaultFileEntry) {
+    // 1. 檢查是否已經開啟為 Tab
+    const existing = state.tabs.find((t) => t.filePath === file.path);
+    if (existing) {
+      selectTab(existing.id);
+      return;
+    }
+
+    // 2. 讀取實體檔案內容
+    try {
+      const content = await readVaultFile(file.path);
+      const newTab: TabItem = {
+        id: `tab-vault-${Date.now()}`,
+        title: file.name,
+        content,
+        language: detectLanguageByExtension(file.extension),
+        cursor: { line: 1, ch: 0 },
+        lastModified: file.modified * 1000 || Date.now(),
+        preAiSnapshot: null,
+        isAiDraft: false,
+        deck: 'primary',
+        filePath: file.path,
+        isDirty: false,
+      };
+
+      state.tabs.push(newTab);
+      state.activeTabId = newTab.id;
+      showToast(`📄 已載入檔案：${file.name}`);
+
+      // 3. 記錄進最近開啟
+      recentFiles = recordFileOpened({
+        path: file.path,
+        title: file.name,
+        preview: content.slice(0, 150),
+        language: newTab.language,
+        isLocalFile: true,
+      });
+    } catch (err: any) {
+      showToast(`⚠️ 開啟檔案失敗: ${err.message || err}`);
+    }
+  }
+
+  function handleClearRecent() {
+    clearRecentFiles();
+    recentFiles = [];
+    showToast('🕒 已清除最近開啟記錄');
+  }
+
   // 分頁操作
   function selectTab(id: string) {
     state.activeTabId = id;
     showDiffView = false;
+    const target = state.tabs.find((t) => t.id === id);
+    if (target) {
+      recentFiles = recordFileOpened({
+        path: target.filePath || target.id,
+        title: target.title,
+        preview: target.content.slice(0, 150),
+        language: target.language,
+        isLocalFile: !!target.filePath,
+      });
+    }
   }
 
   function addTab() {
@@ -110,12 +256,112 @@
     }
   }
 
+  // 實體檔案磁碟同步
+  let fileSaveTimer: number | null = null;
+  function syncToDisk(tab: TabItem, immediate = false) {
+    if (!tab.filePath) return;
+    const doSync = async () => {
+      try {
+        await writeVaultFile(tab.filePath!, tab.content);
+        tab.isDirty = false;
+      } catch (err) {
+        console.error('[App] Failed to auto-sync to disk:', err);
+      }
+    };
+
+    if (immediate) {
+      if (fileSaveTimer) clearTimeout(fileSaveTimer);
+      doSync();
+      return;
+    }
+
+    if (fileSaveTimer) clearTimeout(fileSaveTimer);
+    fileSaveTimer = window.setTimeout(doSync, 500);
+  }
+
+  // 本地歷史自動快照排程機制 (編輯暫停自動快照)
+  function triggerAutoSnapshot(tab: TabItem, reason: SnapshotReason, label?: string, summary?: string) {
+    if (!tab) return;
+    const fileKey = tab.filePath || tab.id;
+    const lastContent = lastRecordedSnapshotMap.get(fileKey);
+    // 若內容與上個快照完全相同且無自訂標籤，則不重複生成
+    if (lastContent === tab.content && !label && reason === 'typing') return;
+
+    lastRecordedSnapshotMap.set(fileKey, tab.content);
+    recordSnapshot({
+      fileKey,
+      title: tab.title,
+      content: tab.content,
+      reason,
+      label,
+      summary,
+    });
+    // 維護本地快照數量（避免空間過度累積）
+    pruneOldSnapshots(fileKey, 80);
+  }
+
   // 編輯器內容與游標變更
   function handleContentChange(newContent: string) {
     if (activeTab) {
       activeTab.content = newContent;
       activeTab.lastModified = Date.now();
+      if (activeTab.filePath) {
+        activeTab.isDirty = true;
+        syncToDisk(activeTab);
+      }
+
+      // 15 秒輸入停止防抖自動快照 (typing pause snapshot)
+      if (historyDebounceTimer) clearTimeout(historyDebounceTimer);
+      historyDebounceTimer = window.setTimeout(() => {
+        if (activeTab) {
+          triggerAutoSnapshot(activeTab, 'typing');
+        }
+      }, 15000);
     }
+  }
+
+  // 手動存檔觸發 (Ctrl+S / Vim :w)
+  function handleManualSave() {
+    if (activeTab) {
+      if (activeTab.filePath) {
+        syncToDisk(activeTab, true);
+        showToast('💾 實體檔案已成功保存至磁碟！');
+      } else {
+        saveVaultState(state, true);
+        showToast('🛡️ 藥帖狀態已毫秒級持久化入櫃！');
+      }
+      triggerAutoSnapshot(activeTab, 'save');
+    }
+  }
+
+  // 本地歷史一鍵還原 (Revert)
+  function handleRevertHistory(revertedContent: string) {
+    if (!activeTab) return;
+    // 還原前先將當前狀態記錄快照，保障 100% 不遺失
+    triggerAutoSnapshot(activeTab, 'save', undefined, '還原前自動留底');
+    activeTab.content = revertedContent;
+    activeTab.lastModified = Date.now();
+    if (activeTab.filePath) {
+      activeTab.isDirty = true;
+      syncToDisk(activeTab, true);
+    }
+    saveVaultState(state, true);
+    showToast('⏪ 已成功還原至指定歷史版本！');
+  }
+
+  // 為當前歷史版本添加自訂標籤 (Put Label)
+  async function handleSaveLabel(label: string) {
+    if (!activeTab) return;
+    const fileKey = activeTab.filePath || activeTab.id;
+    await recordSnapshot({
+      fileKey,
+      title: activeTab.title,
+      content: activeTab.content,
+      reason: 'label',
+      label,
+    });
+    lastRecordedSnapshotMap.set(fileKey, activeTab.content);
+    showToast(`🏷️ 已固定歷史錨點標籤：「${label}」`);
   }
 
   function handleCursorChange(newCursor: CursorPosition) {
@@ -142,6 +388,7 @@
         timestamp: Date.now(),
         reason: `煉丹前快照 (${mode})`,
       };
+      triggerAutoSnapshot(activeTab, 'pre-ai', undefined, `AI煉丹前 (${mode})`);
 
       // 2. 呼叫雙引擎推論
       const res = await refineNotes({
@@ -160,6 +407,7 @@
       activeTab.language = 'markdown'; // AI 產出預設為標準 Markdown
       activeTab.lastModified = Date.now();
       saveVaultState(state, true);
+      triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI煉丹成果 (${res.summary})`);
       showToast(`✨ 煉丹完成：${res.summary}`);
     } finally {
       isRefining = false;
@@ -199,11 +447,6 @@
     toastTimer = window.setTimeout(() => {
       toastMsg = null;
     }, 2600);
-  }
-
-  function handleManualSave() {
-    saveVaultState(state, true);
-    showToast('🍃 藥帖已手動入櫃保存！');
   }
 
   function handleImeWarning(msg: string) {
@@ -338,6 +581,27 @@
       vimMode={state.vimMode}
       onLanguageChange={handleLanguageChange}
       onToggleVim={() => (state.vimMode = !state.vimMode)}
+      onOpenHistory={() => (isLocalHistoryOpen = true)}
+      onPutLabel={() => (isPutLabelOpen = true)}
+    />
+
+    <!-- 本機歷史紀錄與 Diff 對比對話盒 (Alt+H) -->
+    <LocalHistoryModal 
+      isOpen={isLocalHistoryOpen}
+      fileKey={activeTab.filePath || activeTab.id}
+      fileTitle={activeTab.title}
+      currentContent={activeTab.content}
+      onRevert={handleRevertHistory}
+      onOpenPutLabel={() => (isPutLabelOpen = true)}
+      onClose={() => (isLocalHistoryOpen = false)}
+    />
+
+    <!-- 自訂歷史錨點標籤對話盒 (Alt+L) -->
+    <PutLabelModal 
+      isOpen={isPutLabelOpen}
+      fileTitle={activeTab.title}
+      onSaveLabel={handleSaveLabel}
+      onClose={() => (isPutLabelOpen = false)}
     />
   {/if}
 
@@ -346,10 +610,37 @@
     isOpen={isFileBrowserOpen}
     tabs={state.tabs}
     activeTabId={state.activeTabId}
+    vaultFolderPath={state.vaultFolderPath || ''}
+    vaultFiles={vaultFiles}
+    recentFiles={recentFiles}
+    isScanning={isScanningFolder}
     onSelectTab={selectTab}
     onAddTab={addTab}
     onCloseTab={closeTab}
     onCloseDrawer={() => (isFileBrowserOpen = false)}
+    onPickFolder={handlePickFolder}
+    onRefreshFolder={() => state.vaultFolderPath && refreshVaultFiles(state.vaultFolderPath)}
+    onOpenVaultFile={handleOpenVaultFile}
+    onOpenFuzzyModal={(mode) => {
+      fuzzyInitialMode = mode || 'fuzzy';
+      isFuzzyModalOpen = true;
+    }}
+    onClearRecent={handleClearRecent}
+  />
+
+  <!-- 全域 Fuzzy Find 模糊跳轉與 AI 助查彈窗 (Ctrl+P 隨時喚起) -->
+  <FuzzyFindModal 
+    isOpen={isFuzzyModalOpen}
+    initialMode={fuzzyInitialMode}
+    tabs={state.tabs}
+    vaultFiles={vaultFiles}
+    recentFiles={recentFiles}
+    groqApiKey={state.groqApiKey}
+    geminiApiKey={state.geminiApiKey}
+    selectedAiModel={state.selectedAiModel}
+    onSelectTab={selectTab}
+    onOpenVaultFile={handleOpenVaultFile}
+    onClose={() => (isFuzzyModalOpen = false)}
   />
 
   <!-- 浮動 Toast 提示 -->

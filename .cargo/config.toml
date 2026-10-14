@@ -1,2 +1,4 @@
+# Windows 環境下 Cargo 下載 crates.io 套件時，略過 SSL 憑證撤銷清單 (CRL) 檢查
+# 避免因網路或防火牆連線問題導致套件下載逾時或報錯 (failed to check revocation status)
 [http]
 check-revoke = false

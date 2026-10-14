@@ -7,7 +7,9 @@
     cursor = { line: 1, ch: 0 },
     vimMode = false,
     onLanguageChange,
-    onToggleVim
+    onToggleVim,
+    onOpenHistory,
+    onPutLabel
   } = $props<{
     content: string;
     language: SupportedLanguage;
@@ -15,6 +17,8 @@
     vimMode: boolean;
     onLanguageChange: (lang: SupportedLanguage) => void;
     onToggleVim?: () => void;
+    onOpenHistory?: () => void;
+    onPutLabel?: () => void;
   }>();
 
   const charCount = $derived(content.length);
@@ -34,8 +38,25 @@
 
     <div class="vault-tag font-mono" title="所有打字與中文注音皆即時毫秒級持久化入櫃">
       <span class="vault-amber-dot"></span>
-      <span class="vault-label">VAULT // PRESERVED (匣內無恙)</span>
+      <span class="vault-label">VAULT // PRESERVED</span>
     </div>
+
+    <button 
+      class="history-btn font-mono" 
+      onclick={onOpenHistory}
+      title="檢視本地歷史修訂與 Diff 比對 (Alt+H)"
+    >
+      <span class="history-icon">📜</span>
+      <span>HIST // LOCAL</span>
+    </button>
+
+    <button 
+      class="label-quick-btn font-mono" 
+      onclick={onPutLabel}
+      title="為當前狀態添加歷史錨點標籤 (Alt+L)"
+    >
+      <span>🏷️ LABEL</span>
+    </button>
   </div>
 
   <!-- 右側：座標、字數、語言選擇與編碼 (精準對齊 code.html 第 92 行) -->
@@ -208,5 +229,30 @@
     color: #868074;
     font-size: 11px;
     padding: 1px 4px;
+  }
+
+  .history-btn, .label-quick-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid rgba(80, 69, 52, 0.45);
+    border-radius: 3px;
+    color: #b59e72;
+    padding: 2px 7px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .history-btn:hover, .label-quick-btn:hover {
+    color: #fabd2f;
+    border-color: #fabd2f;
+    background: rgba(250, 189, 47, 0.1);
+  }
+
+  .history-icon {
+    font-size: 10px;
   }
 </style>
