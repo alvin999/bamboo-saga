@@ -1,0 +1,36 @@
+import { Extension } from '@codemirror/state';
+import { markdown } from '@codemirror/lang-markdown';
+import { json } from '@codemirror/lang-json';
+import { javascript } from '@codemirror/lang-javascript';
+import { python } from '@codemirror/lang-python';
+import { sql } from '@codemirror/lang-sql';
+import { SupportedLanguage } from '../../types/tab';
+import { smartHighlightPlugin } from './smartHighlighter';
+
+export function getLanguageExtension(lang: SupportedLanguage): Extension[] {
+  // 智慧染色作為核心筆記體驗，無條件在全語言（特別是 plaintext 與 markdown）掛載生效
+  const extensions: Extension[] = [smartHighlightPlugin];
+
+  switch (lang) {
+    case 'markdown':
+      extensions.push(markdown());
+      break;
+    case 'javascript':
+      extensions.push(javascript());
+      break;
+    case 'json':
+      extensions.push(json());
+      break;
+    case 'python':
+      extensions.push(python());
+      break;
+    case 'sql':
+      extensions.push(sql());
+      break;
+    case 'plaintext':
+    default:
+      break;
+  }
+
+  return extensions;
+}
