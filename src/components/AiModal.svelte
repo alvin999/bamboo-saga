@@ -1126,7 +1126,7 @@
 
   .modal-box {
     width: 100%;
-    max-width: 680px;
+    max-width: 860px;
     max-height: 88vh;
     display: flex;
     flex-direction: column;
@@ -1153,12 +1153,14 @@
     border-bottom: 1px solid rgba(80, 69, 52, 0.45);
     background: #191c1a;
     flex-shrink: 0;
+    gap: 12px;
   }
 
   .header-left {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
   }
 
   .pulse-cinnabar {
@@ -1168,6 +1170,7 @@
     background: #c95847;
     box-shadow: 0 0 8px #c95847;
     animation: pulse 1s infinite alternate;
+    flex-shrink: 0;
   }
 
   @keyframes pulse {
@@ -1180,6 +1183,9 @@
     font-weight: 600;
     color: #ece7dc;
     letter-spacing: 0.08em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .engine-badge {
@@ -1189,22 +1195,29 @@
     background: #242220;
     color: #b59e72;
     border: 1px solid #504534;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .header-nav {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   .tab-btn {
-    padding: 4px 10px;
+    padding: 4px 9px;
     border-radius: 4px;
     background: transparent;
     border: 1px solid transparent;
     color: #938c80;
     font-size: 0.72rem;
     cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     transition: all 0.15s;
   }
 
