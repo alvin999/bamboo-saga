@@ -185,12 +185,6 @@
     font-size: 1.15rem;
   }
 
-  .brand-title {
-    font-weight: 700;
-    font-size: 0.92rem;
-    color: #fbf1c7;
-    letter-spacing: 0.05em;
-  }
 
   .brand-title-svg {
     height: 16px;

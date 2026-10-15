@@ -230,14 +230,6 @@
     flex-direction: column;
   }
 
-  .brand-title {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 15px;
-    font-weight: 500;
-    letter-spacing: 0.18em;
-    color: #ece7dc;
-    line-height: 1.1;
-  }
 
   .brand-title-svg {
     height: 16px;
