@@ -139,8 +139,24 @@
         <span class="vault-label">卷軸庫</span>
       </button>
 
-      <div class="brand-cluster select-none">
-        <span class="brand-icon">🎋</span>
+      <div class="brand-cluster select-none" title="廣零散 (bamboo-saga)">
+        <span class="brand-icon">
+          <svg class="brand-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+            <!-- 左主幹幾何竹骨 -->
+            <rect x="4.5" y="4" width="2.8" height="16" rx="1.2" fill="#8ec07c" />
+            <!-- 幾何赭金節點扣環 -->
+            <rect x="3.5" y="8.5" width="4.8" height="1.8" rx="0.9" fill="#fabd2f" />
+            <rect x="3.5" y="13.5" width="4.8" height="1.8" rx="0.9" fill="#fabd2f" />
+
+            <!-- 右側展開之幾何代碼竹簡條 (無葉純淨款) -->
+            <rect x="9.5" y="6" width="9.5" height="2.4" rx="1" fill="#8ec07c" />
+            <rect x="9.5" y="10.8" width="12" height="2.4" rx="1" fill="#b8bb26" />
+            <rect x="9.5" y="15.6" width="8" height="2.4" rx="1" fill="#8ec07c" />
+
+            <!-- 丹火幾何端點 (中央代碼行端點) -->
+            <circle cx="20.2" cy="12" r="1.1" fill="#fe8019" />
+          </svg>
+        </span>
         <div class="brand-text">
           <img src="/logo-guangling-solid.svg" alt="廣零散" class="brand-title-svg" />
           <span class="brand-sub">BAMBOO·SAGA</span>
@@ -311,19 +327,31 @@
   /* 品牌組合 */
   .brand-cluster {
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
+    align-items: center;
+    gap: 9px;
     flex-shrink: 0;
   }
 
   .brand-icon {
     font-size: 16px;
     line-height: 16px;
-    height: 16px;
+    height: 20px;
+    width: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0.9;
+    cursor: default;
+  }
+
+  .brand-icon-svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .brand-cluster:hover .brand-icon-svg {
+    transform: scale(1.12);
   }
 
   .brand-text {

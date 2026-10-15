@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+  <!-- 左主幹幾何竹骨 (帶微圓角，垂直居中) -->
+  <rect x="4.5" y="4" width="2.8" height="16" rx="1.2" fill="#8ec07c" />
+  <!-- 幾何赭金節點扣環 -->
+  <rect x="3.5" y="8.5" width="4.8" height="1.8" rx="0.9" fill="#fabd2f" />
+  <rect x="3.5" y="13.5" width="4.8" height="1.8" rx="0.9" fill="#fabd2f" />
+
+  <!-- 右側展開之幾何代碼竹簡條 (無葉純淨款) -->
+  <rect x="9.5" y="6" width="9.5" height="2.4" rx="1" fill="#8ec07c" />
+  <rect x="9.5" y="10.8" width="12" height="2.4" rx="1" fill="#b8bb26" />
+  <rect x="9.5" y="15.6" width="8" height="2.4" rx="1" fill="#8ec07c" />
+
+  <!-- 丹火幾何端點 (中央代碼行端點) -->
+  <circle cx="20.2" cy="12" r="1.1" fill="#fe8019" />
+</svg>
