@@ -42,31 +42,48 @@
     if (editingTabId) return;
     draggedTabId = id;
     if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = 'all';
       e.dataTransfer.setData('text/plain', id);
+      e.dataTransfer.setData('application/x-bamboo-tab', id);
     }
   }
 
-  function handleDragOver(e: DragEvent, id: string) {
+  function handleDragEnter(e: DragEvent, id?: string) {
     e.preventDefault();
     if (e.dataTransfer) {
       e.dataTransfer.dropEffect = 'move';
     }
-    if (dragOverTabId !== id && draggedTabId !== id) {
+    if (id && draggedTabId && draggedTabId !== id) {
+      dragOverTabId = id;
+    }
+  }
+
+  function handleDragOver(e: DragEvent, id?: string) {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    if (id && draggedTabId && draggedTabId !== id) {
       dragOverTabId = id;
     }
   }
 
   function handleDragLeave(e: DragEvent, id: string) {
+    const related = e.relatedTarget as HTMLElement | null;
+    const current = e.currentTarget as HTMLElement | null;
+    if (current && related && current.contains(related)) {
+      return;
+    }
     if (dragOverTabId === id) {
       dragOverTabId = null;
     }
   }
 
-  function handleDrop(e: DragEvent, targetId: string) {
+  function handleDrop(e: DragEvent, targetId?: string) {
     e.preventDefault();
-    if (draggedTabId && draggedTabId !== targetId) {
-      onReorderTabs?.(draggedTabId, targetId);
+    const sourceId = draggedTabId || e.dataTransfer?.getData('application/x-bamboo-tab') || e.dataTransfer?.getData('text/plain');
+    if (sourceId && targetId && sourceId !== targetId) {
+      onReorderTabs?.(sourceId, targetId);
     }
     draggedTabId = null;
     dragOverTabId = null;
@@ -138,13 +155,26 @@
   <!-- 中間：次頂專屬煉丹藥帖分頁 -->
   <div class="deck-center">
     {#if secondaryTabs.length > 0}
-      <div class="sec-tabs-row">
+      <div 
+        class="sec-tabs-row"
+        role="region"
+        aria-label="次頂煉丹帖列表"
+        ondragover={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        }}
+        ondragenter={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        }}
+      >
         <span class="sec-label">次頂煉丹帖：</span>
         {#each secondaryTabs as tab (tab.id)}
           <div 
             class="secondary-tab-pill {tab.id === activeTabId ? 'active' : ''} {tab.isAiDraft ? 'has-draft' : ''} {draggedTabId === tab.id ? 'is-dragging' : ''} {dragOverTabId === tab.id ? 'drag-over' : ''}"
             draggable={editingTabId !== tab.id}
             ondragstart={(e) => handleDragStart(e, tab.id)}
+            ondragenter={(e) => handleDragEnter(e, tab.id)}
             ondragover={(e) => handleDragOver(e, tab.id)}
             ondragleave={(e) => handleDragLeave(e, tab.id)}
             ondrop={(e) => handleDrop(e, tab.id)}
@@ -340,6 +370,20 @@
     font-size: 11px;
     cursor: pointer;
     transition: all 0.12s;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .secondary-tab-pill :global(.fire-glyph),
+  .secondary-tab-pill :global(.tab-title),
+  .secondary-tab-pill :global(.draft-badge) {
+    pointer-events: none;
+  }
+
+  .secondary-tab-pill :global(.move-up-btn),
+  .secondary-tab-pill :global(.close-btn),
+  .secondary-tab-pill :global(.rename-input) {
+    pointer-events: auto;
   }
 
   .secondary-tab-pill:hover {

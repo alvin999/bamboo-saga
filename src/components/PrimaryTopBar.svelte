@@ -41,31 +41,48 @@
     if (editingTabId) return;
     draggedTabId = id;
     if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.effectAllowed = 'all';
       e.dataTransfer.setData('text/plain', id);
+      e.dataTransfer.setData('application/x-bamboo-tab', id);
     }
   }
 
-  function handleDragOver(e: DragEvent, id: string) {
+  function handleDragEnter(e: DragEvent, id?: string) {
     e.preventDefault();
     if (e.dataTransfer) {
       e.dataTransfer.dropEffect = 'move';
     }
-    if (dragOverTabId !== id && draggedTabId !== id) {
+    if (id && draggedTabId && draggedTabId !== id) {
+      dragOverTabId = id;
+    }
+  }
+
+  function handleDragOver(e: DragEvent, id?: string) {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    if (id && draggedTabId && draggedTabId !== id) {
       dragOverTabId = id;
     }
   }
 
   function handleDragLeave(e: DragEvent, id: string) {
+    const related = e.relatedTarget as HTMLElement | null;
+    const current = e.currentTarget as HTMLElement | null;
+    if (current && related && current.contains(related)) {
+      return;
+    }
     if (dragOverTabId === id) {
       dragOverTabId = null;
     }
   }
 
-  function handleDrop(e: DragEvent, targetId: string) {
+  function handleDrop(e: DragEvent, targetId?: string) {
     e.preventDefault();
-    if (draggedTabId && draggedTabId !== targetId) {
-      onReorderTabs?.(draggedTabId, targetId);
+    const sourceId = draggedTabId || e.dataTransfer?.getData('application/x-bamboo-tab') || e.dataTransfer?.getData('text/plain');
+    if (sourceId && targetId && sourceId !== targetId) {
+      onReorderTabs?.(sourceId, targetId);
     }
     draggedTabId = null;
     dragOverTabId = null;
@@ -121,12 +138,23 @@
       </div>
 
       <!-- 中間：主頂欄分頁標籤導航 -->
-      <nav class="nav-tabs-area">
+      <nav 
+        class="nav-tabs-area"
+        ondragover={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        }}
+        ondragenter={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        }}
+      >
         {#each primaryTabs as tab (tab.id)}
           <div 
             class="tab-anchor {tab.id === activeTabId ? 'active' : ''} {tab.isAiDraft ? 'has-draft' : ''} {draggedTabId === tab.id ? 'is-dragging' : ''} {dragOverTabId === tab.id ? 'drag-over' : ''}"
             draggable={editingTabId !== tab.id}
             ondragstart={(e) => handleDragStart(e, tab.id)}
+            ondragenter={(e) => handleDragEnter(e, tab.id)}
             ondragover={(e) => handleDragOver(e, tab.id)}
             ondragleave={(e) => handleDragLeave(e, tab.id)}
             ondrop={(e) => handleDrop(e, tab.id)}
@@ -336,6 +364,21 @@
     transition: color 0.15s ease;
     white-space: nowrap;
     border-radius: 3px 3px 0 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .tab-anchor :global(.tab-dot),
+  .tab-anchor :global(.tab-label),
+  .tab-anchor :global(.draft-tag),
+  .tab-anchor :global(.ochre-underline) {
+    pointer-events: none;
+  }
+
+  .tab-anchor :global(.deck-action-btn),
+  .tab-anchor :global(.close-action-btn),
+  .tab-anchor :global(.rename-input) {
+    pointer-events: auto;
   }
 
   .tab-anchor:hover {

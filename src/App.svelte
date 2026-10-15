@@ -29,7 +29,7 @@
   import type { SnapshotReason } from './types/history';
 
   // 核心應用狀態
-  let state = $state<AppState>(loadVaultState());
+  let state: AppState = $state(loadVaultState());
   let isAiModalOpen = $state(false);
   let aiModalTab = $state<'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings'>('refine');
   let isFileBrowserOpen = $state(false);
