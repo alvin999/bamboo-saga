@@ -29,6 +29,13 @@ export interface TabItem {
   isDirty?: boolean;
 }
 
+export interface RecentFolderRecord {
+  path: string;
+  name: string;
+  lastOpened: number;
+  isPinned?: boolean;
+}
+
 export interface RecentFileRecord {
   path: string;
   title: string;
@@ -110,6 +117,7 @@ export interface AppState {
   selectedAiModel: 'groq' | 'gemini';
   vaultFolderPath?: string;
   recentFiles?: RecentFileRecord[];
+  recentFolders?: RecentFolderRecord[];
   selectedOneDrivePath?: string;
   autoOneDriveBackup?: boolean;
   oneDriveBackupIntervalMinutes?: number; // 背景備份間隔（分鐘）

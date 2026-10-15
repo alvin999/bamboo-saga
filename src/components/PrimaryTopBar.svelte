@@ -124,7 +124,18 @@
         onclick={onToggleFileBrowser}
         title="開啟百子櫃檔案總管 (Ctrl+B)"
       >
-        <span class="material-symbols-outlined text-[15px]">folder_open</span>
+        <svg class="vault-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <!-- 雙軸展卷古典卷軸 -->
+          <line x1="7" y1="4" x2="17" y2="4" />
+          <line x1="7" y1="20" x2="17" y2="20" />
+          <path d="M7 4H4.5A1.5 1.5 0 0 0 3 5.5v13A1.5 1.5 0 0 0 4.5 20H7" />
+          <path d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5v13a1.5 1.5 0 0 1-1.5 1.5H17" />
+          <path d="M7 4a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 7 20" />
+          <path d="M17 4a1.5 1.5 0 0 0-1.5 1.5v13a1.5 1.5 0 0 0 1.5 1.5" />
+          <line x1="10" y1="8.5" x2="14" y2="8.5" stroke-width="1.2" opacity="0.8" />
+          <line x1="10" y1="12" x2="14" y2="12" stroke-width="1.2" opacity="0.8" />
+          <line x1="10" y1="15.5" x2="13" y2="15.5" stroke-width="1.2" opacity="0.8" />
+        </svg>
         <span class="vault-label">卷軸庫</span>
       </button>
 
@@ -282,6 +293,16 @@
     background: #282a2a;
     border-color: #d49b35;
     color: #d49b35;
+  }
+
+  .vault-icon-svg {
+    display: inline-block;
+    flex-shrink: 0;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .file-vault-btn:hover .vault-icon-svg {
+    transform: scale(1.1);
   }
 
   .vault-label {

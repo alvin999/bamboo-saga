@@ -16,7 +16,7 @@
   import LocalHistoryModal from './components/LocalHistoryModal.svelte';
   import PutLabelModal from './components/PutLabelModal.svelte';
 
-  import type { VaultFileEntry, RecentFileRecord } from './types/tab';
+  import type { VaultFileEntry, RecentFileRecord, RecentFolderRecord } from './types/tab';
   import { 
     pickVaultFolder, 
     scanVaultFolder, 
@@ -24,7 +24,15 @@
     writeVaultFile,
     backupVaultToOneDrive 
   } from './lib/storage/fsBridge';
-  import { loadRecentFiles, recordFileOpened, clearRecentFiles } from './lib/storage/recent';
+  import { 
+    loadRecentFiles, 
+    recordFileOpened, 
+    clearRecentFiles,
+    loadRecentFolders,
+    recordFolderOpened,
+    togglePinFolder,
+    removeRecentFolder
+  } from './lib/storage/recent';
   import { recordSnapshot, pruneOldSnapshots } from './lib/storage/localHistory';
   import type { SnapshotReason } from './types/history';
 
@@ -78,6 +86,7 @@
   // 本機資料夾與最近開啟狀態
   let vaultFiles = $state<VaultFileEntry[]>([]);
   let recentFiles = $state<RecentFileRecord[]>(loadRecentFiles());
+  let recentFolders = $state<RecentFolderRecord[]>(loadRecentFolders());
   let isScanningFolder = $state(false);
 
   // 當前作用中分頁
@@ -100,8 +109,9 @@
       }
     };
 
-    // 若先前已連結過資料夾，自動重新整理檔案清單
+    // 若先前已連結過資料夾，自動重新整理檔案清單並記錄到常用資料夾
     if (state.vaultFolderPath) {
+      recentFolders = recordFolderOpened(state.vaultFolderPath);
       refreshVaultFiles(state.vaultFolderPath);
     }
 
@@ -175,6 +185,7 @@
       const folder = await pickVaultFolder();
       if (folder) {
         state.vaultFolderPath = folder;
+        recentFolders = recordFolderOpened(folder);
         saveVaultState(state, true);
         await refreshVaultFiles(folder);
         showToast(`📁 已連接電腦資料夾：${folder.split(/[/|\\]/).pop()}`);
@@ -182,6 +193,29 @@
     } catch (err: any) {
       showToast(`⚠️ 連接資料夾失敗: ${err.message || err}`);
     }
+  }
+
+  async function handleSwitchFolder(folderPath: string) {
+    if (!folderPath || folderPath === state.vaultFolderPath) return;
+    try {
+      state.vaultFolderPath = folderPath;
+      recentFolders = recordFolderOpened(folderPath);
+      saveVaultState(state, true);
+      await refreshVaultFiles(folderPath);
+      const folderName = folderPath.split(/[/|\\]/).filter(Boolean).pop() || folderPath;
+      showToast(`📂 已切換至：${folderName}`);
+    } catch (err: any) {
+      showToast(`⚠️ 切換資料夾失敗: ${err.message || err}`);
+    }
+  }
+
+  function handleTogglePinFolder(folderPath: string) {
+    recentFolders = togglePinFolder(folderPath);
+  }
+
+  function handleRemoveRecentFolder(folderPath: string) {
+    recentFolders = removeRecentFolder(folderPath);
+    showToast('🗑️ 已從歷史清單移除');
   }
 
   async function refreshVaultFiles(folderPath: string) {
@@ -767,12 +801,16 @@
     vaultFolderPath={state.vaultFolderPath || ''}
     vaultFiles={vaultFiles}
     recentFiles={recentFiles}
+    recentFolders={recentFolders}
     isScanning={isScanningFolder}
     onSelectTab={selectTab}
     onAddTab={addTab}
     onCloseTab={closeTab}
     onCloseDrawer={() => (isFileBrowserOpen = false)}
     onPickFolder={handlePickFolder}
+    onSwitchFolder={handleSwitchFolder}
+    onTogglePinFolder={handleTogglePinFolder}
+    onRemoveRecentFolder={handleRemoveRecentFolder}
     onRefreshFolder={() => state.vaultFolderPath && refreshVaultFiles(state.vaultFolderPath)}
     onOpenVaultFile={handleOpenVaultFile}
     onOpenFuzzyModal={(mode) => {

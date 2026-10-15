@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { TabItem, VaultFileEntry, RecentFileRecord } from '../types/tab';
+  import type { TabItem, VaultFileEntry, RecentFileRecord, RecentFolderRecord } from '../types/tab';
   import Fuse from 'fuse.js';
 
   let {
@@ -9,12 +9,16 @@
     vaultFolderPath = '',
     vaultFiles = [],
     recentFiles = [],
+    recentFolders = [],
     isScanning = false,
     onSelectTab,
     onAddTab,
     onCloseTab,
     onCloseDrawer,
     onPickFolder,
+    onSwitchFolder,
+    onTogglePinFolder,
+    onRemoveRecentFolder,
     onRefreshFolder,
     onOpenVaultFile,
     onOpenFuzzyModal,
@@ -26,12 +30,16 @@
     vaultFolderPath: string;
     vaultFiles: VaultFileEntry[];
     recentFiles: RecentFileRecord[];
+    recentFolders?: RecentFolderRecord[];
     isScanning: boolean;
     onSelectTab: (id: string) => void;
     onAddTab: () => void;
     onCloseTab: (id: string) => void;
     onCloseDrawer: () => void;
     onPickFolder: () => void;
+    onSwitchFolder?: (folderPath: string) => void;
+    onTogglePinFolder?: (folderPath: string) => void;
+    onRemoveRecentFolder?: (folderPath: string) => void;
     onRefreshFolder: () => void;
     onOpenVaultFile: (file: VaultFileEntry) => void;
     onOpenFuzzyModal: (initialMode?: 'fuzzy' | 'ai') => void;
@@ -40,6 +48,7 @@
 
   let searchQuery = $state('');
   let activeView = $state<'all' | 'folder' | 'tabs'>('all');
+  let isFolderMenuOpen = $state(false);
 
   // Fuse 模糊比對資料夾檔案
   const fileFuse = $derived(
@@ -103,42 +112,162 @@
   <aside class="file-browser-drawer" aria-label="藥帖卷軸庫檔案瀏覽器">
     <div class="drawer-header">
       <div class="header-title">
-        <span class="icon">📁</span>
+        <span class="icon scroll-brand-icon">
+          <svg class="drawer-scroll-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="7" y1="4" x2="17" y2="4" />
+            <line x1="7" y1="20" x2="17" y2="20" />
+            <path d="M7 4H4.5A1.5 1.5 0 0 0 3 5.5v13A1.5 1.5 0 0 0 4.5 20H7" />
+            <path d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5v13a1.5 1.5 0 0 1-1.5 1.5H17" />
+            <path d="M7 4a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 7 20" />
+            <path d="M17 4a1.5 1.5 0 0 0-1.5 1.5v13a1.5 1.5 0 0 0 1.5 1.5" />
+            <line x1="10" y1="8.5" x2="14" y2="8.5" stroke-width="1.2" opacity="0.8" />
+            <line x1="10" y1="12" x2="14" y2="12" stroke-width="1.2" opacity="0.8" />
+            <line x1="10" y1="15.5" x2="13" y2="15.5" stroke-width="1.2" opacity="0.8" />
+          </svg>
+        </span>
         <span class="title-text">藥帖卷軸庫</span>
-        <span class="badge">{tabs.length} 帖</span>
       </div>
       <button class="close-drawer-btn" onclick={onCloseDrawer} title="收起檔案瀏覽器">
         ✕
       </button>
     </div>
 
-    <!-- 1. 本機資料夾連線狀態列 -->
+    <!-- 1. 本機資料夾連線狀態列與歷史/常用快速切換 -->
     <div class="folder-sync-section">
-      <div class="folder-info">
-        {#if vaultFolderPath}
-          <div class="folder-path-box" title={vaultFolderPath}>
-            <span class="folder-icon">📂</span>
-            <span class="folder-name">{vaultFolderPath.split(/[/|\\]/).pop() || '本機筆記庫'}</span>
-            <span class="folder-count">({vaultFiles.length} 檔案)</span>
-          </div>
-        {:else}
-          <div class="folder-path-box unlinked">
-            <span class="folder-icon">⚠️</span>
-            <span class="folder-name">尚未連接本機資料夾</span>
-          </div>
-        {/if}
+      <div class="folder-sync-top">
+        <div class="folder-dropdown-container">
+          <button 
+            class="folder-path-box {vaultFolderPath ? '' : 'unlinked'}" 
+            onclick={() => (isFolderMenuOpen = !isFolderMenuOpen)}
+            title={vaultFolderPath ? `目前：${vaultFolderPath}\n點擊展開常用與歷史資料夾` : '點擊選擇電腦資料夾'}
+          >
+            <span class="folder-icon">
+              {#if vaultFolderPath}
+                <svg class="mini-scroll-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 4H4.5A1.5 1.5 0 0 0 3 5.5v13A1.5 1.5 0 0 0 4.5 20H7" />
+                  <path d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5v13a1.5 1.5 0 0 1-1.5 1.5H17" />
+                  <line x1="7" y1="4" x2="17" y2="4" />
+                  <line x1="7" y1="20" x2="17" y2="20" />
+                </svg>
+              {:else}
+                ⚠️
+              {/if}
+            </span>
+            <span class="folder-name">{vaultFolderPath ? (vaultFolderPath.split(/[/|\\]/).filter(Boolean).pop() || '本機筆記庫') : '尚未連接本機資料夾'}</span>
+            {#if vaultFolderPath}
+              <span class="folder-count">({vaultFiles.length})</span>
+            {/if}
+            <span class="material-symbols-outlined dropdown-arrow {isFolderMenuOpen ? 'open' : ''}">expand_more</span>
+          </button>
+
+          <!-- 下拉選單：常用與歷史資料夾 -->
+          {#if isFolderMenuOpen}
+            <div class="folder-dropdown-menu">
+              <div class="dropdown-header">
+                <span>常用與歷史資料夾</span>
+                <span class="dropdown-sub">{recentFolders.length} 個目錄</span>
+              </div>
+
+              {#if recentFolders.length > 0}
+                <div class="dropdown-folder-list">
+                  {#each recentFolders as rf}
+                    <div class="dropdown-folder-item {rf.path === vaultFolderPath ? 'active' : ''}">
+                      <button 
+                        class="folder-item-click-area"
+                        onclick={() => {
+                          onSwitchFolder?.(rf.path);
+                          isFolderMenuOpen = false;
+                        }}
+                        title={rf.path}
+                      >
+                        <span class="folder-status-indicator">
+                          {#if rf.path === vaultFolderPath}
+                            ✓
+                          {:else if rf.isPinned}
+                            📌
+                          {:else}
+                            📁
+                          {/if}
+                        </span>
+                        <div class="folder-item-labels">
+                          <span class="item-name">{rf.name}</span>
+                          <span class="item-path">{rf.path}</span>
+                        </div>
+                      </button>
+
+                      <div class="folder-item-btn-group">
+                        <button 
+                          class="item-action-icon {rf.isPinned ? 'pinned' : ''}"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            onTogglePinFolder?.(rf.path);
+                          }}
+                          title={rf.isPinned ? '取消常用釘選' : '釘選為常用資料夾'}
+                        >
+                          📌
+                        </button>
+                        <button 
+                          class="item-action-icon remove"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            onRemoveRecentFolder?.(rf.path);
+                          }}
+                          title="從歷史紀錄移除"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <div class="dropdown-empty-state">尚無其他歷史資料夾紀錄</div>
+              {/if}
+
+              <div class="dropdown-footer">
+                <button 
+                  class="dropdown-browse-btn"
+                  onclick={() => {
+                    isFolderMenuOpen = false;
+                    onPickFolder();
+                  }}
+                >
+                  <span class="material-symbols-outlined text-[13px]">add_circle</span>
+                  <span>瀏覽電腦其他資料夾...</span>
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <div class="folder-actions">
+          <button class="folder-btn primary" onclick={onPickFolder} title="選擇電腦實體資料夾連線">
+            <span>{vaultFolderPath ? '更換' : '🔗 連接'}</span>
+          </button>
+          {#if vaultFolderPath}
+            <button class="folder-btn" onclick={onRefreshFolder} disabled={isScanning} title="重新整理掃描資料夾">
+              <span>{isScanning ? '⏳' : '🔄'}</span>
+            </button>
+          {/if}
+        </div>
       </div>
 
-      <div class="folder-actions">
-        <button class="folder-btn primary" onclick={onPickFolder} title="選擇電腦實體資料夾連線">
-          <span>{vaultFolderPath ? '切換資料夾' : '🔗 連接資料夾'}</span>
-        </button>
-        {#if vaultFolderPath}
-          <button class="folder-btn" onclick={onRefreshFolder} disabled={isScanning} title="重新整理掃描資料夾">
-            <span>{isScanning ? '⏳' : '🔄'}</span>
-          </button>
-        {/if}
-      </div>
+      <!-- 常用資料夾快速標籤列 (點擊即切換) -->
+      {#if recentFolders.length > 1}
+        <div class="quick-folder-pills">
+          <span class="pills-label">切換：</span>
+          {#each recentFolders.slice(0, 4) as rf}
+            <button 
+              class="quick-pill-item {rf.path === vaultFolderPath ? 'active' : ''}"
+              onclick={() => onSwitchFolder?.(rf.path)}
+              title={rf.path}
+            >
+              {#if rf.isPinned}<span class="pin-tag">📌</span>{/if}
+              <span class="pill-name">{rf.name}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
     </div>
 
     <!-- 2. 最近開啟專區 (Recent Opened) -->
@@ -375,13 +504,20 @@
     font-size: 15px;
   }
 
-  .badge {
-    background: #3c3836;
-    color: #fe8019;
-    font-size: 11px;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-weight: normal;
+  .scroll-brand-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fabd2f;
+  }
+
+  .drawer-scroll-svg {
+    filter: drop-shadow(0 0 4px rgba(250, 189, 47, 0.3));
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .drawer-header:hover .drawer-scroll-svg {
+    transform: scale(1.08);
   }
 
   .close-drawer-btn {
@@ -399,15 +535,27 @@
     color: #ebdbb2;
   }
 
-  /* 本機資料夾連線專區 */
+  /* 本機資料夾連線專區與快速切換 */
   .folder-sync-section {
-    padding: 10px 16px;
+    padding: 10px 14px;
     background: #202020;
     border-bottom: 1px solid #32302f;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .folder-sync-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+  }
+
+  .folder-dropdown-container {
+    position: relative;
+    flex: 1;
+    min-width: 0;
   }
 
   .folder-path-box {
@@ -416,24 +564,301 @@
     gap: 6px;
     font-size: 12px;
     color: #ebdbb2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 220px;
+    background: #262423;
+    border: 1px solid #3c3836;
+    border-radius: 4px;
+    padding: 5px 8px;
+    width: 100%;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+  }
+
+  .folder-path-box:hover {
+    background: #2c2928;
+    border-color: #fabd2f;
+    color: #fbf1c7;
   }
 
   .folder-path-box.unlinked {
     color: #fabd2f;
+    border-color: rgba(250, 189, 47, 0.4);
+  }
+
+  .folder-icon {
+    display: inline-flex;
+    align-items: center;
+    color: #fabd2f;
+    flex-shrink: 0;
+  }
+
+  .mini-scroll-svg {
+    color: #fabd2f;
+  }
+
+  .folder-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
   }
 
   .folder-count {
     color: #928374;
+    font-size: 10.5px;
+    flex-shrink: 0;
+  }
+
+  .dropdown-arrow {
+    font-size: 16px;
+    color: #a89984;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .dropdown-arrow.open {
+    transform: rotate(180deg);
+    color: #fabd2f;
+  }
+
+  /* 下拉選單卡片 */
+  .folder-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    right: 0;
+    min-width: 290px;
+    max-width: 350px;
+    background: #1d2021;
+    border: 1px solid #504945;
+    border-radius: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    z-index: 100;
+    overflow: hidden;
+    animation: menuFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes menuFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .dropdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #282828;
+    border-bottom: 1px solid #3c3836;
     font-size: 11px;
+    font-weight: 600;
+    color: #d5c4a1;
+  }
+
+  .dropdown-sub {
+    color: #928374;
+    font-size: 10px;
+  }
+
+  .dropdown-folder-list {
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .dropdown-folder-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: transparent;
+    transition: background 0.15s;
+  }
+
+  .dropdown-folder-item:hover {
+    background: #32302f;
+  }
+
+  .dropdown-folder-item.active {
+    background: #3c3836;
+    border-left: 2px solid #fabd2f;
+  }
+
+  .folder-item-click-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    padding: 2px;
+  }
+
+  .folder-status-indicator {
+    font-size: 12px;
+    width: 16px;
+    text-align: center;
+    color: #fabd2f;
+    flex-shrink: 0;
+  }
+
+  .folder-item-labels {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .item-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: #ebdbb2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .item-path {
+    font-size: 10px;
+    color: #928374;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .folder-item-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .item-action-icon {
+    background: none;
+    border: none;
+    color: #928374;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 3px 5px;
+    border-radius: 3px;
+    opacity: 0.6;
+    transition: all 0.15s;
+  }
+
+  .item-action-icon:hover {
+    opacity: 1;
+    background: #3c3836;
+    color: #ebdbb2;
+  }
+
+  .item-action-icon.pinned {
+    opacity: 1;
+    color: #fabd2f;
+  }
+
+  .item-action-icon.remove:hover {
+    color: #fb4934;
+  }
+
+  .dropdown-empty-state {
+    padding: 16px;
+    text-align: center;
+    color: #928374;
+    font-size: 11.5px;
+  }
+
+  .dropdown-footer {
+    padding: 6px;
+    background: #202020;
+    border-top: 1px solid #3c3836;
+  }
+
+  .dropdown-browse-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 5px 8px;
+    background: #282828;
+    border: 1px dashed #504945;
+    border-radius: 4px;
+    color: #fabd2f;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .dropdown-browse-btn:hover {
+    background: #32302f;
+    border-color: #fabd2f;
+    color: #fbf1c7;
+  }
+
+  /* 快速切換膠囊標籤 */
+  .quick-folder-pills {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-x: auto;
+    padding: 2px 0;
+  }
+
+  .quick-folder-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pills-label {
+    font-size: 10.5px;
+    color: #928374;
+    flex-shrink: 0;
+  }
+
+  .quick-pill-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: #282828;
+    border: 1px solid #3c3836;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #d5c4a1;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .quick-pill-item:hover {
+    background: #32302f;
+    border-color: #fabd2f;
+    color: #fabd2f;
+  }
+
+  .quick-pill-item.active {
+    background: rgba(250, 189, 47, 0.15);
+    border-color: #fabd2f;
+    color: #fabd2f;
+    font-weight: 600;
+  }
+
+  .pin-tag {
+    font-size: 9px;
   }
 
   .folder-actions {
     display: flex;
     gap: 4px;
+    flex-shrink: 0;
   }
 
   .folder-btn {
