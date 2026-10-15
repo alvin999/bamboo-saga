@@ -5,7 +5,6 @@
   let {
     tabs = [],
     activeTabId = '',
-    showDiffView = false,
     smearEnabled = $bindable(true),
     onSelectTab,
     onCloseTab,
@@ -13,12 +12,10 @@
     onMoveTabDeck,
     onReorderTabs,
     onExecuteRefine,
-    onOpenAiModal,
-    onToggleDiffView
+    onOpenAiModal
   } = $props<{
     tabs: TabItem[];
     activeTabId: string;
-    showDiffView: boolean;
     smearEnabled: boolean;
     onSelectTab: (id: string) => void;
     onCloseTab: (id: string) => void;
@@ -27,7 +24,6 @@
     onReorderTabs?: (sourceId: string, targetId: string) => void;
     onExecuteRefine: (mode: RefineryMode, customPrompt: string) => void;
     onOpenAiModal: () => void;
-    onToggleDiffView: () => void;
   }>();
 
   // 僅篩選停靠在次頂欄的分頁
@@ -245,15 +241,6 @@
     >
       <span class="smear-dot {smearEnabled ? 'on' : 'off'}"></span>
       <span class="smear-text">SMEAR_CURSOR: {smearEnabled ? 'ON' : 'OFF'}</span>
-    </button>
-
-    <button 
-      class="diff-mode-btn {showDiffView ? 'active' : ''}" 
-      onclick={onToggleDiffView}
-      title="切換道藏古法雙欄對比模式"
-    >
-      <span class="material-symbols-outlined text-[13px]">vertical_split</span>
-      <span>雙欄對照</span>
     </button>
   </div>
 </div>
@@ -544,31 +531,6 @@
 
   .smear-text {
     letter-spacing: 0.05em;
-  }
-
-  .diff-mode-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
-    background: transparent;
-    border: 1px solid rgba(80, 69, 52, 0.4);
-    border-radius: 3px;
-    color: #868074;
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .diff-mode-btn:hover {
-    color: #ece7dc;
-    border-color: #d49b35;
-  }
-
-  .diff-mode-btn.active {
-    background: #1f2020;
-    border-color: #d49b35;
-    color: #d49b35;
   }
 
   .rename-input {

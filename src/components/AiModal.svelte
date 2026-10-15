@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { RefineryMode } from '../lib/ai/refinery';
-  import type { TabItem, VimKeyOverrides, OneDriveAccountInfo, BackupResult, OneDriveBackupOverview, AlchemyCardConfig } from '../types/tab';
+  import type { TabItem, VimKeyOverrides, OneDriveAccountInfo, BackupResult, OneDriveBackupOverview, AlchemyCardConfig, LayoutConfig } from '../types/tab';
   import {
     detectOneDriveAccounts,
     backupVaultToOneDrive,
@@ -11,12 +11,14 @@
   import { 
     DEFAULT_ALCHEMY_CARDS, 
     DEFAULT_VIM_OVERRIDES, 
+    DEFAULT_LAYOUT_CONFIG,
     getDefaultAlchemyCards, 
-    getDefaultVimOverrides 
+    getDefaultVimOverrides,
+    getDefaultLayoutConfig
   } from '../lib/storage/vault';
-  import { Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download, RotateCcw, Key, Keyboard, Eye, EyeOff } from 'lucide-svelte';
+  import { Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download, RotateCcw, Key, Keyboard, Eye, EyeOff, LayoutTemplate } from 'lucide-svelte';
 
-  type ModalTab = 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings';
+  type ModalTab = 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout';
 
   let {
     isOpen = false,
@@ -26,6 +28,7 @@
     vimMode = false,
     vimOverrides = getDefaultVimOverrides(),
     alchemyCards = getDefaultAlchemyCards(),
+    layoutConfig = getDefaultLayoutConfig(),
     backupIntervalMinutes = 30,
     tabs = [] as TabItem[],
     selectedOneDrivePath = '',
@@ -39,6 +42,7 @@
     onSaveKeys,
     onSaveKeybindings,
     onSaveAlchemyCards,
+    onSaveLayoutConfig,
     onToggleVim,
     onSaveOneDrivePreference,
     onShowToast,
@@ -51,13 +55,14 @@
     vimMode?: boolean;
     vimOverrides?: VimKeyOverrides;
     alchemyCards?: Record<string, AlchemyCardConfig>;
+    layoutConfig?: LayoutConfig;
     tabs?: TabItem[];
     selectedOneDrivePath?: string;
     autoOneDriveBackup?: boolean;
     backupIntervalMinutes?: number;
     enablePeriodicBackup?: boolean;
     activeTab?: ModalTab;
-    onTabChange?: (tab: 'refine' | 'keys' | 'keybindings' | 'onedrive') => void;
+    onTabChange?: (tab: 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'layout') => void;
     onClose: () => void;
     onRefine: (mode: RefineryMode, customPrompt: string, cardPrompt?: string) => Promise<void>;
     onSaveSettings?: (
@@ -69,6 +74,7 @@
     onSaveKeys?: (groq: string, gemini: string, model: 'groq' | 'gemini') => void;
     onSaveKeybindings?: (overrides: VimKeyOverrides, mode?: boolean) => void;
     onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
+    onSaveLayoutConfig?: (config: LayoutConfig) => void;
     onToggleVim?: (mode: boolean) => void;
     onSaveOneDrivePreference?: (path: string, auto: boolean, intervalMinutes?: number, enablePeriodic?: boolean) => void;
     onShowToast?: (msg: string) => void;
@@ -86,6 +92,9 @@
 
   // 卡片心法自訂狀態
   let inputCards = $state<Record<string, AlchemyCardConfig>>(getDefaultAlchemyCards());
+
+  // 版面配置偏好狀態
+  let inputLayoutConfig = $state<LayoutConfig>(getDefaultLayoutConfig());
 
   // 按鍵與編輯模式狀態
   let inputVimMode = $state(false);
@@ -109,7 +118,7 @@
   let isCheckingBackup = $state(false);
   let prevIsOpen = false;
 
-  function setTab(tab: 'refine' | 'keys' | 'keybindings' | 'onedrive') {
+  function setTab(tab: 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'layout') {
     onTabChange?.(tab);
     if (tab === 'onedrive') {
       scanOneDrive();
@@ -125,6 +134,11 @@
       inputVimMode = !!vimMode;
       if (vimOverrides) {
         inputVimOverrides = { ...vimOverrides };
+      }
+      if (layoutConfig) {
+        inputLayoutConfig = { ...layoutConfig };
+      } else {
+        inputLayoutConfig = getDefaultLayoutConfig();
       }
       if (alchemyCards) {
         inputCards = JSON.parse(JSON.stringify(alchemyCards));
@@ -341,6 +355,16 @@
     onToggleVim?.(mode);
     onShowToast?.(mode ? '⌨️ 已切換為 VIM 模態 (VIM-HYBRID)' : '📝 已切換為 STD 標準編輯模式');
   }
+
+  function handleSaveLayoutOnly() {
+    onSaveLayoutConfig?.($state.snapshot(inputLayoutConfig));
+    onShowToast?.('📐 工作台版面配置已成功保存！');
+  }
+
+  function handleResetLayout() {
+    inputLayoutConfig = getDefaultLayoutConfig();
+    onShowToast?.('🔄 已恢復版面配置推薦預設值！');
+  }
 </script>
 
 {#if isOpen}
@@ -369,6 +393,8 @@
               ? '金鑰配置 // API CREDENTIALS' 
               : activeTab === 'keybindings'
               ? '按鍵偏好 // VIM & KEYMAP'
+              : activeTab === 'layout'
+              ? '版面配置 // WORKBENCH LAYOUT'
               : '煉丹樞紐 // SAGATECH ENGINE'}
           </span>
           <span class="engine-badge">DOT-SYS v2.5</span>
@@ -395,6 +421,13 @@
             title="設定 VIM / STD 模式與快捷鍵覆蓋"
           >
             ⌨️ 按鍵偏好
+          </button>
+          <button 
+            class="tab-btn {activeTab === 'layout' ? 'active' : ''}" 
+            onclick={() => setTab('layout')}
+            title="設定工作台寬度、字級與 AI 審查對照偏好"
+          >
+            📐 版面配置
           </button>
           <button 
             class="tab-btn {activeTab === 'onedrive' ? 'active' : ''}" 
@@ -965,6 +998,110 @@
                 <Cloud size={14} />
                 <span>⚡ 立即執行全域備份 (Backup Now)</span>
               {/if}
+            </button>
+          </footer>
+        </div>
+
+      {:else if activeTab === 'layout'}
+        <!-- 獨立分頁四：版面配置與視圖偏好 -->
+        <div class="modal-body settings-body">
+          <div class="section-banner">
+            <LayoutTemplate size={16} class="section-icon" />
+            <div class="section-title-group">
+              <span class="section-main-title">工作台版面與檢視偏好</span>
+              <span class="section-sub-title">自訂畫布排版寬度、字級大小與 AI 審查對照體驗</span>
+            </div>
+          </div>
+
+          <!-- 一、工作台畫布格局 -->
+          <div class="form-group">
+            <span class="form-label">工作台畫布寬度 (Canvas Layout Mode)</span>
+            <div class="mode-selector-grid">
+              <button 
+                type="button"
+                class="mode-choice-card {inputLayoutConfig.workbenchWidth === 'zen' ? 'selected' : ''}"
+                onclick={() => inputLayoutConfig.workbenchWidth = 'zen'}
+              >
+                <div class="choice-head">
+                  <span class="choice-title">📜 禪風居中 // ZEN (960px)</span>
+                  {#if inputLayoutConfig.workbenchWidth === 'zen'}
+                    <span class="choice-badge">作用中</span>
+                  {/if}
+                </div>
+                <p class="choice-desc">包浩斯黃金閱讀寬度，沉浸專注，文字視線集中不散亂。</p>
+              </button>
+
+              <button 
+                type="button"
+                class="mode-choice-card {inputLayoutConfig.workbenchWidth === 'full' ? 'selected' : ''}"
+                onclick={() => inputLayoutConfig.workbenchWidth = 'full'}
+              >
+                <div class="choice-head">
+                  <span class="choice-title">🖥️ 全螢幕滿版 // FULL WIDTH</span>
+                  {#if inputLayoutConfig.workbenchWidth === 'full'}
+                    <span class="choice-badge">作用中</span>
+                  {/if}
+                </div>
+                <p class="choice-desc">完全填滿左右兩側視窗，提供極限寬廣的視野與橫向空間。</p>
+              </button>
+            </div>
+          </div>
+
+          <!-- 二、AI 變更與審查對照 -->
+          <div class="form-group">
+            <span class="form-label">AI 提煉審查偏好 (AI Review Preferences)</span>
+            <div class="overrides-grid">
+              <label class="override-item">
+                <input type="checkbox" bind:checked={inputLayoutConfig.autoDiffOnAi} />
+                <span>AI 提煉完成後自動展開雙欄對照</span>
+              </label>
+              <label class="override-item">
+                <input type="checkbox" bind:checked={inputLayoutConfig.scrollSync} />
+                <span>雙欄對照左右捲動同步 (Scroll Sync)</span>
+              </label>
+            </div>
+            <span class="field-hint">一般筆記時常駐單欄沉浸；僅在 AI 整理產出後，依此設定在審查列提供無縫比對。</span>
+          </div>
+
+          <!-- 三、編輯器字級縮放 -->
+          <div class="form-group">
+            <span class="form-label">編輯器字級大小 (Editor Font Size)</span>
+            <div class="font-size-grid">
+              {#each ['13px', '14px', '16px', '18px'] as size}
+                <button
+                  type="button"
+                  class="font-size-pill {inputLayoutConfig.fontSize === size ? 'selected' : ''}"
+                  onclick={() => inputLayoutConfig.fontSize = size as any}
+                >
+                  <span class="size-text">{size}</span>
+                  {#if size === '14px'}<span class="size-hint">(預設)</span>{/if}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <!-- 四、視覺動態反饋 -->
+          <div class="form-group">
+            <span class="form-label">物理動態反饋 (Visual Effects)</span>
+            <div class="overrides-grid">
+              <label class="override-item">
+                <input type="checkbox" bind:checked={inputLayoutConfig.smearCursor} />
+                <span>流光游標物理拖尾殘影 (Smear Cursor)</span>
+              </label>
+            </div>
+          </div>
+
+          <footer class="modal-footer">
+            <button 
+              type="button" 
+              class="reset-secondary-btn" 
+              onclick={handleResetLayout}
+            >
+              <RotateCcw size={13} />
+              <span>恢復預設版面</span>
+            </button>
+            <button class="save-settings-btn" onclick={handleSaveLayoutOnly}>
+              💾 保存版面配置
             </button>
           </footer>
         </div>
@@ -1539,6 +1676,47 @@
   .reset-secondary-btn:hover {
     border-color: #c95847;
     color: #c95847;
+  }
+
+  /* 編輯器字級大小網格按鈕 */
+  .font-size-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .font-size-pill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 7px 10px;
+    background: #0e0e0e;
+    border: 1px solid #3c3836;
+    border-radius: 4px;
+    color: #a89984;
+    cursor: pointer;
+    font-size: 0.74rem;
+    font-family: var(--font-mono, monospace);
+    transition: all 0.15s ease;
+  }
+
+  .font-size-pill:hover {
+    border-color: #d49b35;
+    color: #ebdbb2;
+  }
+
+  .font-size-pill.selected {
+    border-color: #d49b35;
+    background: rgba(212, 155, 53, 0.12);
+    color: #fabd2f;
+    font-weight: 700;
+  }
+
+  .font-size-pill .size-hint {
+    font-size: 0.62rem;
+    opacity: 0.75;
   }
 
   /* 設定頁籤表單通用 */

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { AppState, TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig } from './types/tab';
+  import type { AppState, TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig, LayoutConfig } from './types/tab';
   import { loadVaultState, saveVaultState, INITIAL_WELCOME_CONTENT } from './lib/storage/vault';
   import { refineNotes } from './lib/ai/refinery';
   import type { RefineryMode } from './lib/ai/refinery';
@@ -522,6 +522,7 @@
       activeTab.aiPromptSummary = `${res.summary} [${res.engineUsed}]`;
       activeTab.language = 'markdown'; // AI 產出預設為標準 Markdown
       activeTab.lastModified = Date.now();
+      showDiffView = !!state.layoutConfig?.autoDiffOnAi;
       saveVaultState(state, true);
       triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI煉丹成果 (${res.summary})`);
       showToast(`✨ 煉丹完成：${res.summary}`);
@@ -616,6 +617,13 @@
     showToast('⚙️ 偏好與金鑰設定已成功儲存！');
   }
 
+  function handleSaveLayoutConfig(config: LayoutConfig) {
+    state.layoutConfig = config;
+    smearEnabled = config.smearCursor;
+    saveVaultState(state, true);
+    showToast('📐 工作台版面與檢視偏好已成功儲存！');
+  }
+
   function handleSaveOneDrivePreference(path: string, auto: boolean, intervalMinutes?: number, enablePeriodic?: boolean) {
     state.selectedOneDrivePath = path;
     state.autoOneDriveBackup = auto;
@@ -668,7 +676,6 @@
   <SecondaryAlchemyBar 
     tabs={state.tabs}
     activeTabId={state.activeTabId}
-    showDiffView={showDiffView}
     bind:smearEnabled={smearEnabled}
     onSelectTab={selectTab}
     onCloseTab={closeTab}
@@ -680,7 +687,6 @@
       aiModalTab = 'refine';
       isAiModalOpen = true;
     }}
-    onToggleDiffView={() => (showDiffView = !showDiffView)}
   />
 
   {#if activeTab?.isAiDraft}
@@ -698,7 +704,10 @@
 
   <!-- 主編輯工作台：沉陷包浩斯禪風置中排版 (精準對齊 code.html 第 15 行) -->
   <main class="workbench-sanctuary">
-    <div class="zen-canvas-frame {showDiffView ? 'is-split-view' : ''}">
+    <div 
+      class="zen-canvas-frame {showDiffView ? 'is-split-view' : ''} {state.layoutConfig?.workbenchWidth === 'full' ? 'is-full-width' : ''}"
+      style="--editor-font-size: {state.layoutConfig?.fontSize || '14px'};"
+    >
       {#if showDiffView && activeTab?.preAiSnapshot}
         <!-- 雙欄對比模式：左側原稿，右側 AI 整理稿 -->
         <div class="diff-split-view">
@@ -855,6 +864,7 @@
     vimMode={state.vimMode}
     vimOverrides={state.vimOverrides}
     alchemyCards={state.alchemyCards}
+    layoutConfig={state.layoutConfig}
     tabs={state.tabs}
     selectedOneDrivePath={state.selectedOneDrivePath}
     autoOneDriveBackup={state.autoOneDriveBackup}
@@ -866,6 +876,7 @@
     onSaveKeys={handleSaveKeys}
     onSaveKeybindings={handleSaveKeybindings}
     onSaveAlchemyCards={handleSaveAlchemyCards}
+    onSaveLayoutConfig={handleSaveLayoutConfig}
     onToggleVim={handleToggleVimMode}
     onSaveOneDrivePreference={handleSaveOneDrivePreference}
     onShowToast={showToast}
@@ -928,10 +939,16 @@
     transition: max-width 0.2s ease, border-color 0.2s ease;
   }
 
-  .zen-canvas-frame.is-split-view {
+  .zen-canvas-frame.is-split-view,
+  .zen-canvas-frame.is-full-width {
     max-width: 100%;
     border-left: none;
     border-right: none;
+  }
+
+  .zen-canvas-frame :global(.cm-editor),
+  .zen-canvas-frame :global(.readonly-text) {
+    font-size: var(--editor-font-size, 14px) !important;
   }
 
   /* 處於 AI 煉丹草稿狀態時的外框高光 */

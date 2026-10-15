@@ -1,6 +1,18 @@
-import { AppState, TabItem, VimKeyOverrides, AlchemyCardConfig } from '../../types/tab';
+import { AppState, TabItem, VimKeyOverrides, AlchemyCardConfig, LayoutConfig } from '../../types/tab';
 
 const STORAGE_KEY = 'bamboo_saga_vault_v1';
+
+export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
+  workbenchWidth: 'zen',
+  autoDiffOnAi: false,
+  scrollSync: true,
+  smearCursor: true,
+  fontSize: '14px',
+};
+
+export function getDefaultLayoutConfig(): LayoutConfig {
+  return { ...DEFAULT_LAYOUT_CONFIG };
+}
 
 export const DEFAULT_VIM_OVERRIDES: VimKeyOverrides = {
   ctrlS: true,
@@ -144,6 +156,7 @@ export function createDefaultState(): AppState {
     vimMode: false,
     vimOverrides: getDefaultVimOverrides(),
     alchemyCards: getDefaultAlchemyCards(),
+    layoutConfig: getDefaultLayoutConfig(),
     groqApiKey: '',
     geminiApiKey: '',
     selectedAiModel: 'gemini',
@@ -166,6 +179,15 @@ export function loadVaultState(): AppState {
     // 補齊可能缺失的 alchemyCards 欄位
     if (!parsed.alchemyCards) {
       parsed.alchemyCards = getDefaultAlchemyCards();
+    }
+    // 補齊可能缺失的 layoutConfig 欄位
+    if (!parsed.layoutConfig) {
+      parsed.layoutConfig = getDefaultLayoutConfig();
+    } else {
+      parsed.layoutConfig = {
+        ...DEFAULT_LAYOUT_CONFIG,
+        ...parsed.layoutConfig,
+      };
     }
     return parsed;
   } catch (err) {

@@ -106,12 +106,21 @@ export interface OneDriveBackupOverview {
   periodic_backups: PeriodicBackupEntry[];
 }
 
+export interface LayoutConfig {
+  workbenchWidth: 'zen' | 'full'; // 工作台寬度：禪風居中 (960px) 或全螢幕滿版
+  autoDiffOnAi: boolean;          // AI 提煉完成後是否自動展開對照
+  scrollSync: boolean;            // 雙欄對照同步捲動
+  smearCursor: boolean;           // 流光殘影游標動畫開關
+  fontSize: '13px' | '14px' | '16px' | '18px'; // 編輯器文字大小
+}
+
 export interface AppState {
   activeTabId: string;
   tabs: TabItem[];
   vimMode: boolean;
   vimOverrides: VimKeyOverrides;
   alchemyCards?: Record<string, AlchemyCardConfig>;
+  layoutConfig?: LayoutConfig;
   groqApiKey: string;
   geminiApiKey: string;
   selectedAiModel: 'groq' | 'gemini';
