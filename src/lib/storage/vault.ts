@@ -131,7 +131,7 @@ export function createDefaultState(): AppState {
     id: 'tab-default-1',
     title: '藥帖一·竹簡手稿',
     content: INITIAL_WELCOME_CONTENT,
-    language: 'plaintext',
+    language: 'markdown',
     cursor: { line: 1, ch: 0 },
     lastModified: Date.now(),
     preAiSnapshot: null,

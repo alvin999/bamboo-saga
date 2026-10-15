@@ -107,6 +107,14 @@ export const gruvboxDarkTheme = EditorView.theme(
       textUnderlineOffset: '3px !important',
       cursor: 'pointer !important',
     },
+    '.gb-token-code': {
+      backgroundColor: 'rgba(212, 190, 152, 0.12) !important',
+      color: '#fabd2f !important', // 琥珀金代碼
+      borderRadius: '3px !important',
+      padding: '0 4px !important',
+      fontFamily: "'JetBrains Mono', monospace !important",
+      fontSize: '0.9em !important',
+    },
   },
   { dark: true }
 );

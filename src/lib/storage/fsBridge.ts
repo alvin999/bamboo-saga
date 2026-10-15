@@ -117,7 +117,7 @@ export async function checkOneDriveBackup(onedriveFolderPath: string): Promise<i
       onedriveFolderPath,
     });
   }
-  return { has_backup: false, backup_dir: '', markdown_files: [] };
+  return { has_backup: false, backup_dir: '', markdown_files: [], periodic_backups: [] };
 }
 
 /**

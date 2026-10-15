@@ -7,6 +7,7 @@ export const quoteMark = Decoration.mark({ class: 'gb-token-quote' });
 export const bracketMark = Decoration.mark({ class: 'gb-token-bracket' });
 export const metricMark = Decoration.mark({ class: 'gb-token-metric' });
 export const linkMark = Decoration.mark({ class: 'gb-token-link' });
+export const codeMark = Decoration.mark({ class: 'gb-token-code' });
 
 // 智慧匹配規則（依優先序與語意）
 export const tokenPatterns = [
@@ -18,8 +19,11 @@ export const tokenPatterns = [
   { regex: /(?:「[^」]*」|『[^』]*』|"[^"\n]*"|'[^'\n]*')/g, deco: quoteMark },
   // 4. 括號與模組標籤（【】、[]、()）
   { regex: /(?:【[^】]*】|\[[^\]\n]*\]|\([^\)\n]*\))/g, deco: bracketMark },
-  // 5. 時間、百分比、單位指標數據 (例如 14:30、42ms、99.8%)
-  { regex: /\b\d{1,2}:\d{2}(?::\d{2})?\b|\b\d+(?:\.\d+)?(?:ms|s|%|px|rem|KB|MB|GB|ops\/s|fps)\b/gi, deco: metricMark }
+  // 5. 行內代碼 (`...`)
+  { regex: /`[^`\n]+`/g, deco: codeMark },
+  // 6. 時間、百分比、單位指標數據 (例如 14:30、42ms、99.8%)
+  // 注意：% 非單詞字元，結尾不可加 \b，否則遇到標點/中文逗號將無法匹配
+  { regex: /\b\d{1,2}:\d{2}(?::\d{2})?\b|\b\d+(?:\.\d+)?%|\b\d+(?:\.\d+)?(?:ms|s|px|rem|KB|MB|GB|ops\/s|fps)\b/gi, deco: metricMark }
 ];
 
 function buildSmartDecorations(view: EditorView): DecorationSet {

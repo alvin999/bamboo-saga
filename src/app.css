@@ -143,3 +143,12 @@ input, textarea, select {
   text-underline-offset: 3px !important;
   cursor: pointer !important;
 }
+
+.cm-editor .gb-token-code {
+  background-color: rgba(212, 190, 152, 0.12) !important;
+  color: #fabd2f !important; /* 琥珀金代碼 */
+  border-radius: 3px !important;
+  padding: 0 4px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 0.9em !important;
+}

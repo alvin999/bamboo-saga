@@ -35,7 +35,7 @@
   let dragOverTabId = $state<string | null>(null);
 
   // 僅篩選停靠在主頂欄的分頁 (未特別指定時預設在 primary)
-  const primaryTabs = $derived(tabs.filter((t) => t.deck !== 'secondary'));
+  const primaryTabs = $derived(tabs.filter((t: TabItem) => t.deck !== 'secondary'));
 
   function handleDragStart(e: DragEvent, id: string) {
     if (editingTabId) return;

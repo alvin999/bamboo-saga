@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig } from './types/tab';
+  import type { AppState, TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig } from './types/tab';
   import { loadVaultState, saveVaultState, INITIAL_WELCOME_CONTENT } from './lib/storage/vault';
   import { refineNotes } from './lib/ai/refinery';
   import type { RefineryMode } from './lib/ai/refinery';
@@ -29,7 +29,7 @@
   import type { SnapshotReason } from './types/history';
 
   // 核心應用狀態
-  let state = $state(loadVaultState());
+  let state = $state<AppState>(loadVaultState());
   let isAiModalOpen = $state(false);
   let aiModalTab = $state<'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings'>('refine');
   let isFileBrowserOpen = $state(false);
@@ -283,7 +283,7 @@
       id: `tab-demo-${Date.now()}`,
       title: '藥帖·煉丹渲染展示手稿',
       content: INITIAL_WELCOME_CONTENT,
-      language: 'plaintext',
+      language: 'markdown',
       cursor: { line: 1, ch: 0 },
       lastModified: Date.now(),
       preAiSnapshot: null,
