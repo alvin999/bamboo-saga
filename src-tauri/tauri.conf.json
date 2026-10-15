@@ -36,6 +36,20 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "name": "Markdown 藥帖",
+        "description": "廣零散 筆記藥帖",
+        "role": "Editor"
+      },
+      {
+        "ext": ["txt", "json", "log", "csv"],
+        "name": "文字與資料藥帖",
+        "description": "廣零散 檢視藥帖",
+        "role": "Viewer"
+      }
+    ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }

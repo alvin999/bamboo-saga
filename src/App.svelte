@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { AppState, TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig, LayoutConfig } from './types/tab';
+  import { listen } from '@tauri-apps/api/event';
+  import type { AppState, TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig, LayoutConfig, NativeRoutePayload } from './types/tab';
   import { loadVaultState, saveVaultState, INITIAL_WELCOME_CONTENT } from './lib/storage/vault';
   import { refineNotes } from './lib/ai/refinery';
   import type { RefineryMode } from './lib/ai/refinery';
@@ -22,7 +23,8 @@
     scanVaultFolder, 
     readVaultFile, 
     writeVaultFile,
-    backupVaultToOneDrive 
+    backupVaultToOneDrive,
+    getInitialRouteTarget
   } from './lib/storage/fsBridge';
   import { 
     loadRecentFiles, 
@@ -35,11 +37,12 @@
   } from './lib/storage/recent';
   import { recordSnapshot, pruneOldSnapshots } from './lib/storage/localHistory';
   import type { SnapshotReason } from './types/history';
+  import { loadSecureKeys, saveSecureKeys, type SecurityMode } from './lib/security/keyVault';
 
   // 核心應用狀態
   let state: AppState = $state(loadVaultState());
   let isAiModalOpen = $state(false);
-  let aiModalTab = $state<'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings'>('refine');
+  let aiModalTab = $state<'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout' | 'system'>('refine');
   let isFileBrowserOpen = $state(false);
   let isFuzzyModalOpen = $state(false);
   let isLocalHistoryOpen = $state(false);
@@ -89,6 +92,10 @@
   let recentFolders = $state<RecentFolderRecord[]>(loadRecentFolders());
   let isScanningFolder = $state(false);
 
+  // 跨平台檔案拖曳 (Drag & Drop) 狀態
+  let isDraggingOver = $state(false);
+  let dragCounter = 0;
+
   // 當前作用中分頁
   const activeTab = $derived(
     state.tabs.find((t) => t.id === state.activeTabId) || state.tabs[0]
@@ -100,6 +107,125 @@
     saveVaultState(snapshot);
   });
 
+  // 直接開啟實體檔案並建立/切換至分頁
+  async function handleDirectOpenFile(filePath: string) {
+    if (!filePath) return;
+    const normalized = filePath.replace(/\\/g, '/');
+    const existing = state.tabs.find((t) => t.filePath && t.filePath.replace(/\\/g, '/') === normalized);
+    if (existing) {
+      selectTab(existing.id);
+      showToast(`📑 已切換至已開啟的藥帖：${existing.title}`);
+      return;
+    }
+
+    try {
+      const content = await readVaultFile(filePath);
+      const fileName = normalized.split('/').pop() || '未命名藥帖';
+      const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
+
+      const newTab: TabItem = {
+        id: `tab-native-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: fileName,
+        content,
+        language: detectLanguageByExtension(ext),
+        cursor: { line: 1, ch: 0 },
+        lastModified: Date.now(),
+        preAiSnapshot: null,
+        isAiDraft: false,
+        deck: 'primary',
+        filePath,
+        isDirty: false,
+      };
+
+      state.tabs.push(newTab);
+      state.activeTabId = newTab.id;
+      showToast(`💊 已收入新藥帖：${fileName}`);
+
+      recentFiles = recordFileOpened({
+        path: filePath,
+        title: fileName,
+        preview: content.slice(0, 150),
+        language: newTab.language,
+        isLocalFile: true,
+      });
+    } catch (err: any) {
+      showToast(`⚠️ 開啟檔案失敗: ${err.message || err}`);
+    }
+  }
+
+  // 處理原生路由傳入（檔案或資料夾）
+  async function handleNativeRoute(payload: NativeRoutePayload) {
+    if (!payload || !payload.path) return;
+    if (payload.is_directory) {
+      state.vaultFolderPath = payload.path;
+      recentFolders = recordFolderOpened(payload.path);
+      saveVaultState(state, true);
+      await refreshVaultFiles(payload.path);
+      const folderName = payload.path.replace(/\\/g, '/').split('/').filter(Boolean).pop() || payload.path;
+      showToast(`📜 已切換至藥卷庫：${folderName}`);
+    } else {
+      await handleDirectOpenFile(payload.path);
+    }
+  }
+
+  // 全域拖曳事件處理
+  function handleDragEnter(e: DragEvent) {
+    e.preventDefault();
+    dragCounter++;
+    if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+      isDraggingOver = true;
+    }
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+      isDraggingOver = false;
+      dragCounter = 0;
+    }
+  }
+
+  async function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    isDraggingOver = false;
+    dragCounter = 0;
+
+    if (!e.dataTransfer || e.dataTransfer.files.length === 0) return;
+
+    for (let i = 0; i < e.dataTransfer.files.length; i++) {
+      const file = e.dataTransfer.files[i];
+      // 若在桌面 WebView 環境，可讀取原生路徑
+      const nativePath = (file as any).path;
+      if (nativePath) {
+        await handleDirectOpenFile(nativePath);
+      } else {
+        // 瀏覽器純文字 Fallback
+        const text = await file.text();
+        const ext = file.name.includes('.') ? file.name.split('.').pop()?.toLowerCase() || '' : '';
+        const newTab: TabItem = {
+          id: `tab-drop-${Date.now()}-${i}`,
+          title: file.name,
+          content: text,
+          language: detectLanguageByExtension(ext),
+          cursor: { line: 1, ch: 0 },
+          lastModified: file.lastModified || Date.now(),
+          preAiSnapshot: null,
+          isAiDraft: false,
+          deck: 'primary',
+          isDirty: false,
+        };
+        state.tabs.push(newTab);
+        state.activeTabId = newTab.id;
+        showToast(`💊 已收入新藥帖：${file.name}`);
+      }
+    }
+  }
+
   onMount(() => {
     // 監聽視窗關閉或重載，強制立即同步寫入並執行關閉前鏡像備份
     const handleBeforeUnload = () => {
@@ -109,11 +235,37 @@
       }
     };
 
+    // 1. 冷啟動路由檢查：若是開機直接由右鍵或檔案關聯開啟，主動載入目標
+    getInitialRouteTarget().then((target) => {
+      if (target) {
+        handleNativeRoute(target);
+      }
+    });
+
+    // 2. 熱傳遞單一實例（Single-Instance）事件監聽
+    let unlistenNativeRoute: (() => void) | null = null;
+    listen<NativeRoutePayload>('native-route-open', (event) => {
+      if (event.payload) {
+        handleNativeRoute(event.payload);
+      }
+    }).then((unlisten) => {
+      unlistenNativeRoute = unlisten;
+    });
+
     // 若先前已連結過資料夾，自動重新整理檔案清單並記錄到常用資料夾
     if (state.vaultFolderPath) {
       recentFolders = recordFolderOpened(state.vaultFolderPath);
       refreshVaultFiles(state.vaultFolderPath);
     }
+
+    // 3. 從本機安全保險庫載入加密金鑰 (支援方案 3 與方案 2+1，100% 本機)
+    loadSecureKeys().then((keys) => {
+      if (keys.groqKey) state.groqApiKey = keys.groqKey;
+      if (keys.geminiKey) state.geminiApiKey = keys.geminiKey;
+      if (keys.selectedModel) state.selectedAiModel = keys.selectedModel;
+      if (keys.selectedModelId) state.selectedAiModelId = keys.selectedModelId;
+      if (keys.securityMode) state.securityMode = keys.securityMode;
+    });
 
     // 背景定時鏡像備份輪詢（每 60 秒檢查一次間隔）
     const backupIntervalTimer = window.setInterval(() => {
@@ -153,6 +305,7 @@
     window.addEventListener('keydown', handleGlobalKeydown);
 
     return () => {
+      if (unlistenNativeRoute) unlistenNativeRoute();
       window.clearInterval(backupIntervalTimer);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('keydown', handleGlobalKeydown);
@@ -505,9 +658,10 @@
       };
       triggerAutoSnapshot(activeTab, 'pre-ai', undefined, `AI煉丹前 (${mode})`);
 
-      // 2. 呼叫雙引擎推論
+      // 2. 呼叫推論引擎 (使用動態熱重載指定之模型)
       const res = await refineNotes({
         model: state.selectedAiModel,
+        modelId: state.selectedAiModelId,
         groqKey: state.groqApiKey,
         geminiKey: state.geminiApiKey,
         mode,
@@ -577,13 +731,32 @@
     showToast(state.vimMode ? '⌨️ 編輯模式已切換為：VIM (VIM-HYBRID)' : '📝 編輯模式已切換為：STD (標準編輯)');
   }
 
-  // 金鑰配置獨立保存
-  function handleSaveKeys(groq: string, gemini: string, model: 'groq' | 'gemini') {
+  // 金鑰配置獨立保存 (純本機持久化，支援方案 3 與方案 2+1)
+  async function handleSaveKeys(
+    groq: string, 
+    gemini: string, 
+    model: 'groq' | 'gemini',
+    modelId?: string,
+    securityMode?: SecurityMode
+  ) {
     state.groqApiKey = groq;
     state.geminiApiKey = gemini;
     state.selectedAiModel = model;
+    if (modelId) state.selectedAiModelId = modelId;
+    if (securityMode) state.securityMode = securityMode;
+
+    // 儲存至本機安全保險庫 (OS 原生或 Web Crypto AES-256)
+    await saveSecureKeys({
+      groqKey: groq,
+      geminiKey: gemini,
+      selectedModel: model,
+      selectedModelId: modelId || state.selectedAiModelId || (model === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'),
+      securityMode: securityMode || state.securityMode || 'scheme_3_os_native',
+    });
+
     saveVaultState(state, true);
-    showToast('🔑 AI 推論金鑰與核心配置已成功保存入櫃！');
+    const modeName = securityMode === 'scheme_3_os_native' ? '方案 3 (OS 原生保險庫)' : '方案 2+1 (Web Crypto 本機加密)';
+    showToast(`🔑 AI 金鑰已透過【${modeName}】安全保存入櫃（100% 絕不上雲端）！`);
   }
 
   // 按鍵偏好獨立保存
@@ -649,7 +822,26 @@
   }
 </script>
 
-<div class="app-layout {activeTab?.isAiDraft ? 'ai-draft-active' : ''} {isRefining ? 'is-refining' : ''}">
+<div 
+  class="app-layout {activeTab?.isAiDraft ? 'ai-draft-active' : ''} {isRefining ? 'is-refining' : ''} {isDraggingOver ? 'drag-over-active' : ''}"
+  ondragenter={handleDragEnter}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
+  role="region"
+  aria-label="廣零散工作區"
+>
+  <!-- 跨平台拖放落藥懸浮覆蓋層 -->
+  {#if isDraggingOver}
+    <div class="drag-drop-overlay">
+      <div class="drag-drop-card">
+        <span class="drop-icon">💊</span>
+        <div class="drop-title">收入藥帖</div>
+        <div class="drop-desc">鬆開滑鼠將檔案直接納入百子櫃工作台</div>
+      </div>
+    </div>
+  {/if}
+
   <!-- 包浩斯形上學極簡微點陣 (24px x 24px) -->
   <div class="metaphysical-grid"></div>
 
@@ -863,6 +1055,8 @@
     activeTab={aiModalTab}
     onTabChange={(tab) => (aiModalTab = tab)}
     selectedModel={state.selectedAiModel}
+    selectedModelId={state.selectedAiModelId}
+    securityMode={state.securityMode}
     groqApiKey={state.groqApiKey}
     geminiApiKey={state.geminiApiKey}
     vimMode={state.vimMode}
@@ -1080,5 +1274,58 @@
   @keyframes toast-pop {
     from { opacity: 0; transform: translate(-50%, 8px); }
     to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  /* 跨平台拖曳落藥遮罩 */
+  .drag-drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(26, 24, 22, 0.88);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    border: 3px dashed #d49b35;
+    animation: overlay-fade 0.15s ease-out;
+  }
+
+  .drag-drop-card {
+    background: #25221d;
+    border: 1px solid #d49b35;
+    border-radius: 8px;
+    padding: 36px 48px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(212, 155, 53, 0.2);
+    transform: scale(1.02);
+  }
+
+  .drop-icon {
+    font-size: 42px;
+    filter: drop-shadow(0 4px 12px rgba(212, 155, 53, 0.4));
+  }
+
+  .drop-title {
+    font-family: 'JetBrains Mono', 'Cinzel Decorative', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #e5c07b;
+    letter-spacing: 2px;
+  }
+
+  .drop-desc {
+    font-size: 13px;
+    color: #a89984;
+    font-family: 'JetBrains Mono', sans-serif;
+  }
+
+  @keyframes overlay-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 </style>

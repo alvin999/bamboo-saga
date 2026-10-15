@@ -141,3 +141,46 @@ export async function openInSystemExplorer(folderPath: string): Promise<void> {
     await invoke<void>('open_in_system_explorer', { folderPath });
   }
 }
+
+/**
+ * 取得冷啟動時由 Windows / macOS / Linux 傳入的啟動目標（檔案或目錄）
+ */
+export async function getInitialRouteTarget(): Promise<import('../../types/tab').NativeRoutePayload | null> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<import('../../types/tab').NativeRoutePayload | null>('get_initial_route_target');
+    } catch (err) {
+      console.warn('[fsBridge] get_initial_route_target failed:', err);
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * 查詢當前作業系統平台與系統整合相容性（Windows 右鍵登錄檔狀態等）
+ */
+export async function getSystemIntegrationInfo(): Promise<import('../../types/tab').SystemIntegrationInfo> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<import('../../types/tab').SystemIntegrationInfo>('get_system_integration_info');
+    } catch (err) {
+      console.warn('[fsBridge] get_system_integration_info failed:', err);
+    }
+  }
+  return {
+    os: 'web',
+    supports_context_menu: false,
+    is_context_menu_enabled: false,
+  };
+}
+
+/**
+ * 切換 Windows 滑鼠右鍵選單「用 廣零散 收入藥帖」整合（操作 HKCU 登錄檔，免 UAC 權限）
+ */
+export async function toggleWindowsContextMenu(enable: boolean): Promise<boolean> {
+  if (isTauriEnvironment()) {
+    return await invoke<boolean>('toggle_windows_context_menu', { enable });
+  }
+  throw new Error('此功能僅限桌面應用程式環境執行');
+}

@@ -124,6 +124,8 @@ export interface AppState {
   groqApiKey: string;
   geminiApiKey: string;
   selectedAiModel: 'groq' | 'gemini';
+  selectedAiModelId?: string; // 熱重載選定的具體模型 ID (如 gemini-2.5-flash, llama-3.3-70b-versatile)
+  securityMode?: 'scheme_3_os_native' | 'scheme_2_web_crypto'; // 金鑰加密方案選擇
   vaultFolderPath?: string;
   recentFiles?: RecentFileRecord[];
   recentFolders?: RecentFolderRecord[];
@@ -131,4 +133,15 @@ export interface AppState {
   autoOneDriveBackup?: boolean;
   oneDriveBackupIntervalMinutes?: number; // 背景備份間隔（分鐘）
   enablePeriodicBackup?: boolean; // 是否開啟長週期備份（日・週・月）
+}
+
+export interface NativeRoutePayload {
+  path: string;
+  is_directory: boolean;
+}
+
+export interface SystemIntegrationInfo {
+  os: string; // 'windows' | 'macos' | 'linux'
+  supports_context_menu: boolean;
+  is_context_menu_enabled: boolean;
 }

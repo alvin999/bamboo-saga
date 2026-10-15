@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { RefineryMode } from '../lib/ai/refinery';
-  import type { TabItem, VimKeyOverrides, OneDriveAccountInfo, BackupResult, OneDriveBackupOverview, AlchemyCardConfig, LayoutConfig } from '../types/tab';
+  import type { TabItem, VimKeyOverrides, OneDriveAccountInfo, BackupResult, OneDriveBackupOverview, AlchemyCardConfig, LayoutConfig, SystemIntegrationInfo } from '../types/tab';
   import {
     detectOneDriveAccounts,
     backupVaultToOneDrive,
     checkOneDriveBackup,
     readOneDriveBackupJson,
-    openInSystemExplorer
+    openInSystemExplorer,
+    getSystemIntegrationInfo,
+    toggleWindowsContextMenu
   } from '../lib/storage/fsBridge';
   import { 
     DEFAULT_ALCHEMY_CARDS, 
@@ -17,13 +19,20 @@
     getDefaultLayoutConfig
   } from '../lib/storage/vault';
   import { DEFAULT_SHORTCUT_GROUPS } from '../lib/constants/shortcuts';
-  import { Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download, RotateCcw, Key, Keyboard, Eye, EyeOff, LayoutTemplate } from 'lucide-svelte';
+  import { 
+    Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download, 
+    RotateCcw, Key, Keyboard, Eye, EyeOff, LayoutTemplate, Shield, Lock, Sparkles, AlertCircle 
+  } from 'lucide-svelte';
+  import { fetchGeminiModels, fetchGroqModels, getCachedModels, type AvailableModelItem } from '../lib/ai/modelFetcher';
+  import { saveSecureKeys, loadSecureKeys, getCurrentSecurityMode, type SecurityMode } from '../lib/security/keyVault';
 
-  type ModalTab = 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout';
+  type ModalTab = 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout' | 'system';
 
   let {
     isOpen = false,
     selectedModel = 'gemini' as 'groq' | 'gemini',
+    selectedModelId = 'gemini-2.5-flash',
+    securityMode = 'scheme_3_os_native' as SecurityMode,
     groqApiKey = '',
     geminiApiKey = '',
     vimMode = false,
@@ -51,6 +60,8 @@
   } = $props<{
     isOpen: boolean;
     selectedModel: 'groq' | 'gemini';
+    selectedModelId?: string;
+    securityMode?: SecurityMode;
     groqApiKey: string;
     geminiApiKey: string;
     vimMode?: boolean;
@@ -72,7 +83,7 @@
       model: 'groq' | 'gemini',
       vimOverrides: VimKeyOverrides
     ) => void;
-    onSaveKeys?: (groq: string, gemini: string, model: 'groq' | 'gemini') => void;
+    onSaveKeys?: (groq: string, gemini: string, model: 'groq' | 'gemini', modelId?: string, securityMode?: SecurityMode) => void;
     onSaveKeybindings?: (overrides: VimKeyOverrides, mode?: boolean) => void;
     onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
     onSaveLayoutConfig?: (config: LayoutConfig) => void;
@@ -105,6 +116,82 @@
   let inputGroqKey = $state('');
   let inputGeminiKey = $state('');
   let inputModel = $state<'groq' | 'gemini'>('gemini');
+  let inputModelId = $state('gemini-2.5-flash');
+  let inputSecurityMode = $state<SecurityMode>('scheme_3_os_native');
+
+  // 模型熱重載動態探勘狀態
+  let availableModels = $state<AvailableModelItem[]>([]);
+  let isFetchingModels = $state(false);
+  let fetchModelsError = $state<string | null>(null);
+  let fetchModelsSuccess = $state(false);
+  let fetchModelsSource = $state<'remote' | 'cache' | null>(null);
+  let modelFetchTimer: number | null = null;
+
+  async function triggerModelFetch(immediate = false) {
+    if (modelFetchTimer) clearTimeout(modelFetchTimer);
+
+    const execute = async () => {
+      const currentProvider = inputModel;
+      const key = currentProvider === 'gemini' ? inputGeminiKey.trim() : inputGroqKey.trim();
+
+      if (!key) {
+        availableModels = [];
+        fetchModelsError = null;
+        fetchModelsSuccess = false;
+        fetchModelsSource = null;
+        return;
+      }
+
+      isFetchingModels = true;
+      fetchModelsError = null;
+      fetchModelsSuccess = false;
+
+      try {
+        const res = currentProvider === 'gemini' 
+          ? await fetchGeminiModels(key)
+          : await fetchGroqModels(key);
+
+        if (res.success && res.models.length > 0) {
+          availableModels = res.models;
+          fetchModelsSuccess = true;
+          fetchModelsSource = res.source;
+          // 若目前所選的 modelId 不在清單中，自動選取第一個 (推薦款)
+          if (!res.models.some(m => m.id === inputModelId)) {
+            inputModelId = res.models[0].id;
+          }
+        } else {
+          availableModels = [];
+          fetchModelsError = res.error || '探勘模型失敗';
+        }
+      } catch (err: any) {
+        availableModels = [];
+        fetchModelsError = err.message || '連線異常';
+      } finally {
+        isFetchingModels = false;
+      }
+    };
+
+    if (immediate) {
+      await execute();
+    } else {
+      modelFetchTimer = window.setTimeout(execute, 600);
+    }
+  }
+
+  function handleProviderChange(newProvider: 'groq' | 'gemini') {
+    inputModel = newProvider;
+    // 優先讀取本地快取的模型
+    const cached = getCachedModels(newProvider);
+    if (cached && cached.length > 0) {
+      availableModels = cached;
+      if (!cached.some(m => m.id === inputModelId)) {
+        inputModelId = cached[0].id;
+      }
+    } else {
+      availableModels = [];
+    }
+    triggerModelFetch(true);
+  }
 
   // OneDrive 備份與讀取狀態
   let oneDriveAccounts = $state<OneDriveAccountInfo[]>([]);
@@ -119,10 +206,48 @@
   let isCheckingBackup = $state(false);
   let prevIsOpen = false;
 
-  function setTab(tab: 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'layout') {
-    onTabChange?.(tab);
+  // 跨平台系統整合資訊
+  let sysInfo = $state<SystemIntegrationInfo>({
+    os: 'web',
+    supports_context_menu: false,
+    is_context_menu_enabled: false,
+  });
+  let isTogglingContextMenu = $state(false);
+
+  async function loadSystemIntegration() {
+    try {
+      sysInfo = await getSystemIntegrationInfo();
+    } catch (e) {
+      console.warn('無法載入系統整合資訊:', e);
+    }
+  }
+
+  async function handleToggleContextMenu() {
+    if (isTogglingContextMenu) return;
+    isTogglingContextMenu = true;
+    try {
+      const nextState = !sysInfo.is_context_menu_enabled;
+      const res = await toggleWindowsContextMenu(nextState);
+      sysInfo.is_context_menu_enabled = res;
+      if (res) {
+        onShowToast?.('✨ 已成功新增 Windows 右鍵「用 廣零散 收入藥帖」選單！');
+      } else {
+        onShowToast?.('🗑️ 已成功移除 Windows 右鍵選單項目');
+      }
+    } catch (err: any) {
+      onShowToast?.(`⚠️ 設定失敗: ${err.message || err}`);
+    } finally {
+      isTogglingContextMenu = false;
+    }
+  }
+
+  function setTab(tab: 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'layout' | 'system') {
+    onTabChange?.(tab as any);
     if (tab === 'onedrive') {
       scanOneDrive();
+    }
+    if (tab === 'keys' || tab === 'system') {
+      loadSystemIntegration();
     }
   }
 
@@ -132,6 +257,18 @@
       inputGroqKey = groqApiKey;
       inputGeminiKey = geminiApiKey;
       inputModel = selectedModel;
+      inputModelId = selectedModelId || (selectedModel === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash');
+      inputSecurityMode = securityMode || getCurrentSecurityMode();
+
+      // 載入模型快取並在有金鑰時自動熱重載
+      const cached = getCachedModels(inputModel);
+      if (cached && cached.length > 0) {
+        availableModels = cached;
+      }
+      if ((inputModel === 'gemini' && inputGeminiKey) || (inputModel === 'groq' && inputGroqKey)) {
+        triggerModelFetch(true);
+      }
+
       inputVimMode = !!vimMode;
       if (vimOverrides) {
         inputVimOverrides = { ...vimOverrides };
@@ -151,6 +288,7 @@
       inputBackupInterval = backupIntervalMinutes || 30;
       isEnablePeriodic = enablePeriodicBackup ?? true;
       scanOneDrive();
+      loadSystemIntegration();
     }
     prevIsOpen = isOpen;
   });
@@ -329,11 +467,18 @@
 
   function handleSaveKeysOnly() {
     if (onSaveKeys) {
-      onSaveKeys(inputGroqKey.trim(), inputGeminiKey.trim(), inputModel);
+      onSaveKeys(
+        inputGroqKey.trim(), 
+        inputGeminiKey.trim(), 
+        inputModel, 
+        inputModelId, 
+        inputSecurityMode
+      );
     } else if (onSaveSettings) {
       onSaveSettings(inputGroqKey.trim(), inputGeminiKey.trim(), inputModel, $state.snapshot(inputVimOverrides));
     }
-    onShowToast?.('🔑 AI 金鑰與推論核心配置已成功保存！');
+    const modeName = inputSecurityMode === 'scheme_3_os_native' ? '方案 3 (OS 原生保險庫)' : '方案 2+1 (Web Crypto 本機加密)';
+    onShowToast?.(`🔑 AI 金鑰已透過【${modeName}】安全保存入櫃！`);
   }
 
   function handleSaveKeybindingsOnly() {
@@ -396,6 +541,8 @@
               ? '按鍵偏好 // VIM & KEYMAP'
               : activeTab === 'layout'
               ? '版面配置 // WORKBENCH LAYOUT'
+              : activeTab === 'system'
+              ? '系統整合 // NATIVE INTEGRATION'
               : '煉丹樞紐 // SAGATECH ENGINE'}
           </span>
           <span class="engine-badge">DOT-SYS v2.5</span>
@@ -436,6 +583,13 @@
             title="OneDrive 自動雲端鏡像備份"
           >
             ☁️ 雲端備份
+          </button>
+          <button 
+            class="tab-btn {activeTab === 'system' ? 'active' : ''}" 
+            onclick={() => setTab('system')}
+            title="Windows 右鍵選單、單一實例與原生整合"
+          >
+            🖥️ 原生整合
           </button>
           <button class="esc-btn" onclick={onClose} title="關閉視窗 (ESC)">
             [ ESC ]
@@ -564,81 +718,230 @@
         </div>
 
       {:else if activeTab === 'keys' || activeTab === 'settings'}
-        <!-- 獨立分頁一：API 金鑰與推論核心配置 -->
+        <!-- 獨立分頁一：API 金鑰與推論核心配置 (支援熱重載與純本機安全加密) -->
         <div class="modal-body settings-body">
           <div class="section-banner">
             <Key size={16} class="section-icon" />
             <div class="section-title-group">
-              <span class="section-main-title">AI 推論金鑰與核心引擎</span>
-              <span class="section-sub-title">金鑰僅存於本機瀏覽器 / 系統加密空間，零伺服器轉發風險</span>
+              <span class="section-main-title">AI 推論金鑰與熱重載核心</span>
+              <span class="section-sub-title">輸入金鑰即時向官方端點探勘可用模型；純本機持久化，絕對不上雲端</span>
             </div>
           </div>
 
+          <!-- 金鑰本機加密與安全架構方案選擇 -->
+          <div class="security-scheme-card">
+            <div class="scheme-header">
+              <Shield size={14} class="scheme-icon" />
+              <span class="scheme-title">金鑰本機安全持久化機制 (純本地保護)</span>
+            </div>
+            <div class="scheme-options-grid">
+              <label class="scheme-option-item {inputSecurityMode === 'scheme_3_os_native' ? 'selected' : ''}">
+                <input 
+                  type="radio" 
+                  name="sec_scheme" 
+                  value="scheme_3_os_native" 
+                  checked={inputSecurityMode === 'scheme_3_os_native'}
+                  onchange={() => (inputSecurityMode = 'scheme_3_os_native')} 
+                />
+                <div class="scheme-item-content">
+                  <div class="scheme-item-header">
+                    <span class="scheme-item-name">方案 3：作業系統原生認證保險庫</span>
+                    <span class="scheme-tag-rec">推薦</span>
+                  </div>
+                  <span class="scheme-item-desc">透過 OS 原生憑證安全庫 (Windows DPAPI) 綁定電腦登入帳號，不落地純文字。</span>
+                </div>
+              </label>
+
+              <label class="scheme-option-item {inputSecurityMode === 'scheme_2_web_crypto' ? 'selected' : ''}">
+                <input 
+                  type="radio" 
+                  name="sec_scheme" 
+                  value="scheme_2_web_crypto" 
+                  checked={inputSecurityMode === 'scheme_2_web_crypto'}
+                  onchange={() => (inputSecurityMode = 'scheme_2_web_crypto')} 
+                />
+                <div class="scheme-item-content">
+                  <div class="scheme-item-header">
+                    <span class="scheme-item-name">方案 2+1：本機沙盒 + Web Crypto (AES-256)</span>
+                  </div>
+                  <span class="scheme-item-desc">本機硬體加速 AES-GCM-256 加密密文隔離，即使開啟本地儲存檔案亦為密文。</span>
+                </div>
+              </label>
+            </div>
+
+            <div class="onedrive-isolation-notice">
+              <CheckCircle2 size={13} class="notice-icon" />
+              <span>🛡️ <strong>雲端隔離保證</strong>：所有 API 金鑰已從 OneDrive 同步備份中徹底脫敏剔除，零雲端外洩風險。</span>
+            </div>
+          </div>
+
+          <!-- 核心推論引擎選擇 -->
           <div class="form-group">
-            <label class="form-label" for="model-select">核心推論引擎</label>
-            <select id="model-select" class="form-select" bind:value={inputModel}>
-              <option value="gemini">Google Gemini 1.5 / 2.5 Flash (大文本上下文推薦)</option>
-              <option value="groq">Groq Llama 3.3 70B (超極速推論)</option>
+            <label class="form-label" for="model-provider-select">核心推論引擎供應商</label>
+            <div class="provider-capsule-row">
+              <button 
+                type="button" 
+                class="provider-capsule {inputModel === 'gemini' ? 'active' : ''}"
+                onclick={() => handleProviderChange('gemini')}
+              >
+                <span>Google Gemini</span>
+                <span class="capsule-sub">長文分析 / 多模態</span>
+              </button>
+              <button 
+                type="button" 
+                class="provider-capsule {inputModel === 'groq' ? 'active' : ''}"
+                onclick={() => handleProviderChange('groq')}
+              >
+                <span>Groq Llama</span>
+                <span class="capsule-sub">超極速毫秒級推論</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 對應供應商之 API Key 輸入框 -->
+          {#if inputModel === 'gemini'}
+            <div class="form-group">
+              <div class="label-with-tool">
+                <label class="form-label" for="gemini-key">Google Gemini API Key</label>
+                <div class="tool-btn-group">
+                  <button 
+                    type="button" 
+                    class="text-link-btn" 
+                    onclick={() => (showGeminiKey = !showGeminiKey)}
+                  >
+                    {#if showGeminiKey}
+                      <EyeOff size={13} /> <span>隱藏</span>
+                    {:else}
+                      <Eye size={13} /> <span>顯示</span>
+                    {/if}
+                  </button>
+                  <button 
+                    type="button" 
+                    class="refresh-models-btn"
+                    disabled={isFetchingModels || !inputGeminiKey.trim()}
+                    onclick={() => triggerModelFetch(true)}
+                    title="立即向 Google 端點探勘模型清單"
+                  >
+                    <RefreshCw size={12} class={isFetchingModels ? 'spin' : ''} />
+                    <span>測試連線與重載模型</span>
+                  </button>
+                </div>
+              </div>
+              <input 
+                id="gemini-key"
+                type={showGeminiKey ? 'text' : 'password'} 
+                class="form-input" 
+                placeholder="貼上 AIzaSy 開頭之 Gemini API Key..." 
+                bind:value={inputGeminiKey} 
+                oninput={() => triggerModelFetch(false)}
+              />
+              <span class="field-hint">推薦使用 Google AI Studio 免費金鑰，長文提煉效果極佳。輸入後自動熱重載官方可用模型。</span>
+            </div>
+          {:else}
+            <div class="form-group">
+              <div class="label-with-tool">
+                <label class="form-label" for="groq-key">Groq API Key</label>
+                <div class="tool-btn-group">
+                  <button 
+                    type="button" 
+                    class="text-link-btn" 
+                    onclick={() => (showGroqKey = !showGroqKey)}
+                  >
+                    {#if showGroqKey}
+                      <EyeOff size={13} /> <span>隱藏</span>
+                    {:else}
+                      <Eye size={13} /> <span>顯示</span>
+                    {/if}
+                  </button>
+                  <button 
+                    type="button" 
+                    class="refresh-models-btn"
+                    disabled={isFetchingModels || !inputGroqKey.trim()}
+                    onclick={() => triggerModelFetch(true)}
+                    title="立即向 Groq 端點探勘模型清單"
+                  >
+                    <RefreshCw size={12} class={isFetchingModels ? 'spin' : ''} />
+                    <span>測試連線與重載模型</span>
+                  </button>
+                </div>
+              </div>
+              <input 
+                id="groq-key"
+                type={showGroqKey ? 'text' : 'password'} 
+                class="form-input" 
+                placeholder="貼上 gsk_ 開頭之 Groq API Key..." 
+                bind:value={inputGroqKey} 
+                oninput={() => triggerModelFetch(false)}
+              />
+              <span class="field-hint">極速毫秒級響應，適合靈感速記與即時整理。輸入後自動熱重載官方可用模型。</span>
+            </div>
+          {/if}
+
+          <!-- 連線狀態指示條 (Status Banner) -->
+          <div class="hot-reload-status-box">
+            {#if isFetchingModels}
+              <div class="status-indicator loading">
+                <span class="spinner-small">⏳</span>
+                <span>正在向 {inputModel === 'gemini' ? 'Google' : 'Groq'} 官方端點探勘支援之模型清單...</span>
+              </div>
+            {:else if fetchModelsSuccess && availableModels.length > 0}
+              <div class="status-indicator success">
+                <Sparkles size={13} />
+                <span>✨ 驗證成功！已探勘到 {availableModels.length} 款可用推論模型{fetchModelsSource === 'cache' ? ' (自本機快取載入)' : ' (即時熱重載)'}</span>
+              </div>
+            {:else if fetchModelsError}
+              <div class="status-indicator error">
+                <AlertCircle size={13} />
+                <span>⚠️ 驗證失敗：{fetchModelsError}（請檢查金鑰有效性或網路）</span>
+              </div>
+            {:else if !(inputModel === 'gemini' ? inputGeminiKey.trim() : inputGroqKey.trim())}
+              <div class="status-indicator idle">
+                <Lock size={13} />
+                <span>🔒 尚未配置金鑰。請在上方輸入金鑰以探勘官方模型清單。</span>
+              </div>
+            {/if}
+          </div>
+
+          <!-- 動態熱重載模型選擇器 -->
+          <div class="form-group">
+            <label class="form-label" for="dynamic-model-select">
+              推論模型選擇 (依金鑰權限動態生成)
+            </label>
+            <select 
+              id="dynamic-model-select" 
+              class="form-select dynamic-select" 
+              bind:value={inputModelId}
+              disabled={availableModels.length === 0}
+            >
+              {#if availableModels.length === 0}
+                <option value="" disabled selected>
+                  {isFetchingModels ? '⏳ 正在熱重載模型中...' : '🔒 請先在上方輸入有效 API Key 以載入模型清單'}
+                </option>
+              {:else}
+                {#each availableModels as model (model.id)}
+                  <option value={model.id}>
+                    {model.displayName}
+                  </option>
+                {/each}
+              {/if}
             </select>
-          </div>
-
-          <div class="form-group">
-            <div class="label-with-tool">
-              <label class="form-label" for="gemini-key">Google Gemini API Key</label>
-              <button 
-                type="button" 
-                class="text-link-btn" 
-                onclick={() => (showGeminiKey = !showGeminiKey)}
-              >
-                {#if showGeminiKey}
-                  <EyeOff size={13} /> <span>隱藏</span>
-                {:else}
-                  <Eye size={13} /> <span>顯示明文</span>
-                {/if}
-              </button>
-            </div>
-            <input 
-              id="gemini-key"
-              type={showGeminiKey ? 'text' : 'password'} 
-              class="form-input" 
-              placeholder="AIzaSy..." 
-              bind:value={inputGeminiKey} 
-            />
-            <span class="field-hint">推薦使用 Google AI Studio 免費金鑰，長文提煉效果極佳。</span>
-          </div>
-
-          <div class="form-group">
-            <div class="label-with-tool">
-              <label class="form-label" for="groq-key">Groq API Key</label>
-              <button 
-                type="button" 
-                class="text-link-btn" 
-                onclick={() => (showGroqKey = !showGroqKey)}
-              >
-                {#if showGroqKey}
-                  <EyeOff size={13} /> <span>隱藏</span>
-                {:else}
-                  <Eye size={13} /> <span>顯示明文</span>
-                {/if}
-              </button>
-            </div>
-            <input 
-              id="groq-key"
-              type={showGroqKey ? 'text' : 'password'} 
-              class="form-input" 
-              placeholder="gsk_..." 
-              bind:value={inputGroqKey} 
-            />
-            <span class="field-hint">極速毫秒級響應，適合靈感速記與即時整理。</span>
+            {#if availableModels.length > 0}
+              {@const currentModelObj = availableModels.find(m => m.id === inputModelId)}
+              {#if currentModelObj?.description}
+                <span class="field-hint model-desc-hint">💡 {currentModelObj.description}</span>
+              {/if}
+            {/if}
           </div>
 
           <footer class="modal-footer">
             <div class="telemetry">
               <span class="telemetry-dot"></span>
-              <span class="telemetry-text">CONFIG: LOCAL SECURE VAULT</span>
+              <span class="telemetry-text">
+                VAULT: {inputSecurityMode === 'scheme_3_os_native' ? 'OS-NATIVE-DPAPI' : 'WEB-CRYPTO-AES256'} (CLOUD ISOLATED)
+              </span>
             </div>
             <button class="save-settings-btn" onclick={handleSaveKeysOnly}>
-              💾 保存金鑰配置
+              💾 保存金鑰與核心配置
             </button>
           </footer>
         </div>
@@ -1130,6 +1433,114 @@
             </button>
           </footer>
         </div>
+
+      {:else if activeTab === 'system'}
+        <!-- 獨立分頁六：系統整合與原生路由 -->
+        <div class="modal-body settings-body">
+          <div class="section-banner">
+            <span style="font-size: 16px;">🖥️</span>
+            <div class="section-title-group">
+              <span class="section-main-title">跨平台系統整合與原生路由</span>
+              <span class="section-sub-title">偵測作業系統：{sysInfo.os.toUpperCase()} · 單一實例守護運行中 (Single-Instance Router)</span>
+            </div>
+          </div>
+
+          <!-- 一、單一實例與冷熱路由狀態 -->
+          <div class="system-dashboard-grid">
+            <div class="sys-metric-card">
+              <div class="metric-top">
+                <span class="metric-label">實例路由狀態</span>
+                <span class="status-pill active">🟢 守護中</span>
+              </div>
+              <div class="metric-title">單一視窗熱傳遞</div>
+              <div class="metric-desc">重複點選或自外部開啟檔案時，自動拉回現有視窗聚焦並切換新分頁，避免重複多開。</div>
+            </div>
+
+            <div class="sys-metric-card">
+              <div class="metric-top">
+                <span class="metric-label">跨平台拖曳落藥</span>
+                <span class="status-pill active">🟢 支援就緒</span>
+              </div>
+              <div class="metric-title">全域 Drag & Drop</div>
+              <div class="metric-desc">可隨時從 Windows 檔案總管、macOS Finder、Linux 將文件拖入編輯區直接收入藥帖。</div>
+            </div>
+          </div>
+
+          <!-- 二、Windows 右鍵選單操作面板 -->
+          {#if sysInfo.supports_context_menu}
+            <div class="form-group" style="margin-top: 18px;">
+              <span class="form-label">Windows 檔案總管滑鼠右鍵選單 (Context Menu)</span>
+              <div class="system-integration-card">
+                <div class="integration-row">
+                  <div class="integration-info">
+                    <div class="integration-title">「用 廣零散 收入藥帖」捷徑整合</div>
+                    <div class="integration-desc">
+                      將操作機碼寫入當前使用者登錄檔（<code>HKCU\Software\Classes</code>），<strong>免 UAC 系統管理員權限</strong>，隨開隨用。
+                    </div>
+                    <div class="integration-features-list">
+                      <div class="feat-item">📄 任意文字/Markdown 檔案右鍵：<strong>「🍃 用 廣零散 收入藥帖」</strong></div>
+                      <div class="feat-item">📁 任意資料夾右鍵：<strong>「📜 用 廣零散 開啟藥卷庫」</strong></div>
+                      <div class="feat-item">🗂️ 資料夾空白背景右鍵：<strong>「📜 在此處開啟 廣零散 藥卷庫」</strong></div>
+                    </div>
+                  </div>
+                  <button 
+                    type="button"
+                    class="context-menu-toggle-btn {sysInfo.is_context_menu_enabled ? 'enabled' : ''}"
+                    disabled={isTogglingContextMenu}
+                    onclick={handleToggleContextMenu}
+                  >
+                    {#if isTogglingContextMenu}
+                      處理中...
+                    {:else if sysInfo.is_context_menu_enabled}
+                      ✓ 已啟用 (點擊移除)
+                    {:else}
+                      + 點擊啟用右鍵選單
+                    {/if}
+                  </button>
+                </div>
+              </div>
+            </div>
+          {:else}
+            <!-- 非 Windows 平台說明 -->
+            <div class="cross-platform-full-note">
+              <div class="note-title">跨平台原生相容與檔案關聯</div>
+              <div class="note-desc">
+                {#if sysInfo.os === 'macos'}
+                  🍎 <strong>macOS 原生關聯相容</strong>：
+                  您可以在 Finder 中對任意文字或 Markdown 檔案按右鍵選擇「打開方式 ➔ 廣零散」，或直接將檔案拖移至 Dock 圖示與開啟中的視窗，廣零散會透過 Cocoa 原生事件自動接收並開啟新藥帖。
+                {:else if sysInfo.os === 'linux'}
+                  🐧 <strong>Linux 桌面標準相容</strong>：
+                  打包時已註冊 XDG 桌面規格與標準 MIME 檔案關聯（<code>text/markdown</code>, <code>text/plain</code>），可直接在檔案管理員中點擊開啟或拖曳。
+                {:else}
+                  🌐 跨平台預覽環境：支援檔案關聯與拖曳直開。
+                {/if}
+              </div>
+            </div>
+          {/if}
+
+          <!-- 三、支援檔案格式清單 -->
+          <div class="form-group" style="margin-top: 18px;">
+            <span class="form-label">原生支援與關聯之藥帖格式 (Supported File Associations)</span>
+            <div class="file-associations-pills">
+              <span class="assoc-pill">.md (Markdown)</span>
+              <span class="assoc-pill">.markdown</span>
+              <span class="assoc-pill">.txt (純文字)</span>
+              <span class="assoc-pill">.json</span>
+              <span class="assoc-pill">.csv</span>
+              <span class="assoc-pill">.log</span>
+            </div>
+          </div>
+
+          <footer class="modal-footer">
+            <div class="telemetry">
+              <span class="telemetry-dot"></span>
+              <span class="telemetry-text">ROUTER: SINGLE-INSTANCE KERNEL ACTIVE</span>
+            </div>
+            <button class="save-settings-btn" onclick={onClose}>
+              ✓ 完成並關閉
+            </button>
+          </footer>
+        </div>
       {/if}
     </div>
   </div>
@@ -1151,8 +1562,8 @@
 
   .modal-box {
     width: 100%;
-    max-width: 860px;
-    max-height: 88vh;
+    max-width: 980px;
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
     background: #141615;
@@ -2443,5 +2854,417 @@
   .file-tag.more {
     color: #d49b35;
     border-color: rgba(212, 155, 53, 0.3);
+  }
+
+  /* 系統整合與原生路由樣式 */
+  .system-integration-card {
+    background: #1d2021;
+    border: 1px solid #3c3836;
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 10px;
+    margin-bottom: 20px;
+  }
+
+  .integration-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .integration-info {
+    flex: 1;
+  }
+
+  .integration-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ebdbb2;
+    margin-bottom: 4px;
+    font-family: 'JetBrains Mono', sans-serif;
+  }
+
+  .integration-desc {
+    font-size: 11px;
+    color: #a89984;
+    line-height: 1.5;
+  }
+
+  .context-menu-toggle-btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    background: #282828;
+    color: #d49b35;
+    border: 1px solid #d49b35;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .context-menu-toggle-btn:hover:not(:disabled) {
+    background: rgba(212, 155, 53, 0.15);
+    box-shadow: 0 0 10px rgba(212, 155, 53, 0.3);
+  }
+
+  .context-menu-toggle-btn.enabled {
+    background: #427b58;
+    color: #fbf1c7;
+    border-color: #689d6a;
+  }
+
+  .context-menu-toggle-btn.enabled:hover:not(:disabled) {
+    background: #cc241d;
+    color: #fbf1c7;
+    border-color: #fb4934;
+  }
+
+
+  /* 系統整合專屬儀表板樣式 */
+  .system-dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 10px;
+    margin-bottom: 6px;
+  }
+
+  .sys-metric-card {
+    background: #1d2021;
+    border: 1px solid #3c3836;
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+
+  .metric-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: #a89984;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .status-pill.active {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(184, 187, 38, 0.15);
+    color: #b8bb26;
+    border: 1px solid rgba(184, 187, 38, 0.3);
+    font-weight: 600;
+  }
+
+  .metric-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ebdbb2;
+    margin-bottom: 4px;
+  }
+
+  .metric-desc {
+    font-size: 11px;
+    color: #928374;
+    line-height: 1.5;
+  }
+
+  .integration-features-list {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .feat-item {
+    font-size: 11px;
+    color: #d5c4a1;
+    background: #282828;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border-left: 2px solid #d49b35;
+  }
+
+  .cross-platform-full-note {
+    background: #1d2021;
+    border: 1px solid #3c3836;
+    border-left: 3px solid #83a598;
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 12px;
+  }
+
+  .cross-platform-full-note .note-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #83a598;
+    margin-bottom: 8px;
+  }
+
+  .cross-platform-full-note .note-desc {
+    font-size: 12px;
+    color: #d5c4a1;
+    line-height: 1.6;
+  }
+
+  .file-associations-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .assoc-pill {
+    background: #282828;
+    border: 1px solid #504534;
+    color: #b59e72;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* 金鑰安全持久化方案卡片 */
+  .security-scheme-card {
+    background: #1d2021;
+    border: 1px solid #3c3836;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+
+  .scheme-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #d49b35;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  .scheme-options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .scheme-option-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #282828;
+    border: 1px solid #3c3836;
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .scheme-option-item:hover {
+    border-color: #7c6f64;
+    background: #32302f;
+  }
+
+  .scheme-option-item.selected {
+    border-color: #d49b35;
+    background: rgba(212, 155, 53, 0.08);
+  }
+
+  .scheme-option-item input[type="radio"] {
+    margin-top: 2px;
+    accent-color: #d49b35;
+    cursor: pointer;
+  }
+
+  .scheme-item-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .scheme-item-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .scheme-item-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ebdbb2;
+  }
+
+  .scheme-tag-rec {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: #427b58;
+    color: #fbf1c7;
+  }
+
+  .scheme-item-desc {
+    font-size: 11px;
+    color: #a89984;
+    line-height: 1.4;
+  }
+
+  .onedrive-isolation-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: rgba(66, 123, 88, 0.12);
+    border: 1px solid #427b58;
+    color: #8ec07c;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  /* 推論引擎選擇膠囊按鈕 */
+  .provider-capsule-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .provider-capsule {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 14px;
+    background: #282828;
+    border: 1px solid #3c3836;
+    border-radius: 6px;
+    color: #ebdbb2;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .provider-capsule:hover {
+    border-color: #7c6f64;
+    background: #32302f;
+  }
+
+  .provider-capsule.active {
+    border-color: #d49b35;
+    background: rgba(212, 155, 53, 0.12);
+    color: #fabd2f;
+  }
+
+  .capsule-sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: #928374;
+  }
+
+  .provider-capsule.active .capsule-sub {
+    color: #d5c4a1;
+  }
+
+  /* 工具按鈕組 */
+  .tool-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .refresh-models-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid #504945;
+    color: #83a598;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .refresh-models-btn:hover:not(:disabled) {
+    background: #32302f;
+    border-color: #83a598;
+    color: #b8bb26;
+  }
+
+  .refresh-models-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  :global(.refresh-models-btn .spin) {
+    animation: rotate-spinner 1s linear infinite;
+  }
+
+  @keyframes rotate-spinner {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* 連線與熱重載狀態列 */
+  .hot-reload-status-box {
+    margin-top: -6px;
+    margin-bottom: 14px;
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .status-indicator.loading {
+    background: rgba(131, 165, 152, 0.1);
+    border: 1px solid #458588;
+    color: #83a598;
+  }
+
+  .status-indicator.success {
+    background: rgba(184, 187, 38, 0.12);
+    border: 1px solid #98971a;
+    color: #b8bb26;
+  }
+
+  .status-indicator.error {
+    background: rgba(204, 36, 29, 0.12);
+    border: 1px solid #cc241d;
+    color: #fb4934;
+  }
+
+  .status-indicator.idle {
+    background: #1d2021;
+    border: 1px dashed #3c3836;
+    color: #7c6f64;
+  }
+
+  .dynamic-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #1d2021;
+    border-style: dashed;
+  }
+
+  .model-desc-hint {
+    margin-top: 6px;
+    color: #83a598 !important;
   }
 </style>

@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
+use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -553,10 +554,224 @@ fn open_in_system_explorer(folder_path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct NativeRoutePayload {
+    pub path: String,
+    pub is_directory: bool,
+}
+
+#[derive(Default)]
+pub struct InitialRouteState {
+    pub target: std::sync::Mutex<Option<NativeRoutePayload>>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct SystemIntegrationInfo {
+    pub os: String,
+    pub supports_context_menu: bool,
+    pub is_context_menu_enabled: bool,
+}
+
+// 命令列啟動引數解析（支援檔案直開與 --folder 開啟目錄）
+fn parse_route_args(args: &[String]) -> Option<NativeRoutePayload> {
+    if args.len() <= 1 {
+        return None;
+    }
+
+    // 檢查是否有指定 --folder 旗標
+    if let Some(pos) = args.iter().position(|a| a == "--folder") {
+        if let Some(folder_arg) = args.get(pos + 1) {
+            return Some(NativeRoutePayload {
+                path: folder_arg.clone(),
+                is_directory: true,
+            });
+        }
+    }
+
+    // 搜尋第一個實體存在的路徑或有效副檔名路徑
+    for arg in args.iter().skip(1) {
+        if arg.starts_with("--") {
+            continue;
+        }
+        let p = Path::new(arg);
+        if p.exists() {
+            return Some(NativeRoutePayload {
+                path: arg.clone(),
+                is_directory: p.is_dir(),
+            });
+        }
+        // 若為有效副檔名檔名格式（例如自檔案總管或拖曳傳入）
+        if arg.contains('.') || arg.contains('\\') || arg.contains('/') {
+            return Some(NativeRoutePayload {
+                path: arg.clone(),
+                is_directory: false,
+            });
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn get_initial_route_target(state: tauri::State<InitialRouteState>) -> Result<Option<NativeRoutePayload>, String> {
+    let mut lock = state.target.lock().map_err(|e| e.to_string())?;
+    Ok(lock.take())
+}
+
+#[tauri::command]
+fn get_system_integration_info() -> Result<SystemIntegrationInfo, String> {
+    let os = std::env::consts::OS.to_string();
+    let supports_context_menu = cfg!(target_os = "windows");
+    let mut is_context_menu_enabled = false;
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(output) = std::process::Command::new("reg")
+            .args(["query", r"HKCU\Software\Classes\*\shell\BambooSaga"])
+            .output()
+        {
+            is_context_menu_enabled = output.status.success();
+        }
+    }
+
+    Ok(SystemIntegrationInfo {
+        os,
+        supports_context_menu,
+        is_context_menu_enabled,
+    })
+}
+
+#[tauri::command]
+fn toggle_windows_context_menu(enable: bool) -> Result<bool, String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = enable;
+        Err("自訂右鍵選單整合僅支援 Windows 系統，macOS/Linux 可透過檔案關聯或直接拖曳使用".to_string())
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if enable {
+            let current_exe = std::env::current_exe()
+                .map_err(|e| format!("無法取得執行檔路徑: {}", e))?;
+            let exe_str = current_exe.to_string_lossy().to_string();
+
+            // 1. 任意檔案右鍵：「用 廣零散 收入藥帖」
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\*\shell\BambooSaga", "/ve", "/d", "用 廣零散 收入藥帖", "/f"])
+                .status();
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\*\shell\BambooSaga", "/v", "Icon", "/d", &format!("\"{}\"", exe_str), "/f"])
+                .status();
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\*\shell\BambooSaga\command", "/ve", "/d", &format!("\"{}\" \"%1\"", exe_str), "/f"])
+                .status();
+
+            // 2. 目錄右鍵：「用 廣零散 開啟藥卷庫」
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\Directory\shell\BambooSaga", "/ve", "/d", "用 廣零散 開啟藥卷庫", "/f"])
+                .status();
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\Directory\shell\BambooSaga", "/v", "Icon", "/d", &format!("\"{}\"", exe_str), "/f"])
+                .status();
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\Directory\shell\BambooSaga\command", "/ve", "/d", &format!("\"{}\" \"--folder\" \"%1\"", exe_str), "/f"])
+                .status();
+
+            // 3. 目錄背景右鍵：「在此處開啟 廣零散 藥卷庫」
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\Directory\Background\shell\BambooSaga", "/ve", "/d", "在此處開啟 廣零散 藥卷庫", "/f"])
+                .status();
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\Directory\Background\shell\BambooSaga", "/v", "Icon", "/d", &format!("\"{}\"", exe_str), "/f"])
+                .status();
+            let _ = std::process::Command::new("reg")
+                .args(["add", r"HKCU\Software\Classes\Directory\Background\shell\BambooSaga\command", "/ve", "/d", &format!("\"{}\" \"--folder\" \"%V\"", exe_str), "/f"])
+                .status();
+
+            Ok(true)
+        } else {
+            // 刪除各機碼
+            let _ = std::process::Command::new("reg")
+                .args(["delete", r"HKCU\Software\Classes\*\shell\BambooSaga", "/f"])
+                .status();
+            let _ = std::process::Command::new("reg")
+                .args(["delete", r"HKCU\Software\Classes\Directory\shell\BambooSaga", "/f"])
+                .status();
+            let _ = std::process::Command::new("reg")
+                .args(["delete", r"HKCU\Software\Classes\Directory\Background\shell\BambooSaga", "/f"])
+                .status();
+
+            Ok(false)
+        }
+    }
+}
+
+fn get_os_secure_file_path() -> Result<PathBuf, String> {
+    let local_appdata = std::env::var("LOCALAPPDATA")
+        .or_else(|_| std::env::var("APPDATA"))
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|_| "無法解析本機安全目錄路徑".to_string())?;
+
+    let root = PathBuf::from(local_appdata).join("BambooSaga");
+    let _ = fs::create_dir_all(&root);
+    Ok(root.join(".secure_keys.dat"))
+}
+
+#[tauri::command]
+fn save_os_secure_keys(payload: String) -> Result<(), String> {
+    let path = get_os_secure_file_path()?;
+    // 本機安全位元遮罩防護，防止純文字被掃描
+    let obfuscated: Vec<u8> = payload
+        .as_bytes()
+        .iter()
+        .enumerate()
+        .map(|(i, b)| b ^ ((i as u8).wrapping_mul(7) ^ 0xA5))
+        .collect();
+    fs::write(&path, obfuscated).map_err(|e| format!("無法寫入系統安全金鑰庫: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn load_os_secure_keys() -> Result<String, String> {
+    let path = get_os_secure_file_path()?;
+    if !path.exists() {
+        return Ok(String::new());
+    }
+    let data = fs::read(&path).map_err(|e| format!("無法讀取系統安全金鑰庫: {}", e))?;
+    let unobfuscated: Vec<u8> = data
+        .iter()
+        .enumerate()
+        .map(|(i, b)| b ^ ((i as u8).wrapping_mul(7) ^ 0xA5))
+        .collect();
+    String::from_utf8(unobfuscated).map_err(|e| format!("金鑰解析失敗: {}", e))
+}
+
+#[tauri::command]
+fn purge_os_secure_keys() -> Result<(), String> {
+    let path = get_os_secure_file_path()?;
+    if path.exists() {
+        let _ = fs::remove_file(path);
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // 熱傳遞：將現有視窗拉回前景並聚焦
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            // 解析命令列引數，若有檔案或資料夾則派發路由事件至前端
+            if let Some(payload) = parse_route_args(&argv) {
+                let _ = app.emit("native-route-open", payload);
+            }
+        }))
+        .manage(InitialRouteState::default())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -565,6 +780,16 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // 冷啟動引數解析：若開機直接透過檔案/關聯啟動，記錄於狀態供前端掛載時取用
+            let args: Vec<String> = std::env::args().collect();
+            if let Some(payload) = parse_route_args(&args) {
+                let state: tauri::State<InitialRouteState> = app.state();
+                if let Ok(mut lock) = state.target.lock() {
+                    *lock = Some(payload);
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -576,8 +801,34 @@ pub fn run() {
             backup_vault_to_onedrive,
             check_onedrive_backup,
             read_onedrive_backup_json,
-            open_in_system_explorer
+            open_in_system_explorer,
+            get_initial_route_target,
+            get_system_integration_info,
+            toggle_windows_context_menu,
+            save_os_secure_keys,
+            load_os_secure_keys,
+            purge_os_secure_keys
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Opened { urls } = event {
+            for url in urls {
+                if let Ok(path) = url.to_file_path() {
+                    let is_dir = path.is_dir();
+                    let path_str = path.to_string_lossy().to_string();
+                    let _ = app_handle.emit("native-route-open", NativeRoutePayload {
+                        path: path_str,
+                        is_directory: is_dir,
+                    });
+                }
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (app_handle, event);
+        }
+    });
 }
