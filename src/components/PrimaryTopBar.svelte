@@ -145,7 +145,6 @@
           <img src="/logo-guangling-solid.svg" alt="廣零散" class="brand-title-svg" />
           <span class="brand-sub">BAMBOO·SAGA</span>
         </div>
-        <span class="brand-badge">[01]</span>
       </div>
 
       <!-- 中間：主頂欄分頁標籤導航 -->
@@ -312,14 +311,18 @@
   /* 品牌組合 */
   .brand-cluster {
     display: flex;
-    align-items: center;
-    gap: 9px;
+    align-items: flex-start;
+    gap: 8px;
     flex-shrink: 0;
   }
 
   .brand-icon {
     font-size: 16px;
-    line-height: 1;
+    line-height: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     opacity: 0.9;
   }
 
@@ -328,13 +331,13 @@
     flex-direction: column;
   }
 
-
   .brand-title-svg {
     height: 16px;
     width: auto;
     display: block;
     user-select: none;
     -webkit-user-drag: none;
+    transform: translateY(1px);
   }
 
   .brand-sub {
@@ -342,19 +345,7 @@
     font-size: 9px;
     color: #938c80;
     letter-spacing: 0.18em;
-    margin-top: -2px;
-  }
-
-  .brand-badge {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    color: #b59e72;
-    letter-spacing: 0.1em;
-    padding: 1px 6px;
-    border-radius: 3px;
-    background: rgba(181, 158, 114, 0.08);
-    border: 1px solid rgba(80, 69, 52, 0.35);
-    opacity: 0.85;
+    margin-top: 2px;
   }
 
   /* 分頁導航列 */
