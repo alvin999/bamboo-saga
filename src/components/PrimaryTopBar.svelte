@@ -10,6 +10,7 @@
     onCloseTab,
     onRenameTab,
     onMoveTabDeck,
+    onReorderTabs,
     onToggleFileBrowser,
     onOpenSettings,
     isSaved = true
@@ -22,6 +23,7 @@
     onCloseTab: (id: string) => void;
     onRenameTab: (id: string, newTitle: string) => void;
     onMoveTabDeck: (id: string, deck: 'primary' | 'secondary') => void;
+    onReorderTabs?: (sourceId: string, targetId: string) => void;
     onToggleFileBrowser: () => void;
     onOpenSettings: () => void;
     isSaved: boolean;
@@ -29,9 +31,50 @@
 
   let editingTabId = $state<string | null>(null);
   let editInput = $state('');
+  let draggedTabId = $state<string | null>(null);
+  let dragOverTabId = $state<string | null>(null);
 
   // 僅篩選停靠在主頂欄的分頁 (未特別指定時預設在 primary)
   const primaryTabs = $derived(tabs.filter((t) => t.deck !== 'secondary'));
+
+  function handleDragStart(e: DragEvent, id: string) {
+    if (editingTabId) return;
+    draggedTabId = id;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+    }
+  }
+
+  function handleDragOver(e: DragEvent, id: string) {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    if (dragOverTabId !== id && draggedTabId !== id) {
+      dragOverTabId = id;
+    }
+  }
+
+  function handleDragLeave(e: DragEvent, id: string) {
+    if (dragOverTabId === id) {
+      dragOverTabId = null;
+    }
+  }
+
+  function handleDrop(e: DragEvent, targetId: string) {
+    e.preventDefault();
+    if (draggedTabId && draggedTabId !== targetId) {
+      onReorderTabs?.(draggedTabId, targetId);
+    }
+    draggedTabId = null;
+    dragOverTabId = null;
+  }
+
+  function handleDragEnd() {
+    draggedTabId = null;
+    dragOverTabId = null;
+  }
 
   function startRename(tab: TabItem) {
     editingTabId = tab.id;
@@ -81,7 +124,13 @@
       <nav class="nav-tabs-area">
         {#each primaryTabs as tab (tab.id)}
           <div 
-            class="tab-anchor {tab.id === activeTabId ? 'active' : ''} {tab.isAiDraft ? 'has-draft' : ''}"
+            class="tab-anchor {tab.id === activeTabId ? 'active' : ''} {tab.isAiDraft ? 'has-draft' : ''} {draggedTabId === tab.id ? 'is-dragging' : ''} {dragOverTabId === tab.id ? 'drag-over' : ''}"
+            draggable={editingTabId !== tab.id}
+            ondragstart={(e) => handleDragStart(e, tab.id)}
+            ondragover={(e) => handleDragOver(e, tab.id)}
+            ondragleave={(e) => handleDragLeave(e, tab.id)}
+            ondrop={(e) => handleDrop(e, tab.id)}
+            ondragend={handleDragEnd}
             onclick={() => onSelectTab(tab.id)}
             ondblclick={() => startRename(tab)}
             role="button"
@@ -296,6 +345,16 @@
   .tab-anchor.active {
     color: #ece7dc;
     font-weight: 500;
+  }
+
+  .tab-anchor.is-dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+
+  .tab-anchor.drag-over {
+    border-left: 2px solid #fabd2f;
+    background: rgba(250, 189, 47, 0.08);
   }
 
   .tab-dot {

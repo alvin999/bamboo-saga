@@ -323,6 +323,20 @@
     }
   }
 
+  // 拖曳重排分頁順序
+  function handleReorderTabs(sourceId: string, targetId: string) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const fromIndex = state.tabs.findIndex((t) => t.id === sourceId);
+    const toIndex = state.tabs.findIndex((t) => t.id === targetId);
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const updated = [...state.tabs];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      state.tabs = updated;
+      saveVaultState(state, true);
+    }
+  }
+
   // 實體檔案磁碟同步
   let fileSaveTimer: number | null = null;
   function syncToDisk(tab: TabItem, immediate = false) {
@@ -607,6 +621,7 @@
     onCloseTab={closeTab}
     onRenameTab={renameTab}
     onMoveTabDeck={handleMoveTabDeck}
+    onReorderTabs={handleReorderTabs}
     onToggleFileBrowser={() => (isFileBrowserOpen = !isFileBrowserOpen)}
     onOpenSettings={() => {
       aiModalTab = 'keys';
@@ -625,6 +640,7 @@
     onCloseTab={closeTab}
     onRenameTab={renameTab}
     onMoveTabDeck={handleMoveTabDeck}
+    onReorderTabs={handleReorderTabs}
     onExecuteRefine={handleExecuteRefine}
     onOpenAiModal={() => {
       aiModalTab = 'refine';
@@ -712,8 +728,11 @@
       vimMode={state.vimMode}
       onLanguageChange={handleLanguageChange}
       onToggleVim={handleToggleVimMode}
+      onOpenFuzzy={() => {
+        fuzzyInitialMode = 'fuzzy';
+        isFuzzyModalOpen = true;
+      }}
       onOpenHistory={() => (isLocalHistoryOpen = true)}
-      onPutLabel={() => (isPutLabelOpen = true)}
       onOpenBackup={() => {
         aiModalTab = 'onedrive';
         isAiModalOpen = true;

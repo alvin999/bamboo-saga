@@ -11,6 +11,7 @@
     onCloseTab,
     onRenameTab,
     onMoveTabDeck,
+    onReorderTabs,
     onExecuteRefine,
     onOpenAiModal,
     onToggleDiffView
@@ -23,6 +24,7 @@
     onCloseTab: (id: string) => void;
     onRenameTab: (id: string, newTitle: string) => void;
     onMoveTabDeck: (id: string, deck: 'primary' | 'secondary') => void;
+    onReorderTabs?: (sourceId: string, targetId: string) => void;
     onExecuteRefine: (mode: RefineryMode, customPrompt: string) => void;
     onOpenAiModal: () => void;
     onToggleDiffView: () => void;
@@ -33,6 +35,47 @@
 
   let editingTabId = $state<string | null>(null);
   let editInput = $state('');
+  let draggedTabId = $state<string | null>(null);
+  let dragOverTabId = $state<string | null>(null);
+
+  function handleDragStart(e: DragEvent, id: string) {
+    if (editingTabId) return;
+    draggedTabId = id;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+    }
+  }
+
+  function handleDragOver(e: DragEvent, id: string) {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    if (dragOverTabId !== id && draggedTabId !== id) {
+      dragOverTabId = id;
+    }
+  }
+
+  function handleDragLeave(e: DragEvent, id: string) {
+    if (dragOverTabId === id) {
+      dragOverTabId = null;
+    }
+  }
+
+  function handleDrop(e: DragEvent, targetId: string) {
+    e.preventDefault();
+    if (draggedTabId && draggedTabId !== targetId) {
+      onReorderTabs?.(draggedTabId, targetId);
+    }
+    draggedTabId = null;
+    dragOverTabId = null;
+  }
+
+  function handleDragEnd() {
+    draggedTabId = null;
+    dragOverTabId = null;
+  }
 
   function startRename(tab: TabItem) {
     editingTabId = tab.id;
@@ -99,7 +142,13 @@
         <span class="sec-label">次頂煉丹帖：</span>
         {#each secondaryTabs as tab (tab.id)}
           <div 
-            class="secondary-tab-pill {tab.id === activeTabId ? 'active' : ''} {tab.isAiDraft ? 'has-draft' : ''}"
+            class="secondary-tab-pill {tab.id === activeTabId ? 'active' : ''} {tab.isAiDraft ? 'has-draft' : ''} {draggedTabId === tab.id ? 'is-dragging' : ''} {dragOverTabId === tab.id ? 'drag-over' : ''}"
+            draggable={editingTabId !== tab.id}
+            ondragstart={(e) => handleDragStart(e, tab.id)}
+            ondragover={(e) => handleDragOver(e, tab.id)}
+            ondragleave={(e) => handleDragLeave(e, tab.id)}
+            ondrop={(e) => handleDrop(e, tab.id)}
+            ondragend={handleDragEnd}
             onclick={() => onSelectTab(tab.id)}
             ondblclick={() => startRename(tab)}
             role="button"
@@ -303,6 +352,16 @@
     border-color: #fabd2f;
     color: #fabd2f;
     font-weight: 600;
+  }
+
+  .secondary-tab-pill.is-dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+
+  .secondary-tab-pill.drag-over {
+    border-left: 2px solid #fabd2f;
+    background: rgba(250, 189, 47, 0.15);
   }
 
   .fire-glyph {

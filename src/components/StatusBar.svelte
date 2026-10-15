@@ -9,7 +9,7 @@
     onLanguageChange,
     onToggleVim,
     onOpenHistory,
-    onPutLabel,
+    onOpenFuzzy,
     onOpenBackup
   } = $props<{
     content: string;
@@ -19,7 +19,7 @@
     onLanguageChange: (lang: SupportedLanguage) => void;
     onToggleVim?: () => void;
     onOpenHistory?: () => void;
-    onPutLabel?: () => void;
+    onOpenFuzzy?: () => void;
     onOpenBackup?: () => void;
   }>();
 
@@ -44,20 +44,21 @@
     </div>
 
     <button 
+      class="fuzzy-quick-btn font-mono" 
+      onclick={onOpenFuzzy}
+      title="全域模糊搜尋與 AI 助查 (Ctrl+P)"
+    >
+      <span class="fuzzy-icon">🔍</span>
+      <span>FIND // FUZZY</span>
+    </button>
+
+    <button 
       class="history-btn font-mono" 
       onclick={onOpenHistory}
       title="檢視本地歷史修訂與 Diff 比對 (Alt+H)"
     >
       <span class="history-icon">📜</span>
       <span>HIST // LOCAL</span>
-    </button>
-
-    <button 
-      class="label-quick-btn font-mono" 
-      onclick={onPutLabel}
-      title="為當前狀態添加歷史錨點標籤 (Alt+L)"
-    >
-      <span>🏷️ LABEL</span>
     </button>
 
     <button 
@@ -242,7 +243,7 @@
     padding: 1px 4px;
   }
 
-  .history-btn, .label-quick-btn {
+  .history-btn, .fuzzy-quick-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -257,13 +258,13 @@
     transition: all 0.15s ease;
   }
 
-  .history-btn:hover, .label-quick-btn:hover {
+  .history-btn:hover, .fuzzy-quick-btn:hover {
     color: #fabd2f;
     border-color: #fabd2f;
     background: rgba(250, 189, 47, 0.1);
   }
 
-  .history-icon {
+  .history-icon, .fuzzy-icon {
     font-size: 10px;
   }
 </style>
