@@ -54,7 +54,7 @@
   <div class="deck-section deck-left">
     <div class="brand">
       <span class="brand-icon">🎋</span>
-      <span class="brand-title">廣零散</span>
+      <img src="/logo-guangling-solid.svg" alt="廣零散" class="brand-title-svg" />
       <span class="brand-sub">SAGA</span>
     </div>
 
@@ -190,6 +190,14 @@
     font-size: 0.92rem;
     color: #fbf1c7;
     letter-spacing: 0.05em;
+  }
+
+  .brand-title-svg {
+    height: 16px;
+    width: auto;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
   }
 
   .brand-sub {

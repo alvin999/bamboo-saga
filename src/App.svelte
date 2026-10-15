@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig } from './types/tab';
-  import { loadVaultState, saveVaultState } from './lib/storage/vault';
+  import { loadVaultState, saveVaultState, INITIAL_WELCOME_CONTENT } from './lib/storage/vault';
   import { refineNotes } from './lib/ai/refinery';
   import type { RefineryMode } from './lib/ai/refinery';
 
@@ -276,6 +276,23 @@
     };
     state.tabs.push(newTab);
     state.activeTabId = newTab.id;
+  }
+
+  function handleCreateDemoTab() {
+    const demoTab: TabItem = {
+      id: `tab-demo-${Date.now()}`,
+      title: '藥帖·煉丹渲染展示手稿',
+      content: INITIAL_WELCOME_CONTENT,
+      language: 'plaintext',
+      cursor: { line: 1, ch: 0 },
+      lastModified: Date.now(),
+      preAiSnapshot: null,
+      isAiDraft: false,
+      deck: 'primary',
+    };
+    state.tabs.push(demoTab);
+    state.activeTabId = demoTab.id;
+    showToast('🎋 已建立「藥帖·煉丹渲染展示手稿」');
   }
 
   function closeTab(id: string) {
@@ -758,6 +775,7 @@
     selectedAiModel={state.selectedAiModel}
     onSelectTab={selectTab}
     onOpenVaultFile={handleOpenVaultFile}
+    onCreateDemoTab={handleCreateDemoTab}
     onClose={() => (isFuzzyModalOpen = false)}
   />
 

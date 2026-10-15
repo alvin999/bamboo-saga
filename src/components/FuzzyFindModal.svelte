@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import type { TabItem, VaultFileEntry, RecentFileRecord } from '../types/tab';
-  import { buildSearchIndex, type UnifiedSearchItem } from '../lib/search/fuzzy';
+  import { buildSearchIndex, DEMO_ACTION_ITEM, type UnifiedSearchItem } from '../lib/search/fuzzy';
   import { searchVaultWithAi, type AiSearchResultItem, type AiSearchCandidate } from '../lib/ai/refinery';
 
   let {
@@ -12,8 +12,10 @@
     groqApiKey = '',
     geminiApiKey = '',
     selectedAiModel = 'gemini',
+    initialMode,
     onSelectTab,
     onOpenVaultFile,
+    onCreateDemoTab,
     onClose
   } = $props<{
     isOpen: boolean;
@@ -26,6 +28,7 @@
     initialMode?: 'fuzzy' | 'ai';
     onSelectTab: (tabId: string) => void;
     onOpenVaultFile: (file: VaultFileEntry) => void;
+    onCreateDemoTab?: () => void;
     onClose: () => void;
   }>();
 
@@ -44,8 +47,8 @@
 
   const filteredItems = $derived.by(() => {
     if (!searchQuery.trim()) {
-      // 預設顯示最近開啟與已開啟分頁（前 12 筆）
-      const defaultList: UnifiedSearchItem[] = [];
+      // 預設顯示動作命令、已開啟分頁與最近開啟
+      const defaultList: UnifiedSearchItem[] = [DEMO_ACTION_ITEM];
       for (const t of tabs) {
         defaultList.push({
           id: `tab-${t.id}`,
@@ -120,7 +123,12 @@
   }
 
   function activateItem(item: UnifiedSearchItem) {
-    if (item.type === 'tab' && item.tabRef) {
+    if (item.type === 'action') {
+      if (item.actionId === 'create-demo-tab') {
+        onCreateDemoTab?.();
+      }
+      onClose();
+    } else if (item.type === 'tab' && item.tabRef) {
       onSelectTab(item.tabRef.id);
       onClose();
     } else if (item.type === 'vault_file' && item.vaultRef) {
@@ -257,7 +265,9 @@
               onmouseenter={() => (selectedIndex = idx)}
             >
               <div class="item-icon">
-                {#if item.type === 'tab'}
+                {#if item.type === 'action'}
+                  🎋
+                {:else if item.type === 'tab'}
                   📜
                 {:else if item.type === 'recent'}
                   🕒
@@ -270,7 +280,7 @@
                 <div class="item-top">
                   <span class="item-title">{item.title}</span>
                   <span class="item-type-badge {item.type}">
-                    {item.type === 'tab' ? '已開啟分頁' : item.type === 'recent' ? '最近開啟' : '實體檔案'}
+                    {item.type === 'action' ? '動作命令' : item.type === 'tab' ? '已開啟分頁' : item.type === 'recent' ? '最近開啟' : '實體檔案'}
                   </span>
                 </div>
                 <div class="item-sub">{item.subtitle}</div>
@@ -565,6 +575,12 @@
     background: #2b353b;
     color: #83a598;
     border-color: #465b68;
+  }
+
+  .item-type-badge.action {
+    background: #422a3c;
+    color: #d3869b;
+    border-color: #8f3f71;
   }
 
   .item-sub {

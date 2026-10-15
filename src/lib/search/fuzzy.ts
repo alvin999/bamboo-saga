@@ -3,25 +3,35 @@ import type { TabItem, VaultFileEntry, RecentFileRecord } from '../../types/tab'
 
 export interface UnifiedSearchItem {
   id: string;
-  type: 'tab' | 'vault_file' | 'recent';
+  type: 'tab' | 'vault_file' | 'recent' | 'action';
   title: string;
   subtitle: string;
   path?: string;
   preview: string;
   language?: string;
   lastModified?: number;
+  actionId?: string;
   // 原始參照
   tabRef?: TabItem;
   vaultRef?: VaultFileEntry;
   recentRef?: RecentFileRecord;
 }
 
+export const DEMO_ACTION_ITEM: UnifiedSearchItem = {
+  id: 'action-create-demo-tab',
+  type: 'action',
+  title: '[示範] 建立煉丹渲染展示手稿',
+  subtitle: '⚡ 動作命令 · 建立包含 42ms/42s、火候度量衡與完整智慧染色的展示藥帖',
+  preview: '鼎爐時辰、淬火微秒與靈氣計量，包含 42ms、42s、警示膠囊、引文口訣、百子櫃標籤與程式碼高亮等全功能渲染展示',
+  actionId: 'create-demo-tab',
+};
+
 export function buildSearchIndex(
   tabs: TabItem[],
   vaultFiles: VaultFileEntry[],
   recentFiles: RecentFileRecord[]
 ): Fuse<UnifiedSearchItem> {
-  const items: UnifiedSearchItem[] = [];
+  const items: UnifiedSearchItem[] = [DEMO_ACTION_ITEM];
 
   // 1. 現有開啟中的分頁
   for (const t of tabs) {

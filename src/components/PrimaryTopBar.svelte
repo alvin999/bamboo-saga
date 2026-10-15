@@ -71,7 +71,7 @@
       <div class="brand-cluster select-none">
         <span class="brand-icon">🎋</span>
         <div class="brand-text">
-          <span class="brand-title">廣零散</span>
+          <img src="/logo-guangling-solid.svg" alt="廣零散" class="brand-title-svg" />
           <span class="brand-sub">BAMBOO·SAGA</span>
         </div>
         <span class="brand-badge">[01]</span>
@@ -237,6 +237,14 @@
     letter-spacing: 0.18em;
     color: #ece7dc;
     line-height: 1.1;
+  }
+
+  .brand-title-svg {
+    height: 16px;
+    width: auto;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
   }
 
   .brand-sub {
