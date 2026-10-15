@@ -18,7 +18,13 @@
   import PutLabelModal from './components/PutLabelModal.svelte';
 
   import type { VaultFileEntry, RecentFileRecord } from './types/tab';
-  import { pickVaultFolder, scanVaultFolder, readVaultFile, writeVaultFile } from './lib/storage/fsBridge';
+  import { 
+    pickVaultFolder, 
+    scanVaultFolder, 
+    readVaultFile, 
+    writeVaultFile,
+    backupVaultToOneDrive 
+  } from './lib/storage/fsBridge';
   import { loadRecentFiles, recordFileOpened, clearRecentFiles } from './lib/storage/recent';
   import { recordSnapshot, pruneOldSnapshots } from './lib/storage/localHistory';
   import type { SnapshotReason } from './types/history';
@@ -26,6 +32,7 @@
   // 核心應用狀態
   let state = $state(loadVaultState());
   let isAiModalOpen = $state(false);
+  let aiModalTab = $state<'refine' | 'settings' | 'onedrive'>('refine');
   let isFileBrowserOpen = $state(false);
   let isFuzzyModalOpen = $state(false);
   let isLocalHistoryOpen = $state(false);
@@ -39,6 +46,35 @@
   // 本地歷史自動快照狀態
   let historyDebounceTimer: number | null = null;
   const lastRecordedSnapshotMap = new Map<string, string>();
+
+  // OneDrive 背景自動鏡像備份計時狀態
+  let lastAutoBackupTime = Date.now();
+
+  async function performSilentOneDriveBackup() {
+    if (!state.autoOneDriveBackup || !state.selectedOneDrivePath) return;
+    try {
+      const safeTabs = state.tabs || [];
+      const markdownFiles = safeTabs.map((t, idx) => ({
+        file_name: t.title || `藥帖_${idx + 1}`,
+        content: t.content,
+      }));
+      const vaultJson = JSON.stringify({
+        exportedAt: new Date().toISOString(),
+        tabCount: safeTabs.length,
+        tabs: safeTabs,
+      }, null, 2);
+
+      await backupVaultToOneDrive({
+        onedriveFolderPath: state.selectedOneDrivePath,
+        vaultJson,
+        markdownFiles,
+        enablePeriodic: state.enablePeriodicBackup ?? true,
+      });
+      lastAutoBackupTime = Date.now();
+    } catch (err) {
+      console.warn('[AutoBackup] 靜默背景備份失敗:', err);
+    }
+  }
 
   // 本機資料夾與最近開啟狀態
   let vaultFiles = $state<VaultFileEntry[]>([]);
@@ -56,15 +92,28 @@
   });
 
   onMount(() => {
-    // 監聽視窗關閉或重載，強制立即同步寫入
+    // 監聽視窗關閉或重載，強制立即同步寫入並執行關閉前鏡像備份
     const handleBeforeUnload = () => {
       saveVaultState(state, true);
+      if (state.autoOneDriveBackup && state.selectedOneDrivePath) {
+        performSilentOneDriveBackup();
+      }
     };
 
     // 若先前已連結過資料夾，自動重新整理檔案清單
     if (state.vaultFolderPath) {
       refreshVaultFiles(state.vaultFolderPath);
     }
+
+    // 背景定時鏡像備份輪詢（每 60 秒檢查一次間隔）
+    const backupIntervalTimer = window.setInterval(() => {
+      if (state.autoOneDriveBackup && state.selectedOneDrivePath) {
+        const intervalMs = (state.oneDriveBackupIntervalMinutes || 30) * 60 * 1000;
+        if (Date.now() - lastAutoBackupTime >= intervalMs) {
+          performSilentOneDriveBackup();
+        }
+      }
+    }, 60 * 1000);
 
     // 全域快速鍵：
     // Ctrl+K: AI 煉丹爐
@@ -94,6 +143,7 @@
     window.addEventListener('keydown', handleGlobalKeydown);
 
     return () => {
+      window.clearInterval(backupIntervalTimer);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('keydown', handleGlobalKeydown);
     };
@@ -466,6 +516,30 @@
     saveVaultState(state, true);
     showToast('⚙️ 偏好與金鑰設定已成功儲存！');
   }
+
+  function handleSaveOneDrivePreference(path: string, auto: boolean, intervalMinutes?: number, enablePeriodic?: boolean) {
+    state.selectedOneDrivePath = path;
+    state.autoOneDriveBackup = auto;
+    if (intervalMinutes !== undefined) {
+      state.oneDriveBackupIntervalMinutes = intervalMinutes;
+    }
+    if (enablePeriodic !== undefined) {
+      state.enablePeriodicBackup = enablePeriodic;
+    }
+    saveVaultState(state, true);
+  }
+
+  // 從 OneDrive 還原全域藥帖分頁
+  function handleRestoreVaultFromOneDrive(restoredTabs: TabItem[]) {
+    if (restoredTabs && restoredTabs.length > 0) {
+      if (activeTab) {
+        triggerAutoSnapshot(activeTab, 'save', undefined, 'OneDrive雲端還原前本地留底');
+      }
+      state.tabs = restoredTabs;
+      state.activeTabId = restoredTabs[0].id;
+      saveVaultState(state, true);
+    }
+  }
 </script>
 
 <div class="app-layout {activeTab?.isAiDraft ? 'ai-draft-active' : ''} {isRefining ? 'is-refining' : ''}">
@@ -483,7 +557,10 @@
     onRenameTab={renameTab}
     onMoveTabDeck={handleMoveTabDeck}
     onToggleFileBrowser={() => (isFileBrowserOpen = !isFileBrowserOpen)}
-    onOpenSettings={() => (isAiModalOpen = true)}
+    onOpenSettings={() => {
+      aiModalTab = 'settings';
+      isAiModalOpen = true;
+    }}
     isSaved={isSavingIndicator}
   />
 
@@ -498,7 +575,10 @@
     onRenameTab={renameTab}
     onMoveTabDeck={handleMoveTabDeck}
     onExecuteRefine={handleExecuteRefine}
-    onOpenAiModal={() => (isAiModalOpen = true)}
+    onOpenAiModal={() => {
+      aiModalTab = 'refine';
+      isAiModalOpen = true;
+    }}
     onToggleDiffView={() => (showDiffView = !showDiffView)}
   />
 
@@ -583,6 +663,10 @@
       onToggleVim={() => (state.vimMode = !state.vimMode)}
       onOpenHistory={() => (isLocalHistoryOpen = true)}
       onPutLabel={() => (isPutLabelOpen = true)}
+      onOpenBackup={() => {
+        aiModalTab = 'onedrive';
+        isAiModalOpen = true;
+      }}
     />
 
     <!-- 本機歷史紀錄與 Diff 對比對話盒 (Alt+H) -->
@@ -651,16 +735,26 @@
     </div>
   {/if}
 
-  <!-- SAGA Tech Engine AI 煉丹對話框 -->
+  <!-- SAGA Tech Engine AI 煉丹與系統設定對話框 (Ctrl+K) -->
   <AiModal 
     isOpen={isAiModalOpen}
+    activeTab={aiModalTab}
+    onTabChange={(tab) => (aiModalTab = tab)}
     selectedModel={state.selectedAiModel}
     groqApiKey={state.groqApiKey}
     geminiApiKey={state.geminiApiKey}
     vimOverrides={state.vimOverrides}
+    tabs={state.tabs}
+    selectedOneDrivePath={state.selectedOneDrivePath}
+    autoOneDriveBackup={state.autoOneDriveBackup}
+    backupIntervalMinutes={state.oneDriveBackupIntervalMinutes || 30}
+    enablePeriodicBackup={state.enablePeriodicBackup ?? true}
     onClose={() => (isAiModalOpen = false)}
     onRefine={handleExecuteRefine}
     onSaveSettings={handleSaveSettings}
+    onSaveOneDrivePreference={handleSaveOneDrivePreference}
+    onShowToast={showToast}
+    onRestoreVault={handleRestoreVaultFromOneDrive}
   />
 </div>
 

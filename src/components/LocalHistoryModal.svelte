@@ -156,15 +156,14 @@
   <div
     class="modal-backdrop"
     onclick={onClose}
-    onkeydown={handleKeyDown}
-    role="dialog"
-    aria-modal="true"
-    tabindex="-1"
+    role="presentation"
   >
     <div
       class="history-card"
       onclick={(e) => e.stopPropagation()}
-      role="document"
+      onkeydown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
       tabindex="-1"
     >
       <!-- 頂部標題列 -->

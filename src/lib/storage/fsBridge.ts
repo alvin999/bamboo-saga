@@ -71,3 +71,73 @@ export async function writeVaultFile(filePath: string, content: string): Promise
   }
   console.warn('[fsBridge] 瀏覽器環境無法直接寫入本機檔案:', filePath);
 }
+
+/**
+ * 自動探測 Windows 系統環境變數中的 OneDrive 個人版與企業/組織版帳號
+ */
+export async function detectOneDriveAccounts(): Promise<import('../../types/tab').OneDriveAccountInfo[]> {
+  if (isTauriEnvironment()) {
+    try {
+      const accounts = await invoke<import('../../types/tab').OneDriveAccountInfo[]>('detect_onedrive_accounts');
+      return accounts;
+    } catch (err) {
+      console.error('[fsBridge] detect_onedrive_accounts failed:', err);
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * 執行一鍵備份至選定的 OneDrive 目錄
+ */
+export async function backupVaultToOneDrive(params: {
+  onedriveFolderPath: string;
+  vaultJson: string;
+  markdownFiles: Array<{ file_name: string; content: string }>;
+  enablePeriodic?: boolean;
+}): Promise<import('../../types/tab').BackupResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<import('../../types/tab').BackupResult>('backup_vault_to_onedrive', {
+      onedriveFolderPath: params.onedriveFolderPath,
+      vaultJson: params.vaultJson,
+      markdownFiles: params.markdownFiles,
+      enablePeriodic: params.enablePeriodic ?? true,
+    });
+  }
+  throw new Error('瀏覽器預覽環境不支援原生 OneDrive 備份寫入');
+}
+
+/**
+ * 檢查 OneDrive 目錄下的備份概況（是否有 latest_vault_state.json 與 Markdown 檔案清單）
+ */
+export async function checkOneDriveBackup(onedriveFolderPath: string): Promise<import('../../types/tab').OneDriveBackupOverview> {
+  if (isTauriEnvironment()) {
+    return await invoke<import('../../types/tab').OneDriveBackupOverview>('check_onedrive_backup', {
+      onedriveFolderPath,
+    });
+  }
+  return { has_backup: false, backup_dir: '', markdown_files: [] };
+}
+
+/**
+ * 讀取 OneDrive 目錄下 latest_vault_state.json 或指定日/週/月週期性備份檔案內容
+ */
+export async function readOneDriveBackupJson(onedriveFolderPath: string, customFilePath?: string): Promise<string> {
+  if (isTauriEnvironment()) {
+    return await invoke<string>('read_onedrive_backup_json', {
+      onedriveFolderPath,
+      customFilePath: customFilePath || null,
+    });
+  }
+  throw new Error('非桌面環境無法讀取本機備份');
+}
+
+/**
+ * 在作業系統檔案總管 (Windows Explorer / macOS Finder) 中開啟特定目錄
+ */
+export async function openInSystemExplorer(folderPath: string): Promise<void> {
+  if (isTauriEnvironment()) {
+    await invoke<void>('open_in_system_explorer', { folderPath });
+  }
+}

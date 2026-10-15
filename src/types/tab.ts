@@ -57,6 +57,39 @@ export interface VimKeyOverrides {
   imeWarning: boolean;
 }
 
+export interface OneDriveAccountInfo {
+  account_type: 'personal' | 'business';
+  display_name: string;
+  folder_path: string;
+  tenant_name?: string;
+  is_available: boolean;
+}
+
+export interface BackupResult {
+  success: boolean;
+  backup_dir: string;
+  timestamp: number;
+  exported_files_count: number;
+  message: string;
+}
+
+export interface PeriodicBackupEntry {
+  category: 'daily' | 'weekly' | 'monthly';
+  file_name: string;
+  file_path: string;
+  timestamp: number;
+  size: number;
+}
+
+export interface OneDriveBackupOverview {
+  has_backup: boolean;
+  backup_dir: string;
+  latest_timestamp?: number;
+  latest_json_size?: number;
+  markdown_files: string[];
+  periodic_backups: PeriodicBackupEntry[];
+}
+
 export interface AppState {
   activeTabId: string;
   tabs: TabItem[];
@@ -67,4 +100,8 @@ export interface AppState {
   selectedAiModel: 'groq' | 'gemini';
   vaultFolderPath?: string;
   recentFiles?: RecentFileRecord[];
+  selectedOneDrivePath?: string;
+  autoOneDriveBackup?: boolean;
+  oneDriveBackupIntervalMinutes?: number; // 背景備份間隔（分鐘）
+  enablePeriodicBackup?: boolean; // 是否開啟長週期備份（日・週・月）
 }

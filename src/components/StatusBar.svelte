@@ -9,7 +9,8 @@
     onLanguageChange,
     onToggleVim,
     onOpenHistory,
-    onPutLabel
+    onPutLabel,
+    onOpenBackup
   } = $props<{
     content: string;
     language: SupportedLanguage;
@@ -19,6 +20,7 @@
     onToggleVim?: () => void;
     onOpenHistory?: () => void;
     onPutLabel?: () => void;
+    onOpenBackup?: () => void;
   }>();
 
   const charCount = $derived(content.length);
@@ -56,6 +58,15 @@
       title="為當前狀態添加歷史錨點標籤 (Alt+L)"
     >
       <span>🏷️ LABEL</span>
+    </button>
+
+    <button 
+      class="backup-quick-btn font-mono" 
+      onclick={onOpenBackup}
+      title="OneDrive 企業/個人版自動備份面板"
+    >
+      <span class="backup-icon">☁️</span>
+      <span>ONEDRIVE</span>
     </button>
   </div>
 

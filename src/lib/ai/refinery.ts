@@ -1,4 +1,11 @@
-export type RefineryMode = 'structure' | 'actions' | 'explain' | 'format';
+export type RefineryMode = 
+  | 'structure' 
+  | 'actions' 
+  | 'explain' 
+  | 'format' 
+  | 'organize' 
+  | 'action_items' 
+  | 'code_refactor';
 
 export interface RefineryRequest {
   model: 'groq' | 'gemini';
@@ -24,7 +31,19 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
 
 原始速記內容如下：
 `,
+  organize: `你是一位資深會議記錄與技術筆記整理師。請將以下零散速記（包含口語、中英夾雜、時間點或片段思緒），重整為清晰優雅的 Markdown 結構：
+1. 【🎯 核心結論與決定事項】
+2. 【📐 技術規格與討論細節】
+3. 【⚡ 待辦清單與負責人 (Action Items)】（使用 - [ ] 格式）
+
+原始速記內容如下：
+`,
   actions: `請仔細分析以下筆記內容，提取出所有明確與隱含的待辦任務（Action Items），並以 Markdown 核取清單格式整理：
+- [ ] 任務名稱（標記負責人或預計時間，若有）
+
+原始筆記內容如下：
+`,
+  action_items: `請仔細分析以下筆記內容，提取出所有明確與隱含的待辦任務（Action Items），並以 Markdown 核取清單格式整理：
 - [ ] 任務名稱（標記負責人或預計時間，若有）
 
 原始筆記內容如下：
@@ -32,6 +51,8 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
   explain: `請針對選取的文字或程式碼片段進行深度解析、指出潛在問題或補充背景知識。格式簡潔扼要。內容如下：
 `,
   format: `請針對選取的程式碼或文字片段，重新排版成優雅易讀的標準格式，並保持原始程式碼或文字邏輯不變。內容如下：
+`,
+  code_refactor: `請針對選取的程式碼或文字片段，校對語法與排版、補齊 Markdown 格式標籤並進行智能命名對齊。內容如下：
 `,
 };
 
@@ -132,13 +153,17 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
 function getModeSummary(mode: RefineryMode): string {
   switch (mode) {
     case 'structure':
-      return '✨ 收散成丹：會議結構化整理';
+    case 'organize':
+      return '✨ 收散成丹：結構化結論提煉';
     case 'actions':
-      return '☑️ 提煉待辦事項';
+    case 'action_items':
+      return '☑️ 待辦清單矩陣化';
     case 'explain':
       return '💬 智慧選取解讀';
     case 'format':
       return '🧹 代碼與格式自動排版';
+    case 'code_refactor':
+      return '🔧 代碼語法與命名補正';
   }
 }
 

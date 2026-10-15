@@ -147,14 +147,6 @@
         <span class="sync-readout">{isSaved ? 'SYNC // 0.01MS' : 'FLUSH // VAULT'}</span>
       </div>
 
-      <button 
-        class="mode-badge {vimMode ? 'active' : ''}" 
-        onclick={() => (vimMode = !vimMode)}
-        title="切換 Vim 編輯模式"
-      >
-        {vimMode ? 'MODE // VIM' : 'MODE // STD-EDIT'}
-      </button>
-
       <button class="tune-btn" onclick={onOpenSettings} title="偏好設定與 API 金鑰">
         <span class="material-symbols-outlined text-[16px]">tune</span>
       </button>
@@ -442,30 +434,6 @@
 
   .sync-readout {
     letter-spacing: 0.08em;
-  }
-
-  .mode-badge {
-    padding: 2px 7px;
-    background: transparent;
-    border: 1px solid rgba(80, 69, 52, 0.4);
-    border-radius: 3px;
-    color: #736e63;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .mode-badge:hover {
-    color: #ece7dc;
-    border-color: #d49b35;
-  }
-
-  .mode-badge.active {
-    background: rgba(212, 155, 53, 0.15);
-    color: #d49b35;
-    border-color: #d49b35;
   }
 
   .tune-btn {
