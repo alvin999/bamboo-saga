@@ -1,9 +1,64 @@
-import { AppState, TabItem } from '../../types/tab';
+import { AppState, TabItem, VimKeyOverrides, AlchemyCardConfig } from '../../types/tab';
 
 const STORAGE_KEY = 'bamboo_saga_vault_v1';
 
+export const DEFAULT_VIM_OVERRIDES: VimKeyOverrides = {
+  ctrlS: true,
+  ctrlC: true,
+  ctrlV: true,
+  ctrlA: true,
+  ctrlF: true,
+  imeWarning: true,
+};
+
+export const DEFAULT_ALCHEMY_CARDS: Record<string, AlchemyCardConfig> = {
+  organize: {
+    id: 'organize',
+    tag: '[ 01 // 凝練 ]',
+    title: '結構化結論',
+    desc: '自動提煉會議要點、脈絡綱領與決策結論',
+    colorTag: 'cinnabar',
+    systemPrompt: `你是一位資深會議記錄與技術筆記整理師。請將以下零散速記（包含口語、中英夾雜、時間點或片段思緒），重整為清晰優雅的 Markdown 結構：
+1. 【🎯 核心結論與決定事項】
+2. 【📐 技術規格與討論細節】
+3. 【⚡ 待辦清單與負責人 (Action Items)】（使用 - [ ] 格式）
+
+原始速記內容如下：
+`,
+  },
+  action_items: {
+    id: 'action_items',
+    tag: '[ 02 // 析理 ]',
+    title: '待辦矩陣化',
+    desc: '識別 TODO、FIXME 與行動項目，轉換為排程工單',
+    colorTag: 'ochre',
+    systemPrompt: `請仔細分析以下筆記內容，提取出所有明確與隱含的待辦任務（Action Items），並以 Markdown 核取清單格式整理：
+- [ ] 任務名稱（標記負責人或預計時間，若有）
+
+原始筆記內容如下：
+`,
+  },
+  code_refactor: {
+    id: 'code_refactor',
+    tag: '[ 03 // 淨心 ]',
+    title: '代碼語法補正',
+    desc: '排版校對、Markdown 標籤補齊與智能命名對齊',
+    colorTag: 'olive',
+    systemPrompt: `請針對選取的程式碼或文字片段，校對語法與排版、補齊 Markdown 格式標籤並進行智能命名對齊。保持原始程式碼或文字邏輯不變。內容如下：
+`,
+  },
+};
+
+export function getDefaultVimOverrides(): VimKeyOverrides {
+  return { ...DEFAULT_VIM_OVERRIDES };
+}
+
+export function getDefaultAlchemyCards(): Record<string, AlchemyCardConfig> {
+  return JSON.parse(JSON.stringify(DEFAULT_ALCHEMY_CARDS));
+}
+
 export const INITIAL_WELCOME_CONTENT = `# 🎋 廣零散 (bamboo-saga)
-> 「廣納零散思緒，一帖 AI 煉成丹。」
+> 「廣納零散思緒，一帖 AI 煉丹。」
 
 歡迎使用專為開發者與會議打造的隨手筆記工作台！
 
@@ -38,14 +93,8 @@ export function createDefaultState(): AppState {
     activeTabId: initialTab.id,
     tabs: [initialTab],
     vimMode: false,
-    vimOverrides: {
-      ctrlS: true,
-      ctrlC: true,
-      ctrlV: true,
-      ctrlA: true,
-      ctrlF: true,
-      imeWarning: true,
-    },
+    vimOverrides: getDefaultVimOverrides(),
+    alchemyCards: getDefaultAlchemyCards(),
     groqApiKey: '',
     geminiApiKey: '',
     selectedAiModel: 'gemini',
@@ -63,14 +112,11 @@ export function loadVaultState(): AppState {
     }
     // 補齊可能缺失的 vimOverrides 欄位
     if (!parsed.vimOverrides) {
-      parsed.vimOverrides = {
-        ctrlS: true,
-        ctrlC: true,
-        ctrlV: true,
-        ctrlA: true,
-        ctrlF: true,
-        imeWarning: true,
-      };
+      parsed.vimOverrides = getDefaultVimOverrides();
+    }
+    // 補齊可能缺失的 alchemyCards 欄位
+    if (!parsed.alchemyCards) {
+      parsed.alchemyCards = getDefaultAlchemyCards();
     }
     return parsed;
   } catch (err) {

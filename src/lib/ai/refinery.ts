@@ -15,6 +15,7 @@ export interface RefineryRequest {
   content: string;
   selection?: string;
   customPrompt?: string;
+  cardPrompt?: string;
 }
 
 export interface RefineryResult {
@@ -58,7 +59,7 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
 
 export async function refineNotes(req: RefineryRequest): Promise<RefineryResult> {
   const targetText = req.selection && req.selection.trim() ? req.selection : req.content;
-  const promptHeader = PROMPT_TEMPLATES[req.mode];
+  const promptHeader = req.cardPrompt && req.cardPrompt.trim() ? req.cardPrompt : PROMPT_TEMPLATES[req.mode];
   const fullPrompt = `${promptHeader}\n${targetText}\n\n${req.customPrompt ? `額外補充要求：${req.customPrompt}` : ''}`;
 
   // 1. 如果有 Groq API Key 且選中 Groq

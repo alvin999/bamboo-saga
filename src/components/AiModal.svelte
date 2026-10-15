@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { RefineryMode } from '../lib/ai/refinery';
-  import type { TabItem, VimKeyOverrides, OneDriveAccountInfo, BackupResult, OneDriveBackupOverview } from '../types/tab';
+  import type { TabItem, VimKeyOverrides, OneDriveAccountInfo, BackupResult, OneDriveBackupOverview, AlchemyCardConfig } from '../types/tab';
   import {
     detectOneDriveAccounts,
     backupVaultToOneDrive,
@@ -8,31 +8,38 @@
     readOneDriveBackupJson,
     openInSystemExplorer
   } from '../lib/storage/fsBridge';
-  import { Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download } from 'lucide-svelte';
+  import { 
+    DEFAULT_ALCHEMY_CARDS, 
+    DEFAULT_VIM_OVERRIDES, 
+    getDefaultAlchemyCards, 
+    getDefaultVimOverrides 
+  } from '../lib/storage/vault';
+  import { Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download, RotateCcw, Key, Keyboard, Eye, EyeOff } from 'lucide-svelte';
+
+  type ModalTab = 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings';
 
   let {
     isOpen = false,
     selectedModel = 'gemini' as 'groq' | 'gemini',
     groqApiKey = '',
     geminiApiKey = '',
-    vimOverrides = {
-      ctrlS: true,
-      ctrlC: true,
-      ctrlV: true,
-      ctrlA: true,
-      ctrlF: true,
-      imeWarning: true,
-    } as VimKeyOverrides,
+    vimMode = false,
+    vimOverrides = getDefaultVimOverrides(),
+    alchemyCards = getDefaultAlchemyCards(),
     backupIntervalMinutes = 30,
     tabs = [] as TabItem[],
     selectedOneDrivePath = '',
     autoOneDriveBackup = false,
     enablePeriodicBackup = true,
-    activeTab = 'refine' as 'refine' | 'settings' | 'onedrive',
+    activeTab = 'refine' as ModalTab,
     onTabChange,
     onClose,
     onRefine,
     onSaveSettings,
+    onSaveKeys,
+    onSaveKeybindings,
+    onSaveAlchemyCards,
+    onToggleVim,
     onSaveOneDrivePreference,
     onShowToast,
     onRestoreVault
@@ -41,31 +48,53 @@
     selectedModel: 'groq' | 'gemini';
     groqApiKey: string;
     geminiApiKey: string;
+    vimMode?: boolean;
     vimOverrides?: VimKeyOverrides;
+    alchemyCards?: Record<string, AlchemyCardConfig>;
     tabs?: TabItem[];
     selectedOneDrivePath?: string;
     autoOneDriveBackup?: boolean;
     backupIntervalMinutes?: number;
     enablePeriodicBackup?: boolean;
-    activeTab?: 'refine' | 'settings' | 'onedrive';
-    onTabChange?: (tab: 'refine' | 'settings' | 'onedrive') => void;
+    activeTab?: ModalTab;
+    onTabChange?: (tab: 'refine' | 'keys' | 'keybindings' | 'onedrive') => void;
     onClose: () => void;
-    onRefine: (mode: RefineryMode, customPrompt: string) => Promise<void>;
-    onSaveSettings: (
+    onRefine: (mode: RefineryMode, customPrompt: string, cardPrompt?: string) => Promise<void>;
+    onSaveSettings?: (
       groq: string,
       gemini: string,
       model: 'groq' | 'gemini',
       vimOverrides: VimKeyOverrides
     ) => void;
+    onSaveKeys?: (groq: string, gemini: string, model: 'groq' | 'gemini') => void;
+    onSaveKeybindings?: (overrides: VimKeyOverrides, mode?: boolean) => void;
+    onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
+    onToggleVim?: (mode: boolean) => void;
     onSaveOneDrivePreference?: (path: string, auto: boolean, intervalMinutes?: number, enablePeriodic?: boolean) => void;
     onShowToast?: (msg: string) => void;
     onRestoreVault?: (restoredTabs: TabItem[]) => void;
   }>();
 
-  let selectedMode = $state<RefineryMode>('organize');
+  let selectedMode = $state<string>('organize');
   let customPrompt = $state('');
   let isRefining = $state(false);
   let errorMsg = $state('');
+
+  // 密碼顯示開關
+  let showGeminiKey = $state(false);
+  let showGroqKey = $state(false);
+
+  // 卡片心法自訂狀態
+  let inputCards = $state<Record<string, AlchemyCardConfig>>(getDefaultAlchemyCards());
+
+  // 按鍵與編輯模式狀態
+  let inputVimMode = $state(false);
+  let inputVimOverrides = $state<VimKeyOverrides>(getDefaultVimOverrides());
+
+  // 金鑰與推論核心狀態
+  let inputGroqKey = $state('');
+  let inputGeminiKey = $state('');
+  let inputModel = $state<'groq' | 'gemini'>('gemini');
 
   // OneDrive 備份與讀取狀態
   let oneDriveAccounts = $state<OneDriveAccountInfo[]>([]);
@@ -80,19 +109,7 @@
   let isCheckingBackup = $state(false);
   let prevIsOpen = false;
 
-  let inputGroqKey = $state('');
-  let inputGeminiKey = $state('');
-  let inputModel = $state<'groq' | 'gemini'>('gemini');
-  let inputVimOverrides = $state<VimKeyOverrides>({
-    ctrlS: true,
-    ctrlC: true,
-    ctrlV: true,
-    ctrlA: true,
-    ctrlF: true,
-    imeWarning: true,
-  });
-
-  function setTab(tab: 'refine' | 'settings' | 'onedrive') {
+  function setTab(tab: 'refine' | 'keys' | 'keybindings' | 'onedrive') {
     onTabChange?.(tab);
     if (tab === 'onedrive') {
       scanOneDrive();
@@ -105,8 +122,14 @@
       inputGroqKey = groqApiKey;
       inputGeminiKey = geminiApiKey;
       inputModel = selectedModel;
+      inputVimMode = !!vimMode;
       if (vimOverrides) {
         inputVimOverrides = { ...vimOverrides };
+      }
+      if (alchemyCards) {
+        inputCards = JSON.parse(JSON.stringify(alchemyCards));
+      } else {
+        inputCards = getDefaultAlchemyCards();
       }
       currentOneDrivePath = selectedOneDrivePath;
       isAutoBackup = autoOneDriveBackup;
@@ -257,12 +280,16 @@
     }
   }
 
-  async function handleExecuteSpecific(mode: RefineryMode) {
-    selectedMode = mode;
+  function handleSelectCard(modeId: string) {
+    selectedMode = modeId;
+  }
+
+  async function handleExecuteRefine() {
     isRefining = true;
     errorMsg = '';
     try {
-      await onRefine(mode, customPrompt);
+      const currentCardPrompt = inputCards[selectedMode]?.systemPrompt;
+      await onRefine(selectedMode as RefineryMode, customPrompt, currentCardPrompt);
       onClose();
     } catch (e: any) {
       errorMsg = e.message || '煉丹失敗，請檢查網路連線或 API 金鑰';
@@ -271,14 +298,48 @@
     }
   }
 
-  function handleSaveSettings() {
-    onSaveSettings(
-      inputGroqKey.trim(),
-      inputGeminiKey.trim(),
-      inputModel,
-      $state.snapshot(inputVimOverrides)
-    );
-    setTab('refine');
+  function handleResetCurrentCard() {
+    if (DEFAULT_ALCHEMY_CARDS[selectedMode]) {
+      inputCards[selectedMode].systemPrompt = DEFAULT_ALCHEMY_CARDS[selectedMode].systemPrompt;
+      inputCards[selectedMode].title = DEFAULT_ALCHEMY_CARDS[selectedMode].title;
+      inputCards[selectedMode].desc = DEFAULT_ALCHEMY_CARDS[selectedMode].desc;
+      onShowToast?.(`🔄 已將【${inputCards[selectedMode].title}】恢復為原廠預設心法`);
+    }
+  }
+
+  function handleSaveCards() {
+    onSaveAlchemyCards?.($state.snapshot(inputCards));
+    onShowToast?.(`💾 【${inputCards[selectedMode]?.title || '煉丹卡片'}】心法設定已成功儲存入櫃！`);
+  }
+
+  function handleSaveKeysOnly() {
+    if (onSaveKeys) {
+      onSaveKeys(inputGroqKey.trim(), inputGeminiKey.trim(), inputModel);
+    } else if (onSaveSettings) {
+      onSaveSettings(inputGroqKey.trim(), inputGeminiKey.trim(), inputModel, $state.snapshot(inputVimOverrides));
+    }
+    onShowToast?.('🔑 AI 金鑰與推論核心配置已成功保存！');
+  }
+
+  function handleSaveKeybindingsOnly() {
+    if (onSaveKeybindings) {
+      onSaveKeybindings($state.snapshot(inputVimOverrides), inputVimMode);
+    } else if (onSaveSettings) {
+      onSaveSettings(inputGroqKey.trim(), inputGeminiKey.trim(), inputModel, $state.snapshot(inputVimOverrides));
+    }
+    onToggleVim?.(inputVimMode);
+    onShowToast?.('⌨️ 按鍵與編輯模式偏好已成功保存！');
+  }
+
+  function handleResetVimOverrides() {
+    inputVimOverrides = getDefaultVimOverrides();
+    onShowToast?.('🔄 已恢復 Vim 快捷鍵衝突攔截的推薦預設值！');
+  }
+
+  function handleToggleVimModeInSettings(mode: boolean) {
+    inputVimMode = mode;
+    onToggleVim?.(mode);
+    onShowToast?.(mode ? '⌨️ 已切換為 VIM 模態 (VIM-HYBRID)' : '📝 已切換為 STD 標準編輯模式');
   }
 </script>
 
@@ -290,7 +351,12 @@
       role="dialog" 
       aria-modal="true" 
       tabindex="-1"
-      onkeydown={(e) => e.key === 'Escape' && onClose()}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') onClose();
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && activeTab === 'refine' && !isRefining) {
+          handleExecuteRefine();
+        }
+      }}
     >
       <!-- 包浩斯形上學頂部導航 -->
       <header class="modal-header">
@@ -299,8 +365,10 @@
           <span class="engine-title">
             {activeTab === 'onedrive' 
               ? '雲端備份 // ONEDRIVE MIRROR' 
-              : activeTab === 'settings' 
-              ? '偏好設定 // PREFERENCES' 
+              : activeTab === 'keys' 
+              ? '金鑰配置 // API CREDENTIALS' 
+              : activeTab === 'keybindings'
+              ? '按鍵偏好 // VIM & KEYMAP'
               : '煉丹樞紐 // SAGATECH ENGINE'}
           </span>
           <span class="engine-badge">DOT-SYS v2.5</span>
@@ -310,18 +378,28 @@
           <button 
             class="tab-btn {activeTab === 'refine' ? 'active' : ''}" 
             onclick={() => setTab('refine')}
+            title="設定煉丹卡片心法與成丹"
           >
-            煉丹樞紐
+            🧪 煉丹樞紐
           </button>
           <button 
-            class="tab-btn {activeTab === 'settings' ? 'active' : ''}" 
-            onclick={() => setTab('settings')}
+            class="tab-btn {activeTab === 'keys' || activeTab === 'settings' ? 'active' : ''}" 
+            onclick={() => setTab('keys')}
+            title="配置 Gemini / Groq API 金鑰與推論核心"
           >
-            金鑰與偏好
+            🔑 API 金鑰
+          </button>
+          <button 
+            class="tab-btn {activeTab === 'keybindings' ? 'active' : ''}" 
+            onclick={() => setTab('keybindings')}
+            title="設定 VIM / STD 模式與快捷鍵覆蓋"
+          >
+            ⌨️ 按鍵偏好
           </button>
           <button 
             class="tab-btn {activeTab === 'onedrive' ? 'active' : ''}" 
             onclick={() => setTab('onedrive')}
+            title="OneDrive 自動雲端鏡像備份"
           >
             ☁️ 雲端備份
           </button>
@@ -338,125 +416,258 @@
       {/if}
 
       {#if activeTab === 'refine'}
+        <!-- 煉丹樞紐：卡片功能設定與手動成丹 -->
         <div class="modal-body refine-body">
           <p class="philosophy-quote">
-            「無須複雜旋鈕，AI 智能感應全文上下文，萃取結論、待辦事項與核心代碼架構。」
+            「點擊卡片可進入心法配置，客製化 Prompt 指導語；確認心法後點擊下方按鈕啟動成丹。」
           </p>
 
-          <!-- Bauhaus Metaphysica 三欄矩陣卡片 -->
+          <!-- 三欄矩陣卡片（純選取與配置，不立即執行） -->
           <div class="matrix-grid">
-            <div 
-              class="matrix-card {selectedMode === 'organize' ? 'selected' : ''}"
-              onclick={() => handleExecuteSpecific('organize')}
-              role="button"
-              tabindex="0"
-              onkeydown={(e) => e.key === 'Enter' && handleExecuteSpecific('organize')}
-            >
-              <div class="card-head">
-                <span class="step-tag tag-cinnabar">[ 01 // 凝練 ]</span>
-                <h4 class="card-title">結構化結論</h4>
+            {#each Object.entries(inputCards) as [cardKey, card] (cardKey)}
+              {@const isSelected = selectedMode === cardKey}
+              <div 
+                class="matrix-card {isSelected ? 'selected' : ''}"
+                onclick={() => handleSelectCard(cardKey)}
+                role="button"
+                tabindex="0"
+                onkeydown={(e) => e.key === 'Enter' && handleSelectCard(cardKey)}
+              >
+                <div class="card-head">
+                  <span class="step-tag tag-{card.colorTag}">{card.tag}</span>
+                  <div class="title-with-badge">
+                    <h4 class="card-title">{card.title}</h4>
+                    {#if isSelected}
+                      <span class="active-badge">設定中</span>
+                    {/if}
+                  </div>
+                </div>
+                <p class="card-desc">{card.desc}</p>
+                <div class="card-action-hint">
+                  <span>{isSelected ? '🎯 當前選中' : '⚙️ 點擊配置心法'}</span>
+                </div>
               </div>
-              <p class="card-desc">自動提煉會議要點、脈絡綱領與決策結論</p>
-            </div>
-
-            <div 
-              class="matrix-card {selectedMode === 'action_items' ? 'selected' : ''}"
-              onclick={() => handleExecuteSpecific('action_items')}
-              role="button"
-              tabindex="0"
-              onkeydown={(e) => e.key === 'Enter' && handleExecuteSpecific('action_items')}
-            >
-              <div class="card-head">
-                <span class="step-tag tag-ochre">[ 02 // 析理 ]</span>
-                <h4 class="card-title">待辦矩陣化</h4>
-              </div>
-              <p class="card-desc">識別 TODO、FIXME 與行動項目，轉換為排程工單</p>
-            </div>
-
-            <div 
-              class="matrix-card {selectedMode === 'code_refactor' ? 'selected' : ''}"
-              onclick={() => handleExecuteSpecific('code_refactor')}
-              role="button"
-              tabindex="0"
-              onkeydown={(e) => e.key === 'Enter' && handleExecuteSpecific('code_refactor')}
-            >
-              <div class="card-head">
-                <span class="step-tag tag-olive">[ 03 // 淨心 ]</span>
-                <h4 class="card-title">代碼語法補正</h4>
-              </div>
-              <p class="card-desc">排版校對、Markdown 標籤補齊與智能命名對齊</p>
-            </div>
+            {/each}
           </div>
 
-          <!-- 自訂指令輸入框 -->
+          <!-- 選中卡片之心法指導語配置面板 -->
+          {#if inputCards[selectedMode]}
+            {@const currentCard = inputCards[selectedMode]}
+            <div class="card-config-panel">
+              <div class="panel-header">
+                <div class="panel-title-group">
+                  <span class="config-tag tag-{currentCard.colorTag}">{currentCard.tag}</span>
+                  <span class="config-title">【{currentCard.title}】心法指導語 (System Prompt Template)</span>
+                </div>
+                <div class="panel-btn-group">
+                  <button 
+                    type="button" 
+                    class="card-tool-btn reset-btn" 
+                    onclick={handleResetCurrentCard}
+                    title="恢復出廠預設心法指導語"
+                  >
+                    <RotateCcw size={12} />
+                    <span>恢復預設心法</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    class="card-tool-btn save-card-btn" 
+                    onclick={handleSaveCards}
+                    title="儲存對此卡片心法的修改"
+                  >
+                    <span>💾 保存心法設定</span>
+                  </button>
+                </div>
+              </div>
+
+              <textarea 
+                class="prompt-textarea"
+                rows="6"
+                placeholder="在此編輯此卡片的 AI 提煉結構規範與指示心法..."
+                bind:value={currentCard.systemPrompt}
+              ></textarea>
+
+              <div class="prompt-help-note">
+                <span>💡 提示：此心法將作為系統指令傳遞給 AI 推論引擎，用於引導 Markdown 結構排版。</span>
+              </div>
+            </div>
+          {/if}
+
+          <!-- 自訂單次補充要求輸入框 -->
           <div class="custom-prompt-section">
-            <label class="prompt-label" for="custom-input">自訂煉丹心法 (可選)：</label>
+            <label class="prompt-label" for="custom-input">單次煉丹補充心法 (可選)：</label>
             <input 
               id="custom-input"
               type="text" 
               class="prompt-input" 
-              placeholder="例：改以古風駢文總結 / 著重在資安漏洞分析..." 
+              placeholder="例：改以文言古風駢文總結 / 著重在資安漏洞分析 / 英文專業術語優先..." 
               bind:value={customPrompt}
             />
           </div>
 
-          <!-- 底部指標與全自動成丹 -->
+          <!-- 底部指標與顯式成丹按鈕 -->
           <footer class="modal-footer">
             <div class="telemetry">
               <span class="telemetry-dot"></span>
-              <span class="telemetry-text">LATENCY: 42MS • SAGA-CORE ({selectedModel.toUpperCase()})</span>
+              <span class="telemetry-text">LATENCY: 42MS • SAGA-CORE ({selectedModel.toUpperCase()}) • {inputCards[selectedMode]?.title || '待命'}</span>
             </div>
 
             <button 
               class="auto-refine-btn" 
               disabled={isRefining}
-              onclick={() => handleExecuteSpecific(selectedMode)}
+              onclick={handleExecuteRefine}
+              title="以選定的心法立即執行提煉 (Ctrl+Enter)"
             >
               {#if isRefining}
                 <span class="spinner">⏳</span>
                 <span>煉丹運算中...</span>
               {:else}
                 <span class="fire-dot"></span>
-                <span>一鍵全自動成丹</span>
+                <span>✨ 以此心法成丹 (Ctrl+Enter)</span>
               {/if}
             </button>
           </footer>
         </div>
-      {:else if activeTab === 'settings'}
-        <!-- 偏好設定與金鑰配置 -->
+
+      {:else if activeTab === 'keys' || activeTab === 'settings'}
+        <!-- 獨立分頁一：API 金鑰與推論核心配置 -->
         <div class="modal-body settings-body">
+          <div class="section-banner">
+            <Key size={16} class="section-icon" />
+            <div class="section-title-group">
+              <span class="section-main-title">AI 推論金鑰與核心引擎</span>
+              <span class="section-sub-title">金鑰僅存於本機瀏覽器 / 系統加密空間，零伺服器轉發風險</span>
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label" for="model-select">核心推論引擎</label>
             <select id="model-select" class="form-select" bind:value={inputModel}>
-              <option value="gemini">Google Gemini 1.5 Flash (大文本上下文推薦)</option>
-              <option value="groq">Groq Llama 3 70B (超極速推論)</option>
+              <option value="gemini">Google Gemini 1.5 / 2.5 Flash (大文本上下文推薦)</option>
+              <option value="groq">Groq Llama 3.3 70B (超極速推論)</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="gemini-key">Gemini API Key</label>
+            <div class="label-with-tool">
+              <label class="form-label" for="gemini-key">Google Gemini API Key</label>
+              <button 
+                type="button" 
+                class="text-link-btn" 
+                onclick={() => (showGeminiKey = !showGeminiKey)}
+              >
+                {#if showGeminiKey}
+                  <EyeOff size={13} /> <span>隱藏</span>
+                {:else}
+                  <Eye size={13} /> <span>顯示明文</span>
+                {/if}
+              </button>
+            </div>
             <input 
               id="gemini-key"
-              type="password" 
+              type={showGeminiKey ? 'text' : 'password'} 
               class="form-input" 
               placeholder="AIzaSy..." 
               bind:value={inputGeminiKey} 
             />
+            <span class="field-hint">推薦使用 Google AI Studio 免費金鑰，長文提煉效果極佳。</span>
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="groq-key">Groq API Key</label>
+            <div class="label-with-tool">
+              <label class="form-label" for="groq-key">Groq API Key</label>
+              <button 
+                type="button" 
+                class="text-link-btn" 
+                onclick={() => (showGroqKey = !showGroqKey)}
+              >
+                {#if showGroqKey}
+                  <EyeOff size={13} /> <span>隱藏</span>
+                {:else}
+                  <Eye size={13} /> <span>顯示明文</span>
+                {/if}
+              </button>
+            </div>
             <input 
               id="groq-key"
-              type="password" 
+              type={showGroqKey ? 'text' : 'password'} 
               class="form-input" 
               placeholder="gsk_..." 
               bind:value={inputGroqKey} 
             />
+            <span class="field-hint">極速毫秒級響應，適合靈感速記與即時整理。</span>
           </div>
 
+          <footer class="modal-footer">
+            <div class="telemetry">
+              <span class="telemetry-dot"></span>
+              <span class="telemetry-text">CONFIG: LOCAL SECURE VAULT</span>
+            </div>
+            <button class="save-settings-btn" onclick={handleSaveKeysOnly}>
+              💾 保存金鑰配置
+            </button>
+          </footer>
+        </div>
+
+      {:else if activeTab === 'keybindings'}
+        <!-- 獨立分頁二：按鍵偏好與 VIM 模式 -->
+        <div class="modal-body settings-body">
+          <div class="section-banner">
+            <Keyboard size={16} class="section-icon" />
+            <div class="section-title-group">
+              <span class="section-main-title">按鍵偏好與編輯器模式</span>
+              <span class="section-sub-title">自訂 VIM 模態、快捷鍵衝突覆蓋與中文防呆機制</span>
+            </div>
+          </div>
+
+          <!-- 預設編輯模式切換器 (STD vs VIM) -->
           <div class="form-group">
-            <span class="form-label">Vim 模式快捷鍵攔截覆蓋 (避免與常用系統鍵衝突)</span>
+            <span class="form-label">預設編輯器模式 (Default Editor Mode)</span>
+            <div class="mode-selector-grid">
+              <button 
+                type="button"
+                class="mode-choice-card {!inputVimMode ? 'selected' : ''}"
+                onclick={() => handleToggleVimModeInSettings(false)}
+              >
+                <div class="choice-head">
+                  <span class="choice-title">📝 MODE // STD-EDIT</span>
+                  {#if !inputVimMode}
+                    <span class="choice-badge">作用中</span>
+                  {/if}
+                </div>
+                <p class="choice-desc">標準現代無阻編輯體驗，直覺打字、游標選取與智慧染色。</p>
+              </button>
+
+              <button 
+                type="button"
+                class="mode-choice-card {inputVimMode ? 'selected' : ''}"
+                onclick={() => handleToggleVimModeInSettings(true)}
+              >
+                <div class="choice-head">
+                  <span class="choice-title">⌨️ MODE // VIM-HYBRID</span>
+                  {#if inputVimMode}
+                    <span class="choice-badge">作用中</span>
+                  {/if}
+                </div>
+                <p class="choice-desc">經典 Normal/Insert/Visual 模態，結合物理殘影與系統剪貼簿相容。</p>
+              </button>
+            </div>
+          </div>
+
+          <!-- Vim 快捷鍵衝突攔截覆蓋 -->
+          <div class="form-group">
+            <div class="label-with-tool">
+              <span class="form-label">Vim 模式快捷鍵攔截覆蓋 (避免與常用系統習慣衝突)</span>
+              <button 
+                type="button" 
+                class="text-link-btn reset-link" 
+                onclick={handleResetVimOverrides}
+              >
+                <RotateCcw size={12} />
+                <span>恢復推薦預設值</span>
+              </button>
+            </div>
+
             <div class="overrides-grid">
               <label class="override-item">
                 <input type="checkbox" bind:checked={inputVimOverrides.ctrlS} />
@@ -486,8 +697,16 @@
           </div>
 
           <footer class="modal-footer">
-            <button class="save-settings-btn" onclick={handleSaveSettings}>
-              💾 保存偏好設定
+            <button 
+              type="button" 
+              class="reset-secondary-btn" 
+              onclick={handleResetVimOverrides}
+            >
+              <RotateCcw size={13} />
+              <span>恢復預設快捷鍵</span>
+            </button>
+            <button class="save-settings-btn" onclick={handleSaveKeybindingsOnly}>
+              💾 保存按鍵偏好
             </button>
           </footer>
         </div>
@@ -962,6 +1181,132 @@
     line-height: 1.5;
   }
 
+  .title-with-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .active-badge {
+    font-size: 0.62rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: rgba(212, 155, 53, 0.25);
+    color: #fabd2f;
+    border: 1px solid rgba(212, 155, 53, 0.4);
+    font-weight: 600;
+  }
+
+  .card-action-hint {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(80, 69, 52, 0.4);
+    font-size: 0.64rem;
+    color: #868074;
+    text-align: right;
+  }
+
+  /* 選中卡片之心法配置面板 */
+  .card-config-panel {
+    background: #191c1a;
+    border: 1px solid rgba(212, 155, 53, 0.4);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .panel-title-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .config-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .config-title {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #ece7dc;
+  }
+
+  .panel-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.66rem;
+    background: transparent;
+    cursor: pointer;
+    font-family: var(--font-mono, monospace);
+    transition: all 0.15s ease;
+  }
+
+  .reset-btn {
+    border: 1px solid #504534;
+    color: #938c80;
+  }
+
+  .reset-btn:hover {
+    border-color: #c95847;
+    color: #c95847;
+  }
+
+  .save-card-btn {
+    border: 1px solid #869b74;
+    color: #b8bb26;
+    background: rgba(134, 155, 116, 0.12);
+  }
+
+  .save-card-btn:hover {
+    background: #869b74;
+    color: #141615;
+  }
+
+  .prompt-textarea {
+    width: 100%;
+    background: #0e0e0e;
+    border: 1px solid #3c3836;
+    border-radius: 4px;
+    padding: 8px 10px;
+    color: #ece7dc;
+    font-size: 0.74rem;
+    font-family: var(--font-mono, monospace);
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+  }
+
+  .prompt-textarea:focus {
+    border-color: #d49b35;
+  }
+
+  .prompt-help-note {
+    font-size: 0.64rem;
+    color: #868074;
+  }
+
   .custom-prompt-section {
     display: flex;
     flex-direction: column;
@@ -997,6 +1342,7 @@
     justify-content: space-between;
     padding-top: 14px;
     border-top: 1px solid rgba(80, 69, 52, 0.35);
+    gap: 12px;
   }
 
   .telemetry {
@@ -1028,6 +1374,7 @@
     font-weight: 700;
     cursor: pointer;
     transition: all 0.15s ease;
+    white-space: nowrap;
   }
 
   .auto-refine-btn:hover:not(:disabled) {
@@ -1042,7 +1389,159 @@
     background: #c95847;
   }
 
-  /* 設定頁籤樣式 */
+  /* 區塊標題橫幅 */
+  .section-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(45, 43, 39, 0.35);
+    border: 1px solid rgba(80, 69, 52, 0.4);
+    border-radius: 6px;
+    margin-bottom: 14px;
+  }
+
+  :global(.section-icon) {
+    color: #d49b35;
+    flex-shrink: 0;
+  }
+
+  .section-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .section-main-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #ece7dc;
+  }
+
+  .section-sub-title {
+    font-size: 0.66rem;
+    color: #868074;
+  }
+
+  .label-with-tool {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .text-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    color: #b59e72;
+    font-size: 0.66rem;
+    cursor: pointer;
+    font-family: var(--font-mono, monospace);
+  }
+
+  .text-link-btn:hover {
+    color: #fabd2f;
+    text-decoration: underline;
+  }
+
+  .reset-link {
+    color: #938c80;
+  }
+
+  .reset-link:hover {
+    color: #c95847;
+  }
+
+  .field-hint {
+    font-size: 0.64rem;
+    color: #868074;
+    margin-top: 2px;
+  }
+
+  /* 模式選擇卡片 (STD vs VIM) */
+  .mode-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .mode-choice-card {
+    background: #0e0e0e;
+    border: 1px solid #3c3836;
+    border-radius: 6px;
+    padding: 10px 12px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.15s ease;
+    font-family: var(--font-mono, monospace);
+  }
+
+  .mode-choice-card:hover {
+    border-color: #d49b35;
+    background: #181919;
+  }
+
+  .mode-choice-card.selected {
+    border-color: #d49b35;
+    background: rgba(212, 155, 53, 0.12);
+  }
+
+  .choice-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .choice-title {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #ece7dc;
+  }
+
+  .choice-badge {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: #d49b35;
+    color: #141615;
+    font-weight: 700;
+  }
+
+  .choice-desc {
+    font-size: 0.66rem;
+    color: #938c80;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .reset-secondary-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px;
+    height: 34px;
+    border-radius: 4px;
+    background: transparent;
+    border: 1px solid #504534;
+    color: #938c80;
+    font-size: 0.72rem;
+    cursor: pointer;
+    font-family: var(--font-mono, monospace);
+    transition: all 0.15s ease;
+  }
+
+  .reset-secondary-btn:hover {
+    border-color: #c95847;
+    color: #c95847;
+  }
+
+  /* 設定頁籤表單通用 */
   .form-group {
     display: flex;
     flex-direction: column;
@@ -1088,8 +1587,8 @@
   }
 
   .save-settings-btn {
-    width: 100%;
     height: 34px;
+    padding: 0 16px;
     background: #1f2020;
     border: 1px solid #d49b35;
     color: #d49b35;
@@ -1097,6 +1596,8 @@
     font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
+    font-family: var(--font-mono, monospace);
+    transition: all 0.15s ease;
   }
 
   .save-settings-btn:hover {

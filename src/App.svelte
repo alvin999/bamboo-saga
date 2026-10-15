@@ -1,10 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { TabItem, SupportedLanguage, CursorPosition } from './types/tab';
+  import type { TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig } from './types/tab';
   import { loadVaultState, saveVaultState } from './lib/storage/vault';
   import { refineNotes } from './lib/ai/refinery';
   import type { RefineryMode } from './lib/ai/refinery';
-  import type { VimKeyOverrides } from './types/tab';
 
   import PrimaryTopBar from './components/PrimaryTopBar.svelte';
   import SecondaryAlchemyBar from './components/SecondaryAlchemyBar.svelte';
@@ -32,7 +31,7 @@
   // 核心應用狀態
   let state = $state(loadVaultState());
   let isAiModalOpen = $state(false);
-  let aiModalTab = $state<'refine' | 'settings' | 'onedrive'>('refine');
+  let aiModalTab = $state<'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings'>('refine');
   let isFileBrowserOpen = $state(false);
   let isFuzzyModalOpen = $state(false);
   let isLocalHistoryOpen = $state(false);
@@ -86,9 +85,10 @@
     state.tabs.find((t) => t.id === state.activeTabId) || state.tabs[0]
   );
 
-  // 當狀態有任何細微變更時，觸發毫秒級持久化
+  // 當狀態有任何細微變更時（包含 VIM 模式切換、分頁內容等），建立快照並觸發毫秒級持久化
   $effect(() => {
-    saveVaultState(state);
+    const snapshot = $state.snapshot(state);
+    saveVaultState(snapshot);
   });
 
   onMount(() => {
@@ -427,7 +427,7 @@
   }
 
   // AI 煉丹操作
-  async function handleExecuteRefine(mode: RefineryMode, customPrompt: string) {
+  async function handleExecuteRefine(mode: RefineryMode, customPrompt: string, cardPrompt?: string) {
     if (!activeTab) return;
     isRefining = true;
 
@@ -448,6 +448,7 @@
         mode,
         content: activeTab.content,
         customPrompt,
+        cardPrompt,
       });
 
       // 3. 寫入煉丹結果並切換為草稿審核狀態
@@ -501,6 +502,39 @@
 
   function handleImeWarning(msg: string) {
     showToast(msg);
+  }
+
+  // VIM / STD MODE 自動即時持久化切換
+  function handleToggleVimMode(explicitMode?: boolean) {
+    state.vimMode = explicitMode !== undefined ? explicitMode : !state.vimMode;
+    saveVaultState(state, true);
+    showToast(state.vimMode ? '⌨️ 編輯模式已切換為：VIM (VIM-HYBRID)' : '📝 編輯模式已切換為：STD (標準編輯)');
+  }
+
+  // 金鑰配置獨立保存
+  function handleSaveKeys(groq: string, gemini: string, model: 'groq' | 'gemini') {
+    state.groqApiKey = groq;
+    state.geminiApiKey = gemini;
+    state.selectedAiModel = model;
+    saveVaultState(state, true);
+    showToast('🔑 AI 推論金鑰與核心配置已成功保存入櫃！');
+  }
+
+  // 按鍵偏好獨立保存
+  function handleSaveKeybindings(overrides: VimKeyOverrides, mode?: boolean) {
+    state.vimOverrides = overrides;
+    if (mode !== undefined) {
+      state.vimMode = mode;
+    }
+    saveVaultState(state, true);
+    showToast('⌨️ 按鍵快捷鍵與編輯模式偏好已成功保存入櫃！');
+  }
+
+  // 煉丹卡片心法自訂獨立保存
+  function handleSaveAlchemyCards(cards: Record<string, AlchemyCardConfig>) {
+    state.alchemyCards = cards;
+    saveVaultState(state, true);
+    showToast('📜 煉丹卡片心法設定已成功保存入櫃！');
   }
 
   function handleSaveSettings(
@@ -558,7 +592,7 @@
     onMoveTabDeck={handleMoveTabDeck}
     onToggleFileBrowser={() => (isFileBrowserOpen = !isFileBrowserOpen)}
     onOpenSettings={() => {
-      aiModalTab = 'settings';
+      aiModalTab = 'keys';
       isAiModalOpen = true;
     }}
     isSaved={isSavingIndicator}
@@ -660,7 +694,7 @@
       cursor={activeTab.cursor}
       vimMode={state.vimMode}
       onLanguageChange={handleLanguageChange}
-      onToggleVim={() => (state.vimMode = !state.vimMode)}
+      onToggleVim={handleToggleVimMode}
       onOpenHistory={() => (isLocalHistoryOpen = true)}
       onPutLabel={() => (isPutLabelOpen = true)}
       onOpenBackup={() => {
@@ -743,7 +777,9 @@
     selectedModel={state.selectedAiModel}
     groqApiKey={state.groqApiKey}
     geminiApiKey={state.geminiApiKey}
+    vimMode={state.vimMode}
     vimOverrides={state.vimOverrides}
+    alchemyCards={state.alchemyCards}
     tabs={state.tabs}
     selectedOneDrivePath={state.selectedOneDrivePath}
     autoOneDriveBackup={state.autoOneDriveBackup}
@@ -752,6 +788,10 @@
     onClose={() => (isAiModalOpen = false)}
     onRefine={handleExecuteRefine}
     onSaveSettings={handleSaveSettings}
+    onSaveKeys={handleSaveKeys}
+    onSaveKeybindings={handleSaveKeybindings}
+    onSaveAlchemyCards={handleSaveAlchemyCards}
+    onToggleVim={handleToggleVimMode}
     onSaveOneDrivePreference={handleSaveOneDrivePreference}
     onShowToast={showToast}
     onRestoreVault={handleRestoreVaultFromOneDrive}

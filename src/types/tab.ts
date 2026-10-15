@@ -57,6 +57,15 @@ export interface VimKeyOverrides {
   imeWarning: boolean;
 }
 
+export interface AlchemyCardConfig {
+  id: string; // 'organize' | 'action_items' | 'code_refactor'
+  tag: string; // '[ 01 // 凝練 ]'
+  title: string; // '結構化結論'
+  desc: string; // '自動提煉會議要點、脈絡綱領與決策結論'
+  systemPrompt: string; // 心法指導語 / prompt template
+  colorTag: 'cinnabar' | 'ochre' | 'olive';
+}
+
 export interface OneDriveAccountInfo {
   account_type: 'personal' | 'business';
   display_name: string;
@@ -95,6 +104,7 @@ export interface AppState {
   tabs: TabItem[];
   vimMode: boolean;
   vimOverrides: VimKeyOverrides;
+  alchemyCards?: Record<string, AlchemyCardConfig>;
   groqApiKey: string;
   geminiApiKey: string;
   selectedAiModel: 'groq' | 'gemini';
