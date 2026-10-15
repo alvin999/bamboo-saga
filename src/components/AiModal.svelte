@@ -16,6 +16,7 @@
     getDefaultVimOverrides,
     getDefaultLayoutConfig
   } from '../lib/storage/vault';
+  import { DEFAULT_SHORTCUT_GROUPS } from '../lib/constants/shortcuts';
   import { Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download, RotateCcw, Key, Keyboard, Eye, EyeOff, LayoutTemplate } from 'lucide-svelte';
 
   type ModalTab = 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout';
@@ -726,6 +727,30 @@
                 <input type="checkbox" bind:checked={inputVimOverrides.imeWarning} />
                 <span>中文注音防呆告警</span>
               </label>
+            </div>
+          </div>
+
+          <!-- 全域系統快捷鍵映射與未來自訂宣告 (Single Source of Truth) -->
+          <div class="form-group">
+            <div class="label-with-tool">
+              <span class="form-label">全域系統快捷鍵映射 (Global Shortcuts Mapping)</span>
+              <span class="badge-hint">已綁定 Ctrl 控制 · 未來開放自訂鍵位</span>
+            </div>
+
+            <div class="system-shortcuts-container">
+              {#each DEFAULT_SHORTCUT_GROUPS[0].items as item}
+                <div class="shortcut-map-row">
+                  <div class="map-label-group">
+                    <span class="map-label">{item.label}</span>
+                    <span class="map-desc">{item.description}</span>
+                  </div>
+                  <div class="map-keycaps">
+                    {#each item.keys as k}
+                      <kbd class="map-kbd">{k}</kbd>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
             </div>
           </div>
 
@@ -1775,6 +1800,76 @@
     font-size: 0.72rem;
     color: #938c80;
     cursor: pointer;
+  }
+
+  .badge-hint {
+    font-size: 10px;
+    color: #7daea3;
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(125, 174, 163, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(125, 174, 163, 0.25);
+  }
+
+  .system-shortcuts-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(20, 22, 21, 0.6);
+    border: 1px solid rgba(235, 219, 178, 0.08);
+    border-radius: 4px;
+    padding: 8px 10px;
+  }
+
+  .shortcut-map-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 8px;
+    border-radius: 3px;
+    background: rgba(29, 32, 33, 0.4);
+  }
+
+  .shortcut-map-row:hover {
+    background: rgba(212, 155, 53, 0.08);
+  }
+
+  .map-label-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .map-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #ece7dc;
+  }
+
+  .map-desc {
+    font-size: 10px;
+    color: #868074;
+  }
+
+  .map-keycaps {
+    display: flex;
+    gap: 4px;
+  }
+
+  .map-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    color: #ece7dc;
+    background: #141615;
+    border: 1px solid rgba(235, 219, 178, 0.2);
+    border-bottom: 2px solid rgba(212, 155, 53, 0.5);
+    border-radius: 3px;
   }
 
   .save-settings-btn {

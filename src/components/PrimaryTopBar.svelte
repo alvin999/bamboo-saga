@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { TabItem } from '../types/tab';
+  import ShortcutCheatSheet from './ShortcutCheatSheet.svelte';
 
   let { 
     vimMode = $bindable(false),
@@ -26,9 +27,11 @@
     onReorderTabs?: (sourceId: string, targetId: string) => void;
     onToggleFileBrowser: () => void;
     onOpenSettings: () => void;
+    onOpenKeybindings?: () => void;
     isSaved: boolean;
   }>();
 
+  let isCheatSheetOpen = $state(false);
   let editingTabId = $state<string | null>(null);
   let editInput = $state('');
   let draggedTabId = $state<string | null>(null);
@@ -250,11 +253,25 @@
         <span class="sync-readout">{isSaved ? 'SYNC // 0.01MS' : 'FLUSH // VAULT'}</span>
       </div>
 
+      <button 
+        class="tune-btn shortcut-btn {isCheatSheetOpen ? 'active' : ''}" 
+        onclick={() => (isCheatSheetOpen = !isCheatSheetOpen)} 
+        title="快捷鍵速查說明指南"
+      >
+        <span class="material-symbols-outlined text-[16px]">keyboard</span>
+      </button>
+
       <button class="tune-btn" onclick={onOpenSettings} title="偏好設定與 API 金鑰">
         <span class="material-symbols-outlined text-[16px]">tune</span>
       </button>
     </div>
   </div>
+
+  <ShortcutCheatSheet 
+    isOpen={isCheatSheetOpen}
+    onClose={() => (isCheatSheetOpen = false)}
+    onNavigateToSettings={onOpenKeybindings || onOpenSettings}
+  />
 </header>
 
 <style>
@@ -590,8 +607,15 @@
     transition: color 0.15s;
   }
 
-  .tune-btn:hover {
+  .tune-btn:hover,
+  .tune-btn.active {
     color: #dcd7cb;
+  }
+
+  .shortcut-btn.active {
+    color: #d49b35;
+    background: rgba(212, 155, 53, 0.1);
+    border-radius: 3px;
   }
 
   .rename-input {

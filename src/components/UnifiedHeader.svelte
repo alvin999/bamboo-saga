@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { TabItem } from '../types/tab';
+  import ShortcutCheatSheet from './ShortcutCheatSheet.svelte';
 
   let { 
     vimMode = $bindable(false),
@@ -11,6 +12,7 @@
     onRenameTab,
     onOpenAi,
     onOpenSettings,
+    onOpenKeybindings,
     isSaved = true
   } = $props<{
     vimMode: boolean;
@@ -22,9 +24,11 @@
     onRenameTab: (id: string, newTitle: string) => void;
     onOpenAi: () => void;
     onOpenSettings: () => void;
+    onOpenKeybindings?: () => void;
     isSaved: boolean;
   }>();
 
+  let isCheatSheetOpen = $state(false);
   let editingTabId = $state<string | null>(null);
   let editInput = $state('');
 
@@ -136,6 +140,25 @@
       <kbd class="hud-kbd">Ctrl+K</kbd>
     </button>
 
+    <button 
+      class="specular-btn icon-only-btn {isCheatSheetOpen ? 'active' : ''}" 
+      onclick={() => (isCheatSheetOpen = !isCheatSheetOpen)} 
+      title="快速鍵速查說明指南"
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+        <line x1="6" y1="8" x2="6" y2="8"></line>
+        <line x1="10" y1="8" x2="10" y2="8"></line>
+        <line x1="14" y1="8" x2="14" y2="8"></line>
+        <line x1="18" y1="8" x2="18" y2="8"></line>
+        <line x1="6" y1="12" x2="6" y2="12"></line>
+        <line x1="10" y1="12" x2="10" y2="12"></line>
+        <line x1="14" y1="12" x2="14" y2="12"></line>
+        <line x1="18" y1="12" x2="18" y2="12"></line>
+        <line x1="8" y1="16" x2="16" y2="16"></line>
+      </svg>
+    </button>
+
     <button class="specular-btn icon-only-btn" onclick={onOpenSettings} title="偏好設定與 API 金鑰">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="3"></circle>
@@ -143,6 +166,12 @@
       </svg>
     </button>
   </div>
+
+  <ShortcutCheatSheet 
+    isOpen={isCheatSheetOpen}
+    onClose={() => (isCheatSheetOpen = false)}
+    onNavigateToSettings={onOpenKeybindings || onOpenSettings}
+  />
 </header>
 
 <style>

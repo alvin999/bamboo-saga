@@ -669,6 +669,10 @@
       aiModalTab = 'keys';
       isAiModalOpen = true;
     }}
+    onOpenKeybindings={() => {
+      aiModalTab = 'keybindings';
+      isAiModalOpen = true;
+    }}
     isSaved={isSavingIndicator}
   />
 
