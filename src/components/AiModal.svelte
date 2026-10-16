@@ -21,7 +21,7 @@
   import { DEFAULT_SHORTCUT_GROUPS } from '../lib/constants/shortcuts';
   import { 
     Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download, 
-    RotateCcw, Key, Keyboard, Eye, EyeOff, LayoutTemplate, Shield, Lock, Sparkles, AlertCircle 
+    RotateCcw, Key, Keyboard, Eye, EyeOff, LayoutTemplate, Shield, Lock, Sparkles, AlertCircle, CheckCircle2 
   } from 'lucide-svelte';
   import { fetchGeminiModels, fetchGroqModels, getCachedModels, type AvailableModelItem } from '../lib/ai/modelFetcher';
   import { saveSecureKeys, loadSecureKeys, getCurrentSecurityMode, type SecurityMode } from '../lib/security/keyVault';

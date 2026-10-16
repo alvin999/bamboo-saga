@@ -160,6 +160,8 @@ export function createDefaultState(): AppState {
     groqApiKey: '',
     geminiApiKey: '',
     selectedAiModel: 'gemini',
+    selectedAiModelId: 'gemini-2.5-flash',
+    securityMode: 'scheme_3_os_native',
   };
 }
 
@@ -171,6 +173,13 @@ export function loadVaultState(): AppState {
     const parsed: AppState = JSON.parse(raw);
     if (!parsed.tabs || parsed.tabs.length === 0) {
       return createDefaultState();
+    }
+    // 補齊可能缺失的 selectedAiModelId 欄位
+    if (!parsed.selectedAiModelId) {
+      parsed.selectedAiModelId = parsed.selectedAiModel === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash';
+    }
+    if (!parsed.securityMode) {
+      parsed.securityMode = 'scheme_3_os_native';
     }
     // 補齊可能缺失的 vimOverrides 欄位
     if (!parsed.vimOverrides) {

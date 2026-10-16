@@ -14,6 +14,7 @@
     onReorderTabs,
     onToggleFileBrowser,
     onOpenSettings,
+    onOpenKeybindings,
     isSaved = true
   } = $props<{
     vimMode: boolean;
@@ -197,6 +198,7 @@
             <span class="tab-dot {tab.id === activeTabId ? 'active' : ''}"></span>
 
             {#if editingTabId === tab.id}
+              <!-- svelte-ignore a11y_autofocus -->
               <input 
                 type="text" 
                 class="rename-input"

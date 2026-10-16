@@ -9,6 +9,7 @@ export type RefineryMode =
 
 export interface RefineryRequest {
   model: 'groq' | 'gemini';
+  modelId?: string;
   groqKey: string;
   geminiKey: string;
   mode: RefineryMode;
@@ -64,6 +65,7 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
 
   // 1. 如果有 Groq API Key 且選中 Groq
   if (req.model === 'groq' && req.groqKey) {
+    const groqModel = req.modelId || 'llama-3.3-70b-versatile';
     try {
       const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -72,7 +74,7 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
           'Authorization': `Bearer ${req.groqKey}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
+          model: groqModel,
           messages: [
             { role: 'system', content: '你是《廣零散》筆記工作台的 AI 提煉師。請輸出繁體中文，注重排版美學與精準度。' },
             { role: 'user', content: fullPrompt },
@@ -91,7 +93,7 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
       return {
         refinedText: answer,
         summary: getModeSummary(req.mode),
-        engineUsed: 'Groq (llama-3.3-70b)',
+        engineUsed: `Groq (${groqModel})`,
       };
     } catch (e: any) {
       console.warn('Groq 推論失敗，改用備援或拋出：', e);
@@ -101,8 +103,9 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
 
   // 2. 如果有 Gemini API Key 且選中 Gemini
   if (req.model === 'gemini' && req.geminiKey) {
+    const geminiModel = req.modelId || 'gemini-2.5-flash';
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${req.geminiKey}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${req.geminiKey}`;
       const resp = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,7 +127,7 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
       return {
         refinedText: answer,
         summary: getModeSummary(req.mode),
-        engineUsed: 'Gemini (gemini-2.5-flash)',
+        engineUsed: `Gemini (${geminiModel})`,
       };
     } catch (e: any) {
       console.warn('Gemini 請求失敗：', e);

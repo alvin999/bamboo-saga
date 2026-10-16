@@ -27,7 +27,7 @@
   }>();
 
   // 僅篩選停靠在次頂欄的分頁
-  const secondaryTabs = $derived(tabs.filter((t) => t.deck === 'secondary'));
+  const secondaryTabs = $derived(tabs.filter((t: TabItem) => t.deck === 'secondary'));
 
   let editingTabId = $state<string | null>(null);
   let editInput = $state('');
@@ -184,6 +184,7 @@
             <span class="fire-glyph">🔥</span>
 
             {#if editingTabId === tab.id}
+              <!-- svelte-ignore a11y_autofocus -->
               <input 
                 type="text" 
                 class="rename-input"
