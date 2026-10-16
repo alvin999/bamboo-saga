@@ -57,7 +57,7 @@ export async function fetchGeminiModels(apiKey: string): Promise<FetchModelsResu
       })
       .map((m) => {
         const rawId = m.name.replace(/^models\//, '');
-        const isRec = rawId.includes('gemini-2.5-flash') || rawId.includes('gemini-1.5-flash');
+        const isRec = rawId.includes('gemini-2.0-flash') || rawId.includes('gemini-1.5-flash');
         return {
           id: rawId,
           displayName: `${m.displayName || rawId}${isRec ? ' (推薦)' : ''}`,

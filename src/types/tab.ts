@@ -29,6 +29,32 @@ export interface TabItem {
   isDirty?: boolean;
 }
 
+export interface VaultCave {
+  id: string;
+  name: string;
+  path: string;
+  lastOpened: number;
+  isPinned?: boolean;
+  description?: string;
+}
+
+export interface VaultTreeNode {
+  id: string;
+  name: string;
+  path: string;
+  rel_path: string;
+  isFolder: boolean;
+  extension?: string;
+  size?: number;
+  modified?: number;
+  preview?: string;
+  children?: VaultTreeNode[];
+  caveName?: string;
+  cavePath?: string;
+  isOpened?: boolean;
+  isAiRecommended?: boolean;
+}
+
 export interface RecentFolderRecord {
   path: string;
   name: string;
@@ -124,7 +150,7 @@ export interface AppState {
   groqApiKey: string;
   geminiApiKey: string;
   selectedAiModel: 'groq' | 'gemini';
-  selectedAiModelId?: string; // 熱重載選定的具體模型 ID (如 gemini-2.5-flash, llama-3.3-70b-versatile)
+  selectedAiModelId?: string; // 熱重載選定的具體模型 ID (如 gemini-1.5-flash, llama-3.3-70b-versatile)
   securityMode?: 'scheme_3_os_native' | 'scheme_2_web_crypto'; // 金鑰加密方案選擇
   vaultFolderPath?: string;
   recentFiles?: RecentFileRecord[];

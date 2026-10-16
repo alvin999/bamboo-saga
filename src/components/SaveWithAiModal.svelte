@@ -8,11 +8,13 @@
     type SaveRecommendationResult
   } from '../lib/ai/saveRecommender';
   import { pickVaultFolder } from '../lib/storage/fsBridge';
+  import { loadSecureKeys } from '../lib/security/keyVault';
 
   let {
     isOpen = false,
     tab = null,
     recentFolders = [],
+    directorySkeleton = [],
     groqKey = '',
     geminiKey = '',
     modelPreference = 'groq',
@@ -23,6 +25,7 @@
     isOpen: boolean;
     tab: TabItem | null;
     recentFolders: string[];
+    directorySkeleton?: string[];
     groqKey: string;
     geminiKey: string;
     modelPreference?: 'groq' | 'gemini';
@@ -37,6 +40,7 @@
   let isSaving = $state(false);
   let recommendation = $state<SaveRecommendationResult | null>(null);
   let hasUserEditedName = $state(false);
+  let hasUserEditedFolder = $state(false);
 
   let inputEl = $state<HTMLInputElement | null>(null);
 
@@ -44,6 +48,7 @@
   $effect(() => {
     if (isOpen && tab) {
       hasUserEditedName = false;
+      hasUserEditedFolder = false;
       isSaving = false;
 
       // 1. 立即以本地啟發式預設檔名與路徑（零延遲，使用者可立即敲 Enter 存檔）
@@ -51,7 +56,7 @@
       targetFileName = tab.title && tab.title !== '新散帖' && !tab.title.startsWith('散帖 #')
         ? (tab.title.includes('.') ? tab.title : `${tab.title}.${heuristic.extension}`)
         : heuristic.recommendedFilename;
-      targetFolder = recentFolders.length > 0 ? recentFolders[0] : '';
+      targetFolder = recentFolders.length > 0 ? recentFolders[0].replace(/\\+/g, '/') : '';
       recommendation = heuristic;
 
       // 自動選取檔名文字（不包含副檔名），方便直接手打覆蓋
@@ -67,15 +72,36 @@
         }
       });
 
-      // 2. 若有設定 AI Key，在背景極速提煉更精確的語意檔名
-      if (groqKey || geminiKey) {
-        fetchAiRecommendation();
-      }
+      // 2. 啟動背景 AI 推薦（若有金鑰或可從保險庫異步讀取）
+      fetchAiRecommendation();
     }
   });
 
   async function fetchAiRecommendation() {
     if (!tab) return;
+
+    let activeGroq = groqKey;
+    let activeGemini = geminiKey;
+    let activeModel = modelPreference;
+    let activeModelId = modelId;
+
+    // 若傳入的金鑰為空，主動從本機安全保險庫異步讀取一次，消除時序差
+    if (!activeGroq && !activeGemini) {
+      try {
+        const sec = await loadSecureKeys();
+        if (sec.groqKey) activeGroq = sec.groqKey;
+        if (sec.geminiKey) activeGemini = sec.geminiKey;
+        if (sec.selectedModel) activeModel = sec.selectedModel;
+        if (sec.selectedModelId) activeModelId = sec.selectedModelId;
+      } catch (e) {
+        console.warn('[SaveWithAiModal] 讀取保險庫金鑰備援失敗：', e);
+      }
+    }
+
+    if (!activeGroq && !activeGemini) {
+      return; // 確實未設定金鑰，維持本地啟發式推薦
+    }
+
     isAnalyzing = true;
     try {
       const res = await recommendSaveLocation({
@@ -83,19 +109,20 @@
         language: tab.language,
         currentTitle: tab.title,
         recentFolders,
-        model: modelPreference,
-        modelId,
-        groqKey,
-        geminiKey,
+        directorySkeleton,
+        model: activeModel,
+        modelId: activeModelId,
+        groqKey: activeGroq,
+        geminiKey: activeGemini,
       });
 
       recommendation = res;
-      // 若使用者尚未自行手動修改過檔名，則平滑更新為 AI 推薦的更精確檔名
+      // 若使用者尚未自行手動修改過檔名或資料夾，自動採用 AI 智薦結果
       if (!hasUserEditedName) {
         targetFileName = res.recommendedFilename;
-        if (res.recommendedFolder && !targetFolder) {
-          targetFolder = res.recommendedFolder;
-        }
+      }
+      if (!hasUserEditedFolder && res.recommendedFolder) {
+        targetFolder = res.recommendedFolder.replace(/\\+/g, '/');
       }
     } catch (err) {
       console.warn('[SaveWithAiModal] AI 推薦失敗，保留本地啟發式檔名：', err);
@@ -110,11 +137,17 @@
     inputEl?.focus();
   }
 
+  function handleSelectFolder(folderPath: string) {
+    targetFolder = folderPath.replace(/\\+/g, '/');
+    hasUserEditedFolder = true;
+  }
+
   async function handleBrowseFolder() {
     try {
       const selected = await pickVaultFolder();
       if (selected) {
-        targetFolder = selected;
+        targetFolder = selected.replace(/\\+/g, '/');
+        hasUserEditedFolder = true;
       }
     } catch (err) {
       console.error('[SaveWithAiModal] 挑選資料夾失敗:', err);
@@ -196,14 +229,26 @@
         <!-- 檔名輸入區 -->
         <div class="form-group">
           <div class="label-row">
-            <label for="save-filename">檔案名稱</label>
-            {#if isAnalyzing}
-              <span class="tip-text">正在分析脈絡...</span>
-            {:else if recommendation?.reason}
-              <span class="reason-text" title={recommendation.reason}>
-                💡 {recommendation.reason}
-              </span>
-            {/if}
+            <div class="label-left">
+              <label for="save-filename">檔案名稱</label>
+              {#if isAnalyzing}
+                <span class="tip-text">✨ 正在分析脈絡與最佳落點...</span>
+              {:else if recommendation?.reason}
+                <span class="reason-text" title={recommendation.reason}>
+                  💡 {recommendation.reason}
+                </span>
+              {/if}
+            </div>
+            <button
+              type="button"
+              class="btn-retry-analysis"
+              onclick={fetchAiRecommendation}
+              disabled={isAnalyzing}
+              title="重新呼叫 AI 全域分析命名與落點目錄"
+            >
+              <RefreshCw size={13} class={isAnalyzing ? 'spin' : ''} />
+              <span>{isAnalyzing ? '分析中...' : '重新 AI 分析'}</span>
+            </button>
           </div>
           <div class="input-wrap">
             <input
@@ -213,7 +258,7 @@
               bind:value={targetFileName}
               oninput={() => { hasUserEditedName = true; }}
               onkeydown={handleKeyDown}
-              placeholder="例如：2026-10-16_meeting_notes.md"
+              placeholder="例如：[藥帖] - 定志清心散配伍要訣.md"
             />
           </div>
 
@@ -231,16 +276,6 @@
                   {alt}
                 </button>
               {/each}
-              {#if !isAnalyzing && (groqKey || geminiKey)}
-                <button
-                  type="button"
-                  class="retry-btn"
-                  onclick={fetchAiRecommendation}
-                  title="重新呼叫 AI 提煉命名"
-                >
-                  <RefreshCw size={11} />
-                </button>
-              {/if}
             </div>
           {/if}
         </div>
@@ -269,16 +304,34 @@
             </button>
           </div>
 
-          <!-- 最近資料夾捷徑 -->
+          <!-- AI 推薦本機備選目錄 -->
+          {#if recommendation?.alternativeFolders && recommendation.alternativeFolders.length > 0}
+            <div class="recent-folders-chips ai-alt-folders">
+              <span class="alt-label">✨ AI 候選子閣：</span>
+              {#each recommendation.alternativeFolders as altDir}
+                <button
+                  type="button"
+                  class="folder-chip ai-chip"
+                  class:active={targetFolder === altDir}
+                  onclick={() => handleSelectFolder(altDir)}
+                  title={`切換存入此目錄：${altDir}`}
+                >
+                  📁 {altDir.split(/[/\\]/).filter(Boolean).pop() || altDir}
+                </button>
+              {/each}
+            </div>
+          {/if}
+
+          <!-- 最近常用洞天目錄捷徑 -->
           {#if recentFolders && recentFolders.length > 0}
             <div class="recent-folders-chips">
-              <span class="alt-label">常用目錄：</span>
+              <span class="alt-label">常用洞天：</span>
               {#each recentFolders.slice(0, 3) as folder}
                 <button
                   type="button"
                   class="folder-chip"
-                  class:active={targetFolder === folder}
-                  onclick={() => { targetFolder = folder; }}
+                  class:active={targetFolder === folder.replace(/\\+/g, '/')}
+                  onclick={() => handleSelectFolder(folder)}
                   title={folder}
                 >
                   {folder.split(/[/\\]/).filter(Boolean).pop() || folder}
@@ -438,7 +491,43 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     font-size: 0.8rem;
+  }
+
+  .label-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .btn-retry-analysis {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(250, 189, 47, 0.12);
+    border: 1px solid rgba(250, 189, 47, 0.35);
+    color: #fabd2f;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.74rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .btn-retry-analysis:hover:not(:disabled) {
+    background: rgba(250, 189, 47, 0.25);
+    border-color: #fabd2f;
+    transform: translateY(-1px);
+  }
+
+  .btn-retry-analysis:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   label {
@@ -514,21 +603,6 @@
     border-color: #fabd2f;
   }
 
-  .retry-btn {
-    background: transparent;
-    border: none;
-    color: #928374;
-    cursor: pointer;
-    padding: 2px 4px;
-    display: flex;
-    align-items: center;
-    border-radius: 3px;
-  }
-
-  .retry-btn:hover {
-    color: #ebdbb2;
-    background: #3c3836;
-  }
 
   .folder-row {
     display: flex;
@@ -589,6 +663,19 @@
     background: #3c3836;
     color: #fabd2f;
     border-color: #d79921;
+  }
+
+  .folder-chip.ai-chip {
+    background: rgba(184, 187, 38, 0.12);
+    border-color: rgba(184, 187, 38, 0.4);
+    color: #b8bb26;
+    font-weight: 600;
+  }
+
+  .folder-chip.ai-chip:hover, .folder-chip.ai-chip.active {
+    background: #b8bb26;
+    color: #1d2021;
+    border-color: #b8bb26;
   }
 
   .modal-actions {

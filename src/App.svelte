@@ -41,6 +41,7 @@
   import { recordSnapshot, pruneOldSnapshots } from './lib/storage/localHistory';
   import type { SnapshotReason } from './types/history';
   import { loadSecureKeys, saveSecureKeys, type SecurityMode } from './lib/security/keyVault';
+  import { extractDirectorySkeleton, loadVaultCaves } from './lib/storage/vaultCaves';
 
   // 核心應用狀態
   let state: AppState = $state(loadVaultState());
@@ -112,6 +113,11 @@
   // 當前作用中分頁
   const activeTab = $derived(
     state.tabs.find((t) => t.id === state.activeTabId) || state.tabs[0]
+  );
+
+  // 精煉本機洞天目錄骨架（供 AI 推論時精準鎖定已存在的資料夾，嚴格限額 Token）
+  const directorySkeleton = $derived(
+    extractDirectorySkeleton(vaultFiles, loadVaultCaves(state.vaultFolderPath))
   );
 
   // 當狀態有任何細微變更時（包含 VIM 模式切換、分頁內容等），建立快照並觸發毫秒級持久化
@@ -685,10 +691,9 @@
   // 確認寫入本機實體檔案並綁定分頁
   async function handleConfirmSaveAs(targetDir: string, fileName: string) {
     if (!activeTab) return;
-    const separator = targetDir.includes('/') ? '/' : '\\';
-    const fullPath = targetDir.endsWith('/') || targetDir.endsWith('\\')
-      ? `${targetDir}${fileName}`
-      : `${targetDir}${separator}${fileName}`;
+    const cleanDir = targetDir.replace(/\\+/g, '/').replace(/\/+$/, '');
+    const cleanFile = fileName.replace(/^[/\\]+/, '');
+    const fullPath = `${cleanDir}/${cleanFile}`;
 
     await writeVaultFile(fullPath, activeTab.content);
     activeTab.filePath = fullPath;
@@ -876,7 +881,7 @@
       groqKey: groq,
       geminiKey: gemini,
       selectedModel: model,
-      selectedModelId: modelId || state.selectedAiModelId || (model === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'),
+      selectedModelId: modelId || state.selectedAiModelId || (model === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-1.5-flash'),
       securityMode: securityMode || state.securityMode || 'scheme_3_os_native',
     });
 
@@ -1167,6 +1172,7 @@
       isOpen={isSaveModalOpen}
       tab={activeTab}
       recentFolders={recentFolders.map((f) => f.path)}
+      directorySkeleton={directorySkeleton}
       groqKey={state.groqApiKey}
       geminiKey={state.geminiApiKey}
       modelPreference={state.selectedAiModel}
@@ -1186,6 +1192,10 @@
     recentFiles={recentFiles}
     recentFolders={recentFolders}
     isScanning={isScanningFolder}
+    groqApiKey={state.groqApiKey}
+    geminiApiKey={state.geminiApiKey}
+    selectedAiModel={state.selectedAiModel}
+    selectedAiModelId={state.selectedAiModelId}
     onSelectTab={selectTab}
     onAddTab={addTab}
     onCloseTab={closeTab}
@@ -1201,6 +1211,7 @@
       isFuzzyModalOpen = true;
     }}
     onClearRecent={handleClearRecent}
+    onConfirmSave={handleConfirmSaveAs}
   />
 
   <!-- 全域 Fuzzy Find 模糊跳轉與 AI 助查彈窗 (Ctrl+P 隨時喚起) -->

@@ -103,7 +103,8 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
 
   // 2. 如果有 Gemini API Key 且選中 Gemini
   if (req.model === 'gemini' && req.geminiKey) {
-    const geminiModel = req.modelId || 'gemini-2.5-flash';
+    const rawId = req.modelId || 'gemini-1.5-flash';
+    const geminiModel = rawId.includes('gemini-2.5-flash') || !rawId.toLowerCase().includes('gemini') ? 'gemini-1.5-flash' : rawId;
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${req.geminiKey}`;
       const resp = await fetch(endpoint, {
@@ -256,7 +257,7 @@ export async function searchVaultWithAi(req: AiSearchRequest): Promise<AiSearchR
   if (model === 'gemini' && geminiKey) {
     try {
       const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -126,7 +126,7 @@
       <button 
         class="file-vault-btn" 
         onclick={onToggleFileBrowser}
-        title="開啟百子櫃檔案總管 (Ctrl+B)"
+        title="開啟藏卷洞天·萬卷中控台 (Ctrl+B)"
       >
         <svg class="vault-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <!-- 雙軸展卷古典卷軸 -->
@@ -140,7 +140,7 @@
           <line x1="10" y1="12" x2="14" y2="12" stroke-width="1.2" opacity="0.8" />
           <line x1="10" y1="15.5" x2="13" y2="15.5" stroke-width="1.2" opacity="0.8" />
         </svg>
-        <span class="vault-label">卷軸庫</span>
+        <span class="vault-label">藏卷洞天</span>
       </button>
 
       <div class="brand-cluster select-none" title="廣零散 (bamboo-saga)">

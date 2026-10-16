@@ -31,7 +31,7 @@
   let {
     isOpen = false,
     selectedModel = 'gemini' as 'groq' | 'gemini',
-    selectedModelId = 'gemini-2.5-flash',
+    selectedModelId = 'gemini-1.5-flash',
     securityMode = 'scheme_3_os_native' as SecurityMode,
     groqApiKey = '',
     geminiApiKey = '',
@@ -116,7 +116,7 @@
   let inputGroqKey = $state('');
   let inputGeminiKey = $state('');
   let inputModel = $state<'groq' | 'gemini'>('gemini');
-  let inputModelId = $state('gemini-2.5-flash');
+  let inputModelId = $state('gemini-1.5-flash');
   let inputSecurityMode = $state<SecurityMode>('scheme_3_os_native');
 
   // 模型熱重載動態探勘狀態
@@ -257,7 +257,10 @@
       inputGroqKey = groqApiKey;
       inputGeminiKey = geminiApiKey;
       inputModel = selectedModel;
-      inputModelId = selectedModelId || (selectedModel === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash');
+      const currentOrFallback = (!selectedModelId || selectedModelId === 'gemini-2.5-flash')
+        ? (selectedModel === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-1.5-flash')
+        : selectedModelId;
+      inputModelId = currentOrFallback;
       inputSecurityMode = securityMode || getCurrentSecurityMode();
 
       // 載入模型快取並在有金鑰時自動熱重載

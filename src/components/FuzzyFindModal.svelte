@@ -314,7 +314,7 @@
       <div class="ai-search-body">
         <div class="ai-prompt-bar">
           <span class="ai-desc">
-            由 <strong>{selectedAiModel === 'groq' ? 'Groq (llama-3.3-70b)' : 'Gemini (gemini-2.5-flash)'}</strong> 協助語意解析全庫摘要，找出最精準的藥帖。
+            由 <strong>{selectedAiModel === 'groq' ? 'Groq (llama-3.3-70b)' : 'Gemini (gemini-1.5-flash)'}</strong> 協助語意解析全庫摘要，找出最精準的藥帖。
           </span>
           <button class="ai-search-action-btn" onclick={runAiSearch} disabled={isAiSearching || !searchQuery.trim()}>
             {isAiSearching ? '✨ 智慧推論中...' : '🔍 啟動 AI 尋卷'}

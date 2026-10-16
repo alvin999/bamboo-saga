@@ -88,6 +88,13 @@ fn walk_directory_internal(
         let path = entry.path();
         let file_name = entry.file_name().to_string_lossy().to_string();
 
+        // 跨平台跳過符號連結，防止循環連結造成無窮遞迴
+        if let Ok(ft) = entry.file_type() {
+            if ft.is_symlink() {
+                continue;
+            }
+        }
+
         if path.is_dir() {
             if IGNORED_DIRS.contains(&file_name.as_str()) || file_name.starts_with('.') {
                 continue;
@@ -107,7 +114,6 @@ fn walk_directory_internal(
                     Err(_) => continue,
                 };
 
-                // 跳過過大檔案（大於 2MB 的文字檔先不即時掃描 preview）
                 let size = metadata.len();
                 let modified = metadata
                     .modified()
@@ -121,14 +127,8 @@ fn walk_directory_internal(
                     .map(|p| p.to_string_lossy().replace('\\', "/"))
                     .unwrap_or_else(|_| file_name.clone());
 
-                let preview = if size <= 2 * 1024 * 1024 {
-                    // 讀取前 300 字元預覽
-                    fs::read_to_string(&path)
-                        .map(|s| s.chars().take(250).collect::<String>())
-                        .unwrap_or_default()
-                } else {
-                    String::new()
-                };
+                // 內文 Lazy Loading：遍歷階段絕不讀取檔案內容，由使用者選取時非同步按需載入
+                let preview = String::new();
 
                 results.push(VaultFileItem {
                     path: path.to_string_lossy().to_string(),
@@ -154,17 +154,21 @@ fn pick_vault_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-fn scan_vault_folder(folder_path: String) -> Result<Vec<VaultFileItem>, String> {
-    let base_path = PathBuf::from(&folder_path);
-    if !base_path.exists() || !base_path.is_dir() {
-        return Err("指定的路徑不存在或並非目錄".to_string());
-    }
+async fn scan_vault_folder(folder_path: String) -> Result<Vec<VaultFileItem>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let base_path = PathBuf::from(&folder_path);
+        if !base_path.exists() || !base_path.is_dir() {
+            return Err("指定的路徑不存在或並非目錄".to_string());
+        }
 
-    let mut results = Vec::new();
-    walk_directory_internal(&base_path, &base_path, 0, 7, &mut results);
-    // 依修改時間降冪排列（最近修改的排前面）
-    results.sort_by(|a, b| b.modified.cmp(&a.modified));
-    Ok(results)
+        let mut results = Vec::new();
+        walk_directory_internal(&base_path, &base_path, 0, 7, &mut results);
+        // 依修改時間降冪排列（最近修改的排前面）
+        results.sort_by(|a, b| b.modified.cmp(&a.modified));
+        Ok(results)
+    })
+    .await
+    .map_err(|e| format!("背景掃描工作失敗: {}", e))?
 }
 
 #[tauri::command]

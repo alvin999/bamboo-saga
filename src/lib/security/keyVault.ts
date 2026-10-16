@@ -171,8 +171,15 @@ export async function loadSecureKeys(): Promise<DecryptedKeys> {
     groqKey: '',
     geminiKey: '',
     selectedModel: 'gemini',
-    selectedModelId: 'gemini-2.5-flash',
+    selectedModelId: 'gemini-1.5-flash',
     securityMode: mode,
+  };
+
+  const sanitizeReadModelId = (model: 'groq' | 'gemini', modelId?: string) => {
+    if (!modelId || modelId === 'gemini-2.5-flash') {
+      return model === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-1.5-flash';
+    }
+    return modelId;
   };
 
   try {
@@ -182,11 +189,12 @@ export async function loadSecureKeys(): Promise<DecryptedKeys> {
         const raw = await invoke<string>('load_os_secure_keys');
         if (raw) {
           const parsed = JSON.parse(raw);
+          const chosenModel = parsed.selectedModel || 'gemini';
           return {
             groqKey: parsed.groqKey || '',
             geminiKey: parsed.geminiKey || '',
-            selectedModel: parsed.selectedModel || 'gemini',
-            selectedModelId: parsed.selectedModelId || (parsed.selectedModel === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'),
+            selectedModel: chosenModel,
+            selectedModelId: sanitizeReadModelId(chosenModel, parsed.selectedModelId),
             securityMode: 'scheme_3_os_native',
           };
         }
@@ -201,11 +209,12 @@ export async function loadSecureKeys(): Promise<DecryptedKeys> {
       const decryptedString = await decryptWithWebCrypto(encrypted);
       if (decryptedString) {
         const parsed = JSON.parse(decryptedString);
+        const chosenModel = parsed.selectedModel || 'gemini';
         return {
           groqKey: parsed.groqKey || '',
           geminiKey: parsed.geminiKey || '',
-          selectedModel: parsed.selectedModel || 'gemini',
-          selectedModelId: parsed.selectedModelId || (parsed.selectedModel === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'),
+          selectedModel: chosenModel,
+          selectedModelId: sanitizeReadModelId(chosenModel, parsed.selectedModelId),
           securityMode: 'scheme_2_web_crypto',
         };
       }
