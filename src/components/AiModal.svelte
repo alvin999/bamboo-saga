@@ -477,7 +477,7 @@
     } else if (onSaveSettings) {
       onSaveSettings(inputGroqKey.trim(), inputGeminiKey.trim(), inputModel, $state.snapshot(inputVimOverrides));
     }
-    const modeName = inputSecurityMode === 'scheme_3_os_native' ? '方案 3 (OS 原生保險庫)' : '方案 2+1 (Web Crypto 本機加密)';
+    const modeName = inputSecurityMode === 'scheme_3_os_native' ? 'OS 原生保險庫' : 'Web Crypto 本機加密';
     onShowToast?.(`🔑 AI 金鑰已透過【${modeName}】安全保存入櫃！`);
   }
 
@@ -745,7 +745,7 @@
                 />
                 <div class="scheme-item-content">
                   <div class="scheme-item-header">
-                    <span class="scheme-item-name">方案 3：作業系統原生認證保險庫</span>
+                    <span class="scheme-item-name">作業系統原生認證保險庫</span>
                     <span class="scheme-tag-rec">推薦</span>
                   </div>
                   <span class="scheme-item-desc">透過 OS 原生憑證安全庫 (Windows DPAPI) 綁定電腦登入帳號，不落地純文字。</span>
@@ -762,7 +762,7 @@
                 />
                 <div class="scheme-item-content">
                   <div class="scheme-item-header">
-                    <span class="scheme-item-name">方案 2+1：本機沙盒 + Web Crypto (AES-256)</span>
+                    <span class="scheme-item-name">本機沙盒 + Web Crypto (AES-256)</span>
                   </div>
                   <span class="scheme-item-desc">本機硬體加速 AES-GCM-256 加密密文隔離，即使開啟本地儲存檔案亦為密文。</span>
                 </div>
