@@ -45,12 +45,12 @@
   </div>
 
   <div class="actions">
-    <button class="diff-btn {showDiff ? 'active' : ''}" onclick={onToggleDiff} title="切換 Git Diff 左右雙欄對照與即時編輯">
+    <button class="diff-btn {showDiff ? 'active' : ''}" onclick={onToggleDiff} title="切換雙鑑對照與獨卷靜修">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
         <line x1="12" y1="3" x2="12" y2="21"></line>
       </svg>
-      <span>{showDiff ? '返回編輯' : 'Git Diff 對照'}</span>
+      <span>{showDiff ? '獨卷靜修' : '雙鑑對照'}</span>
     </button>
 
     <button class="accept-btn" onclick={onAccept} title="確認以此內容入櫃">

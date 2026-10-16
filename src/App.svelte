@@ -845,7 +845,7 @@
       activeTab.aiPromptSummary = `${res.summary} [${res.engineUsed}]`;
       activeTab.language = 'markdown'; // AI 產出預設為標準 Markdown
       activeTab.lastModified = Date.now();
-      showDiffView = !!state.layoutConfig?.autoDiffOnAi;
+      showDiffView = state.layoutConfig?.autoDiffOnAi !== false; // 預設開啟雙鑑對照模式
       saveVaultState(state, true);
       triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI煉丹成果 (${res.summary})`);
       showToast(`✨ 煉丹完成：${res.summary}`);
@@ -1113,17 +1113,17 @@
       style="--editor-font-size: {state.layoutConfig?.fontSize || '14px'};"
     >
       {#if showDiffView && activeTab?.preAiSnapshot}
-        <!-- 雙欄 Git Diff 對照模式：左側原始手稿，右側 AI 提煉成果 -->
+        <!-- 雙鑑對照模式：左側舊稿草痕，右側丹成新篇 -->
         <div class="diff-split-view ai-git-diff-container">
           <div class="diff-split-header">
             <div class="diff-pane-title origin-side">
               <span class="hud-pill">RAW // SNAPSHOT</span>
-              <span class="pane-title">📜 原始手稿（AI 介入前快照）</span>
+              <span class="pane-title">📜 舊稿草痕（AI 介入前快照）</span>
             </div>
             <div class="diff-pane-title ai-side">
               <div class="pane-title-left">
                 <span class="hud-pill accent">SAGA // REFINED</span>
-                <span class="pane-title">✨ AI 提煉成果</span>
+                <span class="pane-title">✨ 丹成新篇</span>
               </div>
               <div class="diff-summary-badges">
                 {#if aiDiffResult.hasChanges}

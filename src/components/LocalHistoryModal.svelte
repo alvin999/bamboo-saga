@@ -197,7 +197,7 @@
         <div class="header-left">
           <History size={18} class="accent-icon" />
           <div class="title-group">
-            <span class="main-title">本地歷史紀錄 (Local History)</span>
+            <span class="main-title">時光長河 · 溯源寶鑑</span>
             <span class="file-name">{fileTitle}</span>
           </div>
         </div>
@@ -330,18 +330,18 @@
                 <button
                   class="mode-btn {diffMode === 'split' ? 'active' : ''}"
                   onclick={() => (diffMode = 'split')}
-                  title="左右並排對照 (Side-by-Side)"
+                  title="雙鏡互照 (左右對比)"
                 >
                   <Columns size={13} />
-                  <span>左右並排</span>
+                  <span>雙鏡互照</span>
                 </button>
                 <button
                   class="mode-btn {diffMode === 'unified' ? 'active' : ''}"
                   onclick={() => (diffMode = 'unified')}
-                  title="單欄整合對照 (Unified)"
+                  title="單卷通覽 (縱向整合)"
                 >
                   <Rows size={13} />
-                  <span>單欄整合</span>
+                  <span>單卷通覽</span>
                 </button>
               </div>
             </div>
@@ -351,14 +351,14 @@
             {#if !selectedSnapshot}
               <div class="empty-state">尚無比對內容</div>
             {:else if diffMode === 'split'}
-              <!-- 左右雙欄 Git Diff 風格 -->
+              <!-- 雙鏡互照對照檢視 -->
               <div class="split-column-headers">
                 <div class="column-header left">
-                  <span class="column-tag old">歷史快照 (Old)</span>
+                  <span class="column-tag old">溯源舊跡 (Old)</span>
                   <span class="column-timestamp">{formatFullDateTime(selectedSnapshot.timestamp)}</span>
                 </div>
                 <div class="column-header right">
-                  <span class="column-tag current">當前內容 (Current)</span>
+                  <span class="column-tag current">即時墨痕 (Current)</span>
                   <span class="column-status">{fileTitle} 即時編輯區</span>
                 </div>
               </div>

@@ -4,7 +4,7 @@ const STORAGE_KEY = 'bamboo_saga_vault_v1';
 
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   workbenchWidth: 'zen',
-  autoDiffOnAi: false,
+  autoDiffOnAi: true,
   scrollSync: true,
   smearCursor: true,
   fontSize: '14px',
