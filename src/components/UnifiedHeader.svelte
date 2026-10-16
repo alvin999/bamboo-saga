@@ -104,7 +104,7 @@
             <button 
               class="pill-close-btn" 
               onclick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
-              title="歸還藥帖"
+              title="收合新簡 (Ctrl+W)"
             >
               ×
             </button>
@@ -117,9 +117,9 @@
         </div>
       {/each}
 
-      <button class="add-pill-btn" onclick={onAddTab} title="新增隨手藥帖 (百子櫃)">
+      <button class="add-pill-btn" onclick={onAddTab} title="新增隨手素簡 (Ctrl+T)">
         <span class="plus-sign">+</span>
-        <span class="btn-text">添藥帖</span>
+        <span class="btn-text">添新簡</span>
       </button>
     </div>
   </div>

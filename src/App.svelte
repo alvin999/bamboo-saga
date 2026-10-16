@@ -175,7 +175,7 @@
 
       state.tabs.push(newTab);
       state.activeTabId = newTab.id;
-      showToast(`💊 已收入新藥帖：${fileName}`);
+      showToast(`🎋 已納入新簡：${fileName}`);
 
       recentFiles = recordFileOpened({
         path: filePath,
@@ -257,7 +257,7 @@
         };
         state.tabs.push(newTab);
         state.activeTabId = newTab.id;
-        showToast(`💊 已收入新藥帖：${file.name}`);
+        showToast(`🎋 已納入新簡：${file.name}`);
       }
     }
   }
@@ -993,6 +993,24 @@
   // 全域鍵盤快捷鍵攔截（優先於瀏覽器預設行為）
   function handleWindowKeyDown(e: KeyboardEvent) {
     const isMod = e.ctrlKey || e.metaKey;
+
+    // 1. 添新簡 (Ctrl + T / Cmd + T)
+    if (isMod && e.key.toLowerCase() === 't') {
+      e.preventDefault();
+      addTab();
+      return;
+    }
+
+    // 2. 收合新簡 (Ctrl + W / Cmd + W)
+    if (isMod && e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      if (state.activeTabId) {
+        closeTab(state.activeTabId);
+      }
+      return;
+    }
+
+    // 3. 儲存檔案 (Ctrl + S / Ctrl + Shift + S)
     if (isMod && e.key.toLowerCase() === 's') {
       e.preventDefault();
       if (e.shiftKey) {
@@ -1019,9 +1037,9 @@
   {#if isDraggingOver}
     <div class="drag-drop-overlay">
       <div class="drag-drop-card">
-        <span class="drop-icon">💊</span>
-        <div class="drop-title">收入藥帖</div>
-        <div class="drop-desc">鬆開滑鼠將檔案直接納入百子櫃工作台</div>
+        <span class="drop-icon">🎋</span>
+        <div class="drop-title">納入新簡</div>
+        <div class="drop-desc">鬆開滑鼠將檔案直接納入素簡工作台</div>
       </div>
     </div>
   {/if}
@@ -1176,6 +1194,8 @@
             onManualSave={handleManualSave}
             onSaveAs={handleSaveAs}
             onImeWarning={handleImeWarning}
+            onAddTab={addTab}
+            onCloseTab={() => activeTab && closeTab(activeTab.id)}
           />
         </div>
       {/if}

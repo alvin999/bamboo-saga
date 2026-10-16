@@ -243,7 +243,7 @@
               <button 
                 class="close-action-btn" 
                 onclick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
-                title="關閉藥帖"
+                title="收合新簡 (Ctrl+W)"
               >
                 ×
               </button>
@@ -256,9 +256,9 @@
           </div>
         {/each}
 
-        <button class="add-tab-link" onclick={onAddTab} title="新增隨手藥帖">
+        <button class="add-tab-link" onclick={onAddTab} title="新增隨手素簡 (Ctrl+T)">
           <span class="plus-symbol">+</span>
-          <span>添藥帖</span>
+          <span>添新簡</span>
         </button>
       </nav>
     </div>

@@ -29,7 +29,9 @@
     onCursorChange,
     onManualSave,
     onSaveAs,
-    onImeWarning
+    onImeWarning,
+    onAddTab,
+    onCloseTab
   } = $props<{
     content: string;
     language: SupportedLanguage;
@@ -42,6 +44,8 @@
     onManualSave?: () => void;
     onSaveAs?: () => void;
     onImeWarning?: (msg: string) => void;
+    onAddTab?: () => void;
+    onCloseTab?: () => void;
   }>();
 
   let editorHost: HTMLDivElement;
@@ -100,6 +104,22 @@
         history(),
         keymap.of([
           {
+            key: 'Mod-t',
+            run: () => {
+              onAddTab?.();
+              return true;
+            },
+            preventDefault: true,
+          },
+          {
+            key: 'Mod-w',
+            run: () => {
+              onCloseTab?.();
+              return true;
+            },
+            preventDefault: true,
+          },
+          {
             key: 'Mod-s',
             run: () => {
               onManualSave?.();
@@ -121,7 +141,7 @@
         gruvboxExtension,
         languageCompartment.of(getLanguageExtension(language)),
         vimOverridesCompartment.of(
-          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning }) : []
+          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab }) : []
         ),
         vimCompartment.of(vimMode ? vim() : []),
         updateListener,

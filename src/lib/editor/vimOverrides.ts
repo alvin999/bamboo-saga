@@ -8,6 +8,8 @@ export interface VimOverrideCallbacks {
   onManualSave?: () => void;
   onSaveAs?: () => void;
   onImeWarning?: (text: string) => void;
+  onAddTab?: () => void;
+  onCloseTab?: () => void;
 }
 
 export function buildVimOverrideKeymap(
@@ -15,6 +17,26 @@ export function buildVimOverrideKeymap(
   callbacks?: VimOverrideCallbacks
 ): Extension[] {
   const bindings: Array<{ key: string; run: (view: EditorView) => boolean; preventDefault?: boolean }> = [];
+
+  // 0. Ctrl + T / Cmd + T: 添新簡 (新增分頁)
+  bindings.push({
+    key: 'Mod-t',
+    run: () => {
+      callbacks?.onAddTab?.();
+      return true;
+    },
+    preventDefault: true,
+  });
+
+  // 0.1 Ctrl + W / Cmd + W: 收合新簡 (關閉分頁)
+  bindings.push({
+    key: 'Mod-w',
+    run: () => {
+      callbacks?.onCloseTab?.();
+      return true;
+    },
+    preventDefault: true,
+  });
 
   // 1. Ctrl + S: 手動存檔 / 智薦歸檔
   if (options.ctrlS) {

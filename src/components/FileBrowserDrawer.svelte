@@ -707,8 +707,8 @@
           <span>⤓ 導出全卷</span>
         </button>
 
-        <button type="button" class="control-btn primary" onclick={onAddTab} title="新增百子櫃空白藥帖">
-          <span>+ 新闢藥帖</span>
+        <button type="button" class="control-btn primary" onclick={onAddTab} title="新增空白素簡 (Ctrl+T)">
+          <span>+ 展新簡</span>
         </button>
 
         <button type="button" class="close-btn" onclick={onCloseDrawer} title="關閉 (Esc)">

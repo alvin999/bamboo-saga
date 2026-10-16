@@ -56,6 +56,22 @@ export const DEFAULT_SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: '編輯器與檔案操作',
     items: [
       {
+        id: 'new_tab',
+        category: 'editor',
+        label: '添新簡 (新增分頁)',
+        description: '建立一紙全新空白素簡分頁',
+        keys: ['Ctrl', 'T'],
+        badge: '分頁',
+      },
+      {
+        id: 'close_tab',
+        category: 'editor',
+        label: '收合新簡 (關閉分頁)',
+        description: '關閉當前素簡分頁（保留最少一張分頁）',
+        keys: ['Ctrl', 'W'],
+        badge: '分頁',
+      },
+      {
         id: 'save_file',
         category: 'editor',
         label: '立即儲存 / 快照',
@@ -75,7 +91,7 @@ export const DEFAULT_SHORTCUT_GROUPS: ShortcutGroup[] = [
         id: 'select_all',
         category: 'editor',
         label: '全選內容',
-        description: '選取當前藥帖的所有文字內容',
+        description: '選取當前素簡的所有文字內容',
         keys: ['Ctrl', 'A'],
         badge: '編輯器',
       },
