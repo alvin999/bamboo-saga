@@ -74,22 +74,22 @@ export function extractDirectorySkeleton(
 
 /**
  * 載入所有已授權的藏卷洞天
- * 若尚無資料，自動無縫吸納既有的歷史/常用資料夾與本機設定
+ * 若已存在設定（即使為空陣列），嚴格尊重使用者決定；僅在首度啟動且無資料時嘗試從舊版歷史遷移
  */
 export function loadVaultCaves(fallbackDefaultPath?: string): VaultCave[] {
   try {
     const raw = localStorage.getItem(VAULT_CAVES_STORAGE_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (err) {
-    console.warn('[vaultCaves] 讀取藏卷洞天失敗，將嘗試從舊版歷史遷移：', err);
+    console.warn('[vaultCaves] 讀取藏卷洞天失敗：', err);
   }
 
-  // 自動遷移舊版 recentFolders
+  // 首度啟動若有既有歷史，溫和遷移一次
   const existingFolders = loadRecentFolders();
   const caves: VaultCave[] = existingFolders.map((f, idx) => ({
     id: `cave-${idx}-${Date.now()}`,
@@ -98,17 +98,6 @@ export function loadVaultCaves(fallbackDefaultPath?: string): VaultCave[] {
     lastOpened: f.lastOpened || Date.now(),
     isPinned: f.isPinned ?? (idx === 0),
   }));
-
-  if (fallbackDefaultPath && !caves.some((c) => c.path === fallbackDefaultPath)) {
-    const fallbackName = fallbackDefaultPath.split(/[/|\\]/).filter(Boolean).pop() || '主洞天';
-    caves.unshift({
-      id: `cave-default-${Date.now()}`,
-      name: fallbackName,
-      path: fallbackDefaultPath,
-      lastOpened: Date.now(),
-      isPinned: true,
-    });
-  }
 
   if (caves.length > 0) {
     saveVaultCaves(caves);

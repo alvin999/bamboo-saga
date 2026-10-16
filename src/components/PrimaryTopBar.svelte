@@ -37,6 +37,7 @@
   let editInput = $state('');
   let draggedTabId = $state<string | null>(null);
   let dragOverTabId = $state<string | null>(null);
+  let isDeckDragOver = $state(false);
 
   // 僅篩選停靠在主頂欄的分頁 (未特別指定時預設在 primary)
   const primaryTabs = $derived(tabs.filter((t: TabItem) => t.deck !== 'secondary'));
@@ -84,17 +85,25 @@
 
   function handleDrop(e: DragEvent, targetId?: string) {
     e.preventDefault();
+    e.stopPropagation();
     const sourceId = draggedTabId || e.dataTransfer?.getData('application/x-bamboo-tab') || e.dataTransfer?.getData('text/plain');
-    if (sourceId && targetId && sourceId !== targetId) {
-      onReorderTabs?.(sourceId, targetId);
+    if (sourceId) {
+      if (targetId && sourceId !== targetId) {
+        onReorderTabs?.(sourceId, targetId);
+      } else {
+        // 拖曳至主頂欄空白軌道處或自身
+        onMoveTabDeck?.(sourceId, 'primary');
+      }
     }
     draggedTabId = null;
     dragOverTabId = null;
+    isDeckDragOver = false;
   }
 
   function handleDragEnd() {
     draggedTabId = null;
     dragOverTabId = null;
+    isDeckDragOver = false;
   }
 
   function startRename(tab: TabItem) {
@@ -169,14 +178,26 @@
 
       <!-- 中間：主頂欄分頁標籤導航 -->
       <nav 
-        class="nav-tabs-area"
+        class="nav-tabs-area {isDeckDragOver ? 'deck-drag-over' : ''}"
         ondragover={(e) => {
           e.preventDefault();
           if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          isDeckDragOver = true;
         }}
         ondragenter={(e) => {
           e.preventDefault();
           if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          isDeckDragOver = true;
+        }}
+        ondragleave={(e) => {
+          const related = e.relatedTarget as HTMLElement | null;
+          const current = e.currentTarget as HTMLElement | null;
+          if (current && related && current.contains(related)) return;
+          isDeckDragOver = false;
+        }}
+        ondrop={(e) => {
+          isDeckDragOver = false;
+          handleDrop(e);
         }}
       >
         {#each primaryTabs as tab (tab.id)}
@@ -187,7 +208,10 @@
             ondragenter={(e) => handleDragEnter(e, tab.id)}
             ondragover={(e) => handleDragOver(e, tab.id)}
             ondragleave={(e) => handleDragLeave(e, tab.id)}
-            ondrop={(e) => handleDrop(e, tab.id)}
+            ondrop={(e) => {
+              e.stopPropagation();
+              handleDrop(e, tab.id);
+            }}
             ondragend={handleDragEnd}
             onclick={() => onSelectTab(tab.id)}
             ondblclick={() => startRename(tab)}
@@ -214,15 +238,6 @@
             {#if tab.isAiDraft}
               <span class="draft-tag">丹</span>
             {/if}
-
-            <!-- 移動至次頂煉丹欄按鈕 -->
-            <button 
-              class="deck-action-btn" 
-              onclick={(e) => { e.stopPropagation(); onMoveTabDeck(tab.id, 'secondary'); }}
-              title="將此藥帖移至次頂 AI 煉丹甲板"
-            >
-              ↓
-            </button>
 
             {#if tabs.length > 1}
               <button 
@@ -410,6 +425,13 @@
     display: none;
   }
 
+  .nav-tabs-area.deck-drag-over {
+    background: rgba(212, 155, 53, 0.08);
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(212, 155, 53, 0.35);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+  }
+
   .tab-anchor {
     display: inline-flex;
     align-items: center;
@@ -434,7 +456,6 @@
     pointer-events: none;
   }
 
-  .tab-anchor :global(.deck-action-btn),
   .tab-anchor :global(.close-action-btn),
   .tab-anchor :global(.rename-input) {
     pointer-events: auto;
@@ -488,20 +509,6 @@
     background: rgba(212, 155, 53, 0.2);
     color: #d49b35;
     border: 1px solid #d49b35;
-  }
-
-  .deck-action-btn {
-    background: transparent;
-    border: none;
-    color: #736e63;
-    font-size: 11px;
-    cursor: pointer;
-    padding: 0 2px;
-    border-radius: 2px;
-  }
-
-  .deck-action-btn:hover {
-    color: #d49b35;
   }
 
   .close-action-btn {

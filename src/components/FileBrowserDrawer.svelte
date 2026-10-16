@@ -111,14 +111,7 @@
 
   // 初始化洞天列表
   $effect(() => {
-    caves = loadVaultCaves(vaultFolderPath);
-  });
-
-  // 當新連接 folder 時自動加進洞天池
-  $effect(() => {
-    if (vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)) {
-      caves = addVaultCave(vaultFolderPath);
-    }
+    caves = loadVaultCaves();
   });
 
   // 當彈窗開啟且有未存檔或活躍中分頁時，啟動 AI 推薦落點分析
@@ -130,6 +123,9 @@
 
   async function triggerAiRecommendation(tab: TabItem) {
     const allFolderPaths = caves.map((c) => c.path);
+    if (vaultFolderPath && !allFolderPaths.includes(vaultFolderPath)) {
+      allFolderPaths.unshift(vaultFolderPath);
+    }
     const skeleton = extractDirectorySkeleton(vaultFiles, caves);
     // 立即以本地啟發式推論先行墊底（零延遲）
     const heuristic = generateHeuristicRecommendation(tab.content, tab.language, allFolderPaths);
@@ -159,31 +155,46 @@
     }
   }
 
-  // 構建藏卷洞天樹狀結構
+  // 構建藏卷洞天樹狀結構（含已授權洞天與當前未收錄之臨時工作區）
   const fullTreeNodes = $derived.by(() => {
-    if (caves.length === 0) {
-      if (vaultFolderPath) {
-        const singleCave: VaultCave = {
-          id: 'single',
-          name: vaultFolderPath.split(/[/|\\]/).filter(Boolean).pop() || '主洞天',
+    const unrecordedCave: VaultCave | null = (vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath))
+      ? {
+          id: 'temp-current-workspace',
+          name: `${vaultFolderPath.split(/[/|\\]/).filter(Boolean).pop() || '當前目錄'} (臨時)`,
           path: vaultFolderPath,
           lastOpened: Date.now(),
-        };
-        return [buildCaveTree(vaultFiles, singleCave)];
+        }
+      : null;
+
+    if (caves.length === 0) {
+      if (unrecordedCave) {
+        return [buildCaveTree(vaultFiles, unrecordedCave)];
       }
       return [];
     }
 
     // 依選取的洞天過濾，或全部展示
-    const targetCaves = selectedCavePath
-      ? caves.filter((c) => c.path === selectedCavePath)
-      : caves;
+    if (selectedCavePath) {
+      if (unrecordedCave && selectedCavePath === unrecordedCave.path) {
+        return [buildCaveTree(vaultFiles, unrecordedCave)];
+      }
+      const targetCaves = caves.filter((c) => c.path === selectedCavePath);
+      return targetCaves.map((cave) => {
+        const filesForCave = cave.path === vaultFolderPath ? vaultFiles : [];
+        return buildCaveTree(filesForCave, cave);
+      });
+    }
 
-    return targetCaves.map((cave) => {
-      // 若該 cave 恰好是目前掃描的 vaultFolderPath，直接使用 vaultFiles
+    const nodes = caves.map((cave) => {
       const filesForCave = cave.path === vaultFolderPath ? vaultFiles : [];
       return buildCaveTree(filesForCave, cave);
     });
+
+    if (unrecordedCave) {
+      nodes.unshift(buildCaveTree(vaultFiles, unrecordedCave));
+    }
+
+    return nodes;
   });
 
   // 樹狀即時搜尋過濾 (Tree Search)
@@ -776,6 +787,39 @@
         </div>
 
         <div class="caves-list">
+          <!-- 當前臨時工作區（未收錄至洞天時顯示，提供手動收錄按鈕） -->
+          {#if vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)}
+            {@const currentName = vaultFolderPath.split(/[/|\\]/).filter(Boolean).pop() || '當前目錄'}
+            <div class="temp-workspace-card {selectedCavePath === vaultFolderPath ? 'selected' : ''}">
+              <div class="temp-workspace-top">
+                <span class="temp-pill-tag">📍 當前臨時工作區</span>
+                <button
+                  type="button"
+                  class="btn-adopt-cave"
+                  onclick={() => {
+                    caves = addVaultCave(vaultFolderPath);
+                    selectedCavePath = vaultFolderPath;
+                  }}
+                  title="將此目錄正式闢建／收錄入藏卷洞天"
+                >
+                  + 收錄入洞天
+                </button>
+              </div>
+              <button
+                type="button"
+                class="temp-folder-link"
+                onclick={() => (selectedCavePath = vaultFolderPath)}
+                title={`目前工作目錄：${vaultFolderPath}`}
+              >
+                <span class="cave-icon">📂</span>
+                <div class="cave-info">
+                  <span class="cave-name">{currentName}</span>
+                  <span class="cave-sub" title={vaultFolderPath}>{vaultFolderPath}</span>
+                </div>
+              </button>
+            </div>
+          {/if}
+
           <!-- 全部洞天合併視圖選項 -->
           <button
             type="button"
@@ -1561,6 +1605,70 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+  }
+
+  /* 臨時工作區專用卡片 */
+  .temp-workspace-card {
+    background: #282828;
+    border: 1px dashed #d79921;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.15s ease;
+  }
+
+  .temp-workspace-card.selected {
+    background: rgba(215, 153, 33, 0.12);
+    border-color: #fabd2f;
+  }
+
+  .temp-workspace-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .temp-pill-tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: #fabd2f;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-adopt-cave {
+    background: #3c3836;
+    border: 1px solid #d79921;
+    color: #fabd2f;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+
+  .btn-adopt-cave:hover {
+    background: #fabd2f;
+    color: #1d2021;
+    border-color: #fabd2f;
+  }
+
+  .temp-folder-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    color: inherit;
+    padding: 2px 0;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
   }
 
   .cave-row-container {

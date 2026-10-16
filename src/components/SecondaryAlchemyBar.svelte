@@ -33,6 +33,7 @@
   let editInput = $state('');
   let draggedTabId = $state<string | null>(null);
   let dragOverTabId = $state<string | null>(null);
+  let isDeckDragOver = $state(false);
 
   function handleDragStart(e: DragEvent, id: string) {
     if (editingTabId) return;
@@ -77,17 +78,25 @@
 
   function handleDrop(e: DragEvent, targetId?: string) {
     e.preventDefault();
+    e.stopPropagation();
     const sourceId = draggedTabId || e.dataTransfer?.getData('application/x-bamboo-tab') || e.dataTransfer?.getData('text/plain');
-    if (sourceId && targetId && sourceId !== targetId) {
-      onReorderTabs?.(sourceId, targetId);
+    if (sourceId) {
+      if (targetId && sourceId !== targetId) {
+        onReorderTabs?.(sourceId, targetId);
+      } else {
+        // 拖曳至次頂 AI 煉丹甲板軌道空白處或自身
+        onMoveTabDeck?.(sourceId, 'secondary');
+      }
     }
     draggedTabId = null;
     dragOverTabId = null;
+    isDeckDragOver = false;
   }
 
   function handleDragEnd() {
     draggedTabId = null;
     dragOverTabId = null;
+    isDeckDragOver = false;
   }
 
   function startRename(tab: TabItem) {
@@ -149,20 +158,36 @@
   </div>
 
   <!-- 中間：次頂專屬煉丹藥帖分頁 -->
-  <div class="deck-center">
+  <div 
+    class="deck-center {isDeckDragOver ? 'deck-drag-over' : ''}"
+    ondragover={(e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      isDeckDragOver = true;
+    }}
+    ondragenter={(e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      isDeckDragOver = true;
+    }}
+    ondragleave={(e) => {
+      const related = e.relatedTarget as HTMLElement | null;
+      const current = e.currentTarget as HTMLElement | null;
+      if (current && related && current.contains(related)) return;
+      isDeckDragOver = false;
+    }}
+    ondrop={(e) => {
+      isDeckDragOver = false;
+      handleDrop(e);
+    }}
+    role="region"
+    aria-label="次頂煉丹甲板軌道"
+  >
     {#if secondaryTabs.length > 0}
       <div 
         class="sec-tabs-row"
         role="region"
         aria-label="次頂煉丹帖列表"
-        ondragover={(e) => {
-          e.preventDefault();
-          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-        }}
-        ondragenter={(e) => {
-          e.preventDefault();
-          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-        }}
       >
         <span class="sec-label">次頂煉丹帖：</span>
         {#each secondaryTabs as tab (tab.id)}
@@ -173,7 +198,10 @@
             ondragenter={(e) => handleDragEnter(e, tab.id)}
             ondragover={(e) => handleDragOver(e, tab.id)}
             ondragleave={(e) => handleDragLeave(e, tab.id)}
-            ondrop={(e) => handleDrop(e, tab.id)}
+            ondrop={(e) => {
+              e.stopPropagation();
+              handleDrop(e, tab.id);
+            }}
             ondragend={handleDragEnd}
             onclick={() => onSelectTab(tab.id)}
             ondblclick={() => startRename(tab)}
@@ -201,15 +229,6 @@
               <span class="draft-badge">待審</span>
             {/if}
 
-            <!-- 移回主頂欄按鈕 -->
-            <button 
-              class="move-up-btn" 
-              onclick={(e) => { e.stopPropagation(); onMoveTabDeck(tab.id, 'primary'); }}
-              title="移回主頂欄"
-            >
-              ↑
-            </button>
-
             {#if tabs.length > 1}
               <button 
                 class="close-btn" 
@@ -223,7 +242,7 @@
         {/each}
       </div>
     {:else}
-      <span class="deck-hint">💡 點選主頂分頁的「↓」可移入次頂專注 AI 提煉</span>
+      <span class="deck-hint">💡 可直接將上方分頁拖曳至此處進行 AI 提煉</span>
     {/if}
   </div>
 
@@ -333,6 +352,13 @@
     display: none;
   }
 
+  .deck-center.deck-drag-over {
+    background: rgba(250, 189, 47, 0.08);
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(250, 189, 47, 0.35);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+  }
+
   .sec-tabs-row {
     display: flex;
     align-items: center;
@@ -413,19 +439,6 @@
     border-radius: 2px;
     background: #c95847;
     color: #fff;
-  }
-
-  .move-up-btn {
-    background: transparent;
-    border: none;
-    color: #938c80;
-    font-size: 11px;
-    cursor: pointer;
-    padding: 0 2px;
-  }
-
-  .move-up-btn:hover {
-    color: #d49b35;
   }
 
   .close-btn {

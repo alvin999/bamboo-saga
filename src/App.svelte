@@ -597,21 +597,50 @@
   function handleMoveTabDeck(tabId: string, deck: 'primary' | 'secondary') {
     const target = state.tabs.find((t) => t.id === tabId);
     if (target) {
+      const oldDeck = target.deck || 'primary';
       target.deck = deck;
+      if (oldDeck !== deck) {
+        // 移入不同甲板時，將該分頁置於陣列末端（即該甲板最後一項）
+        const fromIndex = state.tabs.findIndex((t) => t.id === tabId);
+        if (fromIndex !== -1) {
+          const updated = [...state.tabs];
+          const [moved] = updated.splice(fromIndex, 1);
+          updated.push(moved);
+          state.tabs = updated;
+        }
+        showToast(deck === 'secondary' ? '🔥 藥帖已移入「次頂 AI 煉丹欄」' : '📜 藥帖已移回「主頂檔案欄」');
+      }
       saveVaultState(state, true);
-      showToast(deck === 'secondary' ? '🔥 藥帖已移入「次頂 AI 煉丹欄」' : '📜 藥帖已移回「主頂檔案欄」');
     }
   }
 
-  // 拖曳重排分頁順序
+  // 拖曳重排分頁順序（支援跨甲板拖動定位與 Deck 自動切換）
   function handleReorderTabs(sourceId: string, targetId: string) {
     if (!sourceId || !targetId || sourceId === targetId) return;
     const fromIndex = state.tabs.findIndex((t) => t.id === sourceId);
     const toIndex = state.tabs.findIndex((t) => t.id === targetId);
     if (fromIndex !== -1 && toIndex !== -1) {
+      const sourceTab = state.tabs[fromIndex];
+      const targetTab = state.tabs[toIndex];
+      const targetDeck = targetTab.deck || 'primary';
+      const sourceDeck = sourceTab.deck || 'primary';
+
       const updated = [...state.tabs];
       const [moved] = updated.splice(fromIndex, 1);
-      updated.splice(toIndex, 0, moved);
+
+      // 若跨甲板拖動至目標分頁，自動承繼目標層級並給予反饋
+      if (sourceDeck !== targetDeck) {
+        moved.deck = targetDeck;
+        showToast(targetDeck === 'secondary' ? '🔥 藥帖已移入「次頂 AI 煉丹欄」' : '📜 藥帖已移回「主頂檔案欄」');
+      }
+
+      // 重新取得 splice 後目標分頁之精確 index，避免 offset 偏差
+      const newToIndex = updated.findIndex((t) => t.id === targetId);
+      if (newToIndex !== -1) {
+        updated.splice(newToIndex, 0, moved);
+      } else {
+        updated.splice(toIndex, 0, moved);
+      }
       state.tabs = updated;
       saveVaultState(state, true);
     }
