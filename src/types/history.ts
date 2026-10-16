@@ -28,3 +28,21 @@ export interface DiffComparisonResult {
   deletions: number;
   hasChanges: boolean;
 }
+
+export interface SideBySideCell {
+  type: 'unchanged' | 'added' | 'removed' | 'empty';
+  lineNumber?: number;
+  text: string;
+}
+
+export interface SideBySideRow {
+  left: SideBySideCell; // 歷史版本 (Old)
+  right: SideBySideCell; // 當前內容 (Current)
+}
+
+export interface SideBySideDiffResult {
+  rows: SideBySideRow[];
+  additions: number;
+  deletions: number;
+  hasChanges: boolean;
+}

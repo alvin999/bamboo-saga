@@ -1,4 +1,4 @@
-import type { DiffComparisonResult, DiffLine } from '../../types/history';
+import type { DiffComparisonResult, DiffLine, SideBySideRow, SideBySideDiffResult } from '../../types/history';
 
 /**
  * 簡易而高效的 LCS (Longest Common Subsequence) 逐行 Diff 演算法
@@ -109,5 +109,93 @@ function computeFastDiff(oldLines: string[], newLines: string[]): DiffComparison
     additions,
     deletions,
     hasChanges: additions > 0 || deletions > 0,
+  };
+}
+
+/**
+ * 將單欄 DiffLine 序列轉換為對齊的左右雙欄 Side-by-Side 格式
+ * 處理連續的 removed 與 added 變更區塊成對排版，並在非對稱變更時自動以 empty 補白對齊高度
+ */
+export function diffLinesToSideBySide(lines: DiffLine[]): SideBySideRow[] {
+  const rows: SideBySideRow[] = [];
+  let idx = 0;
+
+  while (idx < lines.length) {
+    const line = lines[idx];
+
+    if (line.type === 'unchanged') {
+      rows.push({
+        left: {
+          type: 'unchanged',
+          lineNumber: line.oldLineNumber,
+          text: line.text,
+        },
+        right: {
+          type: 'unchanged',
+          lineNumber: line.newLineNumber,
+          text: line.text,
+        },
+      });
+      idx++;
+    } else {
+      // 收集連續的 removed 與 added 變更群組
+      const removedChunk: DiffLine[] = [];
+      const addedChunk: DiffLine[] = [];
+
+      while (idx < lines.length && lines[idx].type !== 'unchanged') {
+        if (lines[idx].type === 'removed') {
+          removedChunk.push(lines[idx]);
+        } else if (lines[idx].type === 'added') {
+          addedChunk.push(lines[idx]);
+        }
+        idx++;
+      }
+
+      // 成對並排，長度不足側以 empty 補白
+      const maxCount = Math.max(removedChunk.length, addedChunk.length);
+      for (let r = 0; r < maxCount; r++) {
+        const rem = removedChunk[r];
+        const add = addedChunk[r];
+
+        rows.push({
+          left: rem
+            ? {
+                type: 'removed',
+                lineNumber: rem.oldLineNumber,
+                text: rem.text,
+              }
+            : {
+                type: 'empty',
+                text: '',
+              },
+          right: add
+            ? {
+                type: 'added',
+                lineNumber: add.newLineNumber,
+                text: add.text,
+              }
+            : {
+                type: 'empty',
+                text: '',
+              },
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * 計算左右雙欄 Git Diff 比對結果
+ */
+export function computeSideBySideDiff(oldText: string, newText: string): SideBySideDiffResult {
+  const unified = computeLineDiff(oldText, newText);
+  const rows = diffLinesToSideBySide(unified.lines);
+  return {
+    rows,
+    additions: unified.additions,
+    deletions: unified.deletions,
+    hasChanges: unified.hasChanges,
   };
 }

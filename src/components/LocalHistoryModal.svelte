@@ -11,7 +11,9 @@
     FileText,
     Save,
     Trash2,
-    Check
+    Check,
+    Columns,
+    Rows
   } from 'lucide-svelte';
   import type { HistorySnapshot } from '../types/history';
   import {
@@ -19,7 +21,7 @@
     deleteSnapshot,
     updateSnapshotLabel
   } from '../lib/storage/localHistory';
-  import { computeLineDiff } from '../lib/editor/diffEngine';
+  import { computeLineDiff, computeSideBySideDiff } from '../lib/editor/diffEngine';
 
   let {
     isOpen = false,
@@ -43,13 +45,23 @@
   let selectedSnapshotId = $state<string | null>(null);
   let isLoading = $state(false);
   let copySuccess = $state(false);
+  // 檢視模式：預設為左右並排 (Split / Side-by-Side Git Diff 風格)
+  let diffMode = $state<'split' | 'unified'>('split');
 
   // 選取的快照實體
   const selectedSnapshot = $derived(
     snapshots.find((s) => s.id === selectedSnapshotId) || snapshots[0] || null
   );
 
-  // 計算選中快照 vs 當前編輯內容的 Diff
+  // 計算選中快照 vs 當前編輯內容的 Side-by-Side 雙欄 Diff
+  const sideBySideResult = $derived.by(() => {
+    if (!selectedSnapshot) {
+      return { rows: [], additions: 0, deletions: 0, hasChanges: false };
+    }
+    return computeSideBySideDiff(selectedSnapshot.content, currentContent);
+  });
+
+  // 計算選中快照 vs 當前編輯內容的單欄 Unified Diff
   const diffResult = $derived.by(() => {
     if (!selectedSnapshot) {
       return { lines: [], additions: 0, deletions: 0, hasChanges: false };
@@ -80,20 +92,34 @@
     }
   }
 
+  /** 格式化完整日期時間：例如 2026/10/16 14:02:15 */
+  function formatFullDateTime(ts: number): string {
+    const d = new Date(ts);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const date = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${year}/${month}/${date} ${hours}:${minutes}:${seconds}`;
+  }
+
+  /** 格式化日期：例如 2026/10/16 */
+  function formatDate(ts: number): string {
+    const d = new Date(ts);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const date = String(d.getDate()).padStart(2, '0');
+    return `${year}/${month}/${date}`;
+  }
+
+  /** 格式化時間：例如 14:02:15 */
   function formatTime(ts: number): string {
     const d = new Date(ts);
-    const today = new Date();
-    const isSameDay =
-      d.getFullYear() === today.getFullYear() &&
-      d.getMonth() === today.getMonth() &&
-      d.getDate() === today.getDate();
-
-    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    if (isSameDay) {
-      return timeStr;
-    }
-    const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
-    return `${dateStr} ${timeStr}`;
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
   }
 
   function getReasonLabel(reason: string): { label: string; icon: any; color: string } {
@@ -118,7 +144,7 @@
   async function handleRevert() {
     if (!selectedSnapshot) return;
     const ok = window.confirm(
-      `確定要將「${fileTitle}」還原至 ${formatTime(selectedSnapshot.timestamp)} 的歷史版本嗎？\n（目前編輯中的狀態會自動建檔保存，不用擔心遺失）`
+      `確定要將「${fileTitle}」還原至 ${formatFullDateTime(selectedSnapshot.timestamp)} 的歷史版本嗎？\n（目前編輯中的狀態會自動建檔保存，不用擔心遺失）`
     );
     if (!ok) return;
 
@@ -247,7 +273,10 @@
                   role="button"
                 >
                   <div class="item-top">
-                    <span class="time-str">{formatTime(snap.timestamp)}</span>
+                    <div class="datetime-badge">
+                      <span class="date-str">{formatDate(snap.timestamp)}</span>
+                      <span class="time-str">{formatTime(snap.timestamp)}</span>
+                    </div>
                     <button
                       class="delete-snap-btn"
                       title="刪除此快照"
@@ -283,11 +312,11 @@
             <div class="diff-summary">
               {#if selectedSnapshot}
                 <span class="diff-target-label">
-                  選定版本（{formatTime(selectedSnapshot.timestamp)}） vs 當前即時內容
+                  歷史版本（{formatFullDateTime(selectedSnapshot.timestamp)}） vs 當前即時內容
                 </span>
-                {#if diffResult.hasChanges}
-                  <span class="stat-badge add">+{diffResult.additions} 行</span>
-                  <span class="stat-badge del">-{diffResult.deletions} 行</span>
+                {#if sideBySideResult.hasChanges}
+                  <span class="stat-badge add">+{sideBySideResult.additions} 行</span>
+                  <span class="stat-badge del">-{sideBySideResult.deletions} 行</span>
                 {:else}
                   <span class="stat-badge match">兩者內容完全一致</span>
                 {/if}
@@ -295,17 +324,64 @@
                 <span>請由左側選取快照節點進行對照</span>
               {/if}
             </div>
-            <div class="diff-columns-legend">
-              <span class="legend-box old">歷史快照</span>
-              <span class="legend-arrow">⇄</span>
-              <span class="legend-box current">當前內容</span>
+
+            <div class="diff-header-right">
+              <div class="diff-view-modes">
+                <button
+                  class="mode-btn {diffMode === 'split' ? 'active' : ''}"
+                  onclick={() => (diffMode = 'split')}
+                  title="左右並排對照 (Side-by-Side)"
+                >
+                  <Columns size={13} />
+                  <span>左右並排</span>
+                </button>
+                <button
+                  class="mode-btn {diffMode === 'unified' ? 'active' : ''}"
+                  onclick={() => (diffMode = 'unified')}
+                  title="單欄整合對照 (Unified)"
+                >
+                  <Rows size={13} />
+                  <span>單欄整合</span>
+                </button>
+              </div>
             </div>
           </div>
 
           <div class="diff-viewer">
             {#if !selectedSnapshot}
               <div class="empty-state">尚無比對內容</div>
+            {:else if diffMode === 'split'}
+              <!-- 左右雙欄 Git Diff 風格 -->
+              <div class="split-column-headers">
+                <div class="column-header left">
+                  <span class="column-tag old">歷史快照 (Old)</span>
+                  <span class="column-timestamp">{formatFullDateTime(selectedSnapshot.timestamp)}</span>
+                </div>
+                <div class="column-header right">
+                  <span class="column-tag current">當前內容 (Current)</span>
+                  <span class="column-status">{fileTitle} 即時編輯區</span>
+                </div>
+              </div>
+              <div class="split-diff-content">
+                {#each sideBySideResult.rows as row, idx (idx)}
+                  <div class="split-diff-row">
+                    <!-- 左欄：歷史版本 (舊) -->
+                    <div class="split-cell left {row.left.type}">
+                      <div class="col-num">{row.left.lineNumber !== undefined ? row.left.lineNumber : ''}</div>
+                      <div class="col-indicator">{row.left.type === 'removed' ? '-' : ' '}</div>
+                      <pre class="col-text">{row.left.text || ' '}</pre>
+                    </div>
+                    <!-- 右欄：當前內容 (新) -->
+                    <div class="split-cell right {row.right.type}">
+                      <div class="col-num">{row.right.lineNumber !== undefined ? row.right.lineNumber : ''}</div>
+                      <div class="col-indicator">{row.right.type === 'added' ? '+' : ' '}</div>
+                      <pre class="col-text">{row.right.text || ' '}</pre>
+                    </div>
+                  </div>
+                {/each}
+              </div>
             {:else}
+              <!-- 單欄整合 Diff 風格 -->
               <div class="diff-content">
                 {#each diffResult.lines as line, idx (idx)}
                   <div class="diff-row {line.type}">
@@ -562,6 +638,22 @@
     align-items: center;
   }
 
+  .datetime-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: monospace;
+  }
+
+  .date-str {
+    font-size: 11px;
+    font-weight: 500;
+    color: #a89984;
+    background: #282828;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
   .time-str {
     font-size: 12px;
     font-weight: 600;
@@ -632,7 +724,7 @@
   }
 
   .diff-header {
-    height: 36px;
+    height: 38px;
     background: #161718;
     border-bottom: 1px solid #282828;
     display: flex;
@@ -640,17 +732,22 @@
     justify-content: space-between;
     padding: 0 16px;
     font-size: 12px;
+    user-select: none;
   }
 
   .diff-summary {
     display: flex;
     align-items: center;
     gap: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .diff-target-label {
     color: #d5c4a1;
     font-weight: 500;
+    font-family: monospace;
   }
 
   .stat-badge {
@@ -675,23 +772,155 @@
     color: #83a598;
   }
 
-  .diff-columns-legend {
+  .diff-header-right {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: #928374;
+    gap: 8px;
   }
 
-  .legend-box {
+  .diff-view-modes {
+    display: flex;
+    align-items: center;
+    background: #1f2223;
+    border: 1px solid #3c3836;
+    border-radius: 4px;
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .mode-btn {
+    background: none;
+    border: none;
+    color: #a89984;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .mode-btn:hover {
+    color: #ebdbb2;
+    background: #282828;
+  }
+
+  .mode-btn.active {
+    background: #3c3836;
+    color: #fabd2f;
+    font-weight: 600;
+  }
+
+  /* 左右雙欄 (Side-by-Side) 專屬樣式 */
+  .split-column-headers {
+    display: flex;
+    height: 28px;
+    background: #141617;
+    border-bottom: 1px solid #282828;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    user-select: none;
+  }
+
+  .column-header {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 11px;
+    box-sizing: border-box;
+  }
+
+  .column-header.left {
+    border-right: 1px solid #282828;
+  }
+
+  .column-tag {
+    font-weight: 600;
     padding: 1px 6px;
     border-radius: 3px;
-    background: #282828;
   }
 
-  .legend-box.current {
-    color: #83a598;
-    background: #282828;
+  .column-tag.old {
+    background: rgba(251, 73, 52, 0.18);
+    color: #fb4934;
+  }
+
+  .column-tag.current {
+    background: rgba(184, 187, 38, 0.18);
+    color: #b8bb26;
+  }
+
+  .column-timestamp,
+  .column-status {
+    color: #928374;
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  .split-diff-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+    width: max-content;
+  }
+
+  .split-diff-row {
+    display: flex;
+    min-height: 20px;
+    width: 100%;
+    transition: background 0.05s;
+  }
+
+  .split-diff-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .split-cell {
+    flex: 1;
+    min-width: 380px;
+    display: flex;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .split-cell.left {
+    border-right: 1px solid #282828;
+  }
+
+  .split-cell.added {
+    background: rgba(184, 187, 38, 0.14);
+  }
+
+  .split-cell.removed {
+    background: rgba(251, 73, 52, 0.14);
+  }
+
+  .split-cell.empty {
+    background: rgba(0, 0, 0, 0.22);
+    user-select: none;
+  }
+
+  .split-cell.added .col-indicator {
+    color: #b8bb26;
+  }
+
+  .split-cell.removed .col-indicator {
+    color: #fb4934;
+  }
+
+  .split-cell.added .col-text {
+    color: #b8bb26;
+  }
+
+  .split-cell.removed .col-text {
+    color: #fb4934;
+    opacity: 0.9;
   }
 
   .diff-viewer {

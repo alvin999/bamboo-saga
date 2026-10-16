@@ -2,6 +2,8 @@
   let {
     summary = 'AI 整理結果',
     timestamp = 0,
+    additions = 0,
+    deletions = 0,
     onAccept,
     onRollback,
     onToggleDiff,
@@ -9,6 +11,8 @@
   } = $props<{
     summary?: string;
     timestamp?: number;
+    additions?: number;
+    deletions?: number;
     onAccept: () => void;
     onRollback: () => void;
     onToggleDiff: () => void;
@@ -28,15 +32,25 @@
     {#if formattedTime}
       <span class="time-tag">({formattedTime})</span>
     {/if}
+    {#if additions > 0 || deletions > 0}
+      <div class="stat-pills">
+        {#if additions > 0}
+          <span class="stat-badge add">+{additions}</span>
+        {/if}
+        {#if deletions > 0}
+          <span class="stat-badge del">-{deletions}</span>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <div class="actions">
-    <button class="diff-btn {showDiff ? 'active' : ''}" onclick={onToggleDiff} title="上下/左右對照檢視原稿與新稿">
+    <button class="diff-btn {showDiff ? 'active' : ''}" onclick={onToggleDiff} title="切換 Git Diff 左右雙欄對照與即時編輯">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
         <line x1="12" y1="3" x2="12" y2="21"></line>
       </svg>
-      <span>{showDiff ? '隱藏原稿' : '對照檢視'}</span>
+      <span>{showDiff ? '返回編輯' : 'Git Diff 對照'}</span>
     </button>
 
     <button class="accept-btn" onclick={onAccept} title="確認以此內容入櫃">
@@ -106,6 +120,33 @@
     font-size: 0.72rem;
     color: #928374;
     font-family: var(--font-mono);
+  }
+
+  .stat-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+  }
+
+  .stat-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+
+  .stat-badge.add {
+    background: rgba(184, 187, 38, 0.2);
+    color: #b8bb26;
+    border: 1px solid rgba(184, 187, 38, 0.35);
+  }
+
+  .stat-badge.del {
+    background: rgba(251, 73, 52, 0.2);
+    color: #fb4934;
+    border: 1px solid rgba(251, 73, 52, 0.35);
   }
 
   .actions {

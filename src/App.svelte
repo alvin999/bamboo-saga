@@ -5,6 +5,7 @@
   import { loadVaultState, saveVaultState, INITIAL_WELCOME_CONTENT } from './lib/storage/vault';
   import { refineNotes } from './lib/ai/refinery';
   import type { RefineryMode } from './lib/ai/refinery';
+  import { computeSideBySideDiff } from './lib/editor/diffEngine';
 
   import PrimaryTopBar from './components/PrimaryTopBar.svelte';
   import SecondaryAlchemyBar from './components/SecondaryAlchemyBar.svelte';
@@ -114,6 +115,14 @@
   const activeTab = $derived(
     state.tabs.find((t) => t.id === state.activeTabId) || state.tabs[0]
   );
+
+  // AI 煉丹前 vs 煉丹後的 Git Diff 比對結果
+  const aiDiffResult = $derived.by(() => {
+    if (!activeTab?.preAiSnapshot || !activeTab.isAiDraft) {
+      return { rows: [], additions: 0, deletions: 0, hasChanges: false };
+    }
+    return computeSideBySideDiff(activeTab.preAiSnapshot.content, activeTab.content);
+  });
 
   // 精煉本機洞天目錄骨架（供 AI 推論時精準鎖定已存在的資料夾，嚴格限額 Token）
   const directorySkeleton = $derived(
@@ -1065,6 +1074,8 @@
       <AiReviewBar 
         summary={activeTab.aiPromptSummary}
         timestamp={activeTab.preAiSnapshot?.timestamp}
+        additions={aiDiffResult.additions}
+        deletions={aiDiffResult.deletions}
         onAccept={handleAcceptAi}
         onRollback={handleRollbackAi}
         onToggleDiff={() => (showDiffView = !showDiffView)}
@@ -1102,38 +1113,52 @@
       style="--editor-font-size: {state.layoutConfig?.fontSize || '14px'};"
     >
       {#if showDiffView && activeTab?.preAiSnapshot}
-        <!-- 雙欄對比模式：左側原稿，右側 AI 整理稿 -->
-        <div class="diff-split-view">
-          <div class="diff-pane origin-pane">
-            <div class="pane-header">
+        <!-- 雙欄 Git Diff 對照模式：左側原始手稿，右側 AI 提煉成果 -->
+        <div class="diff-split-view ai-git-diff-container">
+          <div class="diff-split-header">
+            <div class="diff-pane-title origin-side">
               <span class="hud-pill">RAW // SNAPSHOT</span>
               <span class="pane-title">📜 原始手稿（AI 介入前快照）</span>
             </div>
-            <div class="pane-content">
-              <pre class="readonly-text">{activeTab.preAiSnapshot.content}</pre>
+            <div class="diff-pane-title ai-side">
+              <div class="pane-title-left">
+                <span class="hud-pill accent">SAGA // REFINED</span>
+                <span class="pane-title">✨ AI 提煉成果</span>
+              </div>
+              <div class="diff-summary-badges">
+                {#if aiDiffResult.hasChanges}
+                  <span class="diff-stat-pill add">+{aiDiffResult.additions} 行</span>
+                  <span class="diff-stat-pill del">-{aiDiffResult.deletions} 行</span>
+                {:else}
+                  <span class="diff-stat-pill match">內容完全一致</span>
+                {/if}
+              </div>
             </div>
           </div>
 
-          <div class="diff-pane ai-pane">
-            <div class="pane-header ai-header">
-              <span class="hud-pill accent">SAGA // REFINED</span>
-              <span class="pane-title">✨ AI 提煉成果</span>
-            </div>
-            <div class="pane-content editor-wrapper">
-              <CodeEditor 
-                content={activeTab.content}
-                language={activeTab.language}
-                vimMode={state.vimMode}
-                vimOverrides={state.vimOverrides}
-                cursor={activeTab.cursor}
-                smearEnabled={smearEnabled}
-                onChange={handleContentChange}
-                onCursorChange={handleCursorChange}
-                onManualSave={handleManualSave}
-                onSaveAs={handleSaveAs}
-                onImeWarning={handleImeWarning}
-              />
-            </div>
+          <div class="ai-diff-scroll-body">
+            {#if aiDiffResult.rows.length === 0}
+              <div class="empty-diff-state">尚無比對差異</div>
+            {:else}
+              <div class="ai-diff-rows">
+                {#each aiDiffResult.rows as row, idx (idx)}
+                  <div class="ai-diff-row">
+                    <!-- 左欄：原始手稿 (舊版) -->
+                    <div class="ai-diff-cell left {row.left.type}">
+                      <div class="col-num">{row.left.lineNumber !== undefined ? row.left.lineNumber : ''}</div>
+                      <div class="col-indicator">{row.left.type === 'removed' ? '-' : ' '}</div>
+                      <pre class="col-text">{row.left.text || ' '}</pre>
+                    </div>
+                    <!-- 右欄：AI 提煉成果 (新版) -->
+                    <div class="ai-diff-cell right {row.right.type}">
+                      <div class="col-num">{row.right.lineNumber !== undefined ? row.right.lineNumber : ''}</div>
+                      <div class="col-indicator">{row.right.type === 'added' ? '+' : ' '}</div>
+                      <pre class="col-text">{row.right.text || ' '}</pre>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
         </div>
       {:else if activeTab}
@@ -1455,6 +1480,194 @@
 
   .editor-wrapper {
     height: 100%;
+  }
+
+  /* 煉丹雙欄 Git Diff 模式樣式 */
+  .ai-git-diff-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: #18191a;
+    overflow: hidden;
+  }
+
+  .diff-split-header {
+    display: flex;
+    height: 36px;
+    background: #141617;
+    border-bottom: 1px solid #282828;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .diff-pane-title {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    font-size: 11.5px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .diff-pane-title.origin-side {
+    border-right: 1px solid #282828;
+    color: #928374;
+  }
+
+  .diff-pane-title.ai-side {
+    justify-content: space-between;
+    color: #d49b35;
+  }
+
+  .pane-title-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .diff-summary-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .diff-stat-pill {
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: monospace;
+  }
+
+  .diff-stat-pill.add {
+    background: rgba(184, 187, 38, 0.18);
+    color: #b8bb26;
+    border: 1px solid rgba(184, 187, 38, 0.35);
+  }
+
+  .diff-stat-pill.del {
+    background: rgba(251, 73, 52, 0.18);
+    color: #fb4934;
+    border: 1px solid rgba(251, 73, 52, 0.35);
+  }
+
+  .diff-stat-pill.match {
+    background: rgba(131, 165, 152, 0.18);
+    color: #83a598;
+  }
+
+  .ai-diff-scroll-body {
+    flex: 1;
+    overflow: auto;
+    background: #18191a;
+    font-family: 'Consolas', 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 22px;
+  }
+
+  .ai-diff-rows {
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+    width: max-content;
+  }
+
+  .ai-diff-row {
+    display: flex;
+    min-height: 22px;
+    width: 100%;
+    transition: background 0.05s;
+  }
+
+  .ai-diff-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .ai-diff-cell {
+    flex: 1;
+    min-width: 420px;
+    display: flex;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .ai-diff-cell.left {
+    border-right: 1px solid #282828;
+  }
+
+  .ai-diff-cell.added {
+    background: rgba(184, 187, 38, 0.14);
+  }
+
+  .ai-diff-cell.removed {
+    background: rgba(251, 73, 52, 0.14);
+  }
+
+  .ai-diff-cell.empty {
+    background: rgba(0, 0, 0, 0.22);
+    user-select: none;
+  }
+
+  .ai-diff-cell .col-num {
+    width: 46px;
+    min-width: 46px;
+    text-align: right;
+    padding-right: 10px;
+    color: #504945;
+    font-size: 11px;
+    user-select: none;
+    box-sizing: border-box;
+    border-right: 1px solid #242627;
+  }
+
+  .ai-diff-cell .col-indicator {
+    width: 22px;
+    min-width: 22px;
+    text-align: center;
+    user-select: none;
+    font-weight: bold;
+    font-size: 12px;
+  }
+
+  .ai-diff-cell.added .col-indicator {
+    color: #b8bb26;
+  }
+
+  .ai-diff-cell.removed .col-indicator {
+    color: #fb4934;
+  }
+
+  .ai-diff-cell.unchanged .col-indicator {
+    color: transparent;
+  }
+
+  .ai-diff-cell .col-text {
+    flex: 1;
+    margin: 0;
+    padding: 0 12px;
+    white-space: pre;
+    color: #ebdbb2;
+    tab-size: 2;
+  }
+
+  .ai-diff-cell.added .col-text {
+    color: #b8bb26;
+  }
+
+  .ai-diff-cell.removed .col-text {
+    color: #fb4934;
+    opacity: 0.9;
+  }
+
+  .empty-diff-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #7c6f64;
+    font-size: 13px;
   }
 
   /* 浮動 Toast */
