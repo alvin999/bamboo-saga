@@ -1,11 +1,15 @@
 <script lang="ts">
-  import type { TabItem } from '../types/tab';
+  import type { TabItem, AlchemyCardConfig } from '../types/tab';
   import ShortcutCheatSheet from './ShortcutCheatSheet.svelte';
+  import AlchemyPopover from './AlchemyPopover.svelte';
 
   let { 
     vimMode = $bindable(false),
     tabs = [],
     activeTabId = '',
+    alchemyCards = {},
+    isRefining = false,
+    isAlchemyOpen = $bindable(false),
     onSelectTab,
     onAddTab,
     onCloseTab,
@@ -15,11 +19,17 @@
     onToggleFileBrowser,
     onOpenSettings,
     onOpenKeybindings,
+    onExecuteRefine,
+    onSaveAlchemyCards,
+    onShowToast,
     isSaved = true
   } = $props<{
     vimMode: boolean;
     tabs: TabItem[];
     activeTabId: string;
+    alchemyCards?: Record<string, AlchemyCardConfig>;
+    isRefining?: boolean;
+    isAlchemyOpen?: boolean;
     onSelectTab: (id: string) => void;
     onAddTab: () => void;
     onCloseTab: (id: string) => void;
@@ -29,6 +39,9 @@
     onToggleFileBrowser: () => void;
     onOpenSettings: () => void;
     onOpenKeybindings?: () => void;
+    onExecuteRefine?: (mode: string, customPrompt: string, cardPrompt?: string) => Promise<void>;
+    onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
+    onShowToast?: (msg: string) => void;
     isSaved: boolean;
   }>();
 
@@ -39,8 +52,9 @@
   let dragOverTabId = $state<string | null>(null);
   let isDeckDragOver = $state(false);
 
-  // 僅篩選停靠在主頂欄的分頁 (未特別指定時預設在 primary)
-  const primaryTabs = $derived(tabs.filter((t: TabItem) => t.deck !== 'secondary'));
+  // 統一由主頂欄管理所有分頁
+  const primaryTabs = $derived(tabs);
+  const activeTab = $derived(tabs.find((t: TabItem) => t.id === activeTabId) || null);
 
   function handleDragStart(e: DragEvent, id: string) {
     if (editingTabId) return;
@@ -269,6 +283,20 @@
         <span class="sync-dot {isSaved ? 'synced' : 'saving'}"></span>
         <span class="sync-readout">{isSaved ? 'SYNC // 0.01MS' : 'FLUSH // VAULT'}</span>
       </div>
+
+      <!-- 意圖煉丹爐：Hover 展開配置、整合核心提煉與自訂新增 -->
+      {#if onExecuteRefine}
+        <AlchemyPopover 
+          {activeTab}
+          {alchemyCards}
+          {isRefining}
+          bind:isOpen={isAlchemyOpen}
+          {onExecuteRefine}
+          {onSaveAlchemyCards}
+          {onOpenSettings}
+          {onShowToast}
+        />
+      {/if}
 
       <button 
         class="tune-btn shortcut-btn {isCheatSheetOpen ? 'active' : ''}" 

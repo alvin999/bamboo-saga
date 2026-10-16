@@ -44,7 +44,7 @@
     selectedOneDrivePath = '',
     autoOneDriveBackup = false,
     enablePeriodicBackup = true,
-    activeTab = 'refine' as ModalTab,
+    activeTab = 'keys' as ModalTab,
     onTabChange,
     onClose,
     onRefine,
@@ -538,27 +538,18 @@
           <span class="engine-title">
             {activeTab === 'onedrive' 
               ? '雲端備份 // ONEDRIVE MIRROR' 
-              : activeTab === 'keys' 
-              ? '金鑰配置 // API CREDENTIALS' 
               : activeTab === 'keybindings'
               ? '按鍵偏好 // VIM & KEYMAP'
               : activeTab === 'layout'
               ? '版面配置 // WORKBENCH LAYOUT'
               : activeTab === 'system'
               ? '系統整合 // NATIVE INTEGRATION'
-              : '煉丹樞紐 // SAGATECH ENGINE'}
+              : '金鑰配置 // API CREDENTIALS'}
           </span>
           <span class="engine-badge">DOT-SYS v2.5</span>
         </div>
 
         <div class="header-nav">
-          <button 
-            class="tab-btn {activeTab === 'refine' ? 'active' : ''}" 
-            onclick={() => setTab('refine')}
-            title="設定煉丹卡片心法與成丹"
-          >
-            🧪 煉丹樞紐
-          </button>
           <button 
             class="tab-btn {activeTab === 'keys' || activeTab === 'settings' ? 'active' : ''}" 
             onclick={() => setTab('keys')}
@@ -606,121 +597,7 @@
         </div>
       {/if}
 
-      {#if activeTab === 'refine'}
-        <!-- 煉丹樞紐：卡片功能設定與手動成丹 -->
-        <div class="modal-body refine-body">
-          <p class="philosophy-quote">
-            「點擊卡片可進入心法配置，客製化 Prompt 指導語；確認心法後點擊下方按鈕啟動成丹。」
-          </p>
-
-          <!-- 三欄矩陣卡片（純選取與配置，不立即執行） -->
-          <div class="matrix-grid">
-            {#each Object.entries(inputCards) as [cardKey, card] (cardKey)}
-              {@const isSelected = selectedMode === cardKey}
-              <div 
-                class="matrix-card {isSelected ? 'selected' : ''}"
-                onclick={() => handleSelectCard(cardKey)}
-                role="button"
-                tabindex="0"
-                onkeydown={(e) => e.key === 'Enter' && handleSelectCard(cardKey)}
-              >
-                <div class="card-head">
-                  <span class="step-tag tag-{card.colorTag}">{card.tag}</span>
-                  <div class="title-with-badge">
-                    <h4 class="card-title">{card.title}</h4>
-                    {#if isSelected}
-                      <span class="active-badge">設定中</span>
-                    {/if}
-                  </div>
-                </div>
-                <p class="card-desc">{card.desc}</p>
-                <div class="card-action-hint">
-                  <span>{isSelected ? '🎯 當前選中' : '⚙️ 點擊配置心法'}</span>
-                </div>
-              </div>
-            {/each}
-          </div>
-
-          <!-- 選中卡片之心法指導語配置面板 -->
-          {#if inputCards[selectedMode]}
-            {@const currentCard = inputCards[selectedMode]}
-            <div class="card-config-panel">
-              <div class="panel-header">
-                <div class="panel-title-group">
-                  <span class="config-tag tag-{currentCard.colorTag}">{currentCard.tag}</span>
-                  <span class="config-title">【{currentCard.title}】心法指導語 (System Prompt Template)</span>
-                </div>
-                <div class="panel-btn-group">
-                  <button 
-                    type="button" 
-                    class="card-tool-btn reset-btn" 
-                    onclick={handleResetCurrentCard}
-                    title="恢復出廠預設心法指導語"
-                  >
-                    <RotateCcw size={12} />
-                    <span>恢復預設心法</span>
-                  </button>
-                  <button 
-                    type="button" 
-                    class="card-tool-btn save-card-btn" 
-                    onclick={handleSaveCards}
-                    title="儲存對此卡片心法的修改"
-                  >
-                    <span>💾 保存心法設定</span>
-                  </button>
-                </div>
-              </div>
-
-              <textarea 
-                class="prompt-textarea"
-                rows="6"
-                placeholder="在此編輯此卡片的 AI 提煉結構規範與指示心法..."
-                bind:value={currentCard.systemPrompt}
-              ></textarea>
-
-              <div class="prompt-help-note">
-                <span>💡 提示：此心法將作為系統指令傳遞給 AI 推論引擎，用於引導 Markdown 結構排版。</span>
-              </div>
-            </div>
-          {/if}
-
-          <!-- 自訂單次補充要求輸入框 -->
-          <div class="custom-prompt-section">
-            <label class="prompt-label" for="custom-input">單次煉丹補充心法 (可選)：</label>
-            <input 
-              id="custom-input"
-              type="text" 
-              class="prompt-input" 
-              placeholder="例：改以文言古風駢文總結 / 著重在資安漏洞分析 / 英文專業術語優先..." 
-              bind:value={customPrompt}
-            />
-          </div>
-
-          <!-- 底部指標與顯式成丹按鈕 -->
-          <footer class="modal-footer">
-            <div class="telemetry">
-              <span class="telemetry-dot"></span>
-              <span class="telemetry-text">LATENCY: 42MS • SAGA-CORE ({selectedModel.toUpperCase()}) • {inputCards[selectedMode]?.title || '待命'}</span>
-            </div>
-
-            <button 
-              class="auto-refine-btn" 
-              disabled={isRefining}
-              onclick={handleExecuteRefine}
-              title="以選定的心法立即執行提煉 (Ctrl+Enter)"
-            >
-              {#if isRefining}
-                <span class="spinner">⏳</span>
-                <span>煉丹運算中...</span>
-              {:else}
-                <span class="fire-dot"></span>
-                <span>✨ 以此心法成丹 (Ctrl+Enter)</span>
-              {/if}
-            </button>
-          </footer>
-        </div>
-
-      {:else if activeTab === 'keys' || activeTab === 'settings'}
+      {#if activeTab === 'keys' || activeTab === 'settings'}
         <!-- 獨立分頁一：API 金鑰與推論核心配置 (支援熱重載與純本機安全加密) -->
         <div class="modal-body settings-body">
           <div class="section-banner">

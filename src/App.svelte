@@ -47,6 +47,7 @@
   // 核心應用狀態
   let state: AppState = $state(loadVaultState());
   let isAiModalOpen = $state(false);
+  let isAlchemyOpen = $state(false);
   let aiModalTab = $state<'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout' | 'system'>('refine');
   let isFileBrowserOpen = $state(false);
   let isFuzzyModalOpen = $state(false);
@@ -334,7 +335,7 @@
         isFuzzyModalOpen = !isFuzzyModalOpen;
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        isAiModalOpen = !isAiModalOpen;
+        isAlchemyOpen = !isAlchemyOpen;
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
         e.preventDefault();
         isFileBrowserOpen = !isFileBrowserOpen;
@@ -1047,11 +1048,14 @@
   <!-- 包浩斯形上學極簡微點陣 (24px x 24px) -->
   <div class="metaphysical-grid"></div>
 
-  <!-- 主頂欄 (Primary Constructivist Command Bar)：56px 高度、檔案瀏覽功能、主頂分頁 -->
+  <!-- 主頂欄 (Primary Constructivist Command Bar)：56px 高度、檔案瀏覽功能、主頂分頁與意圖煉丹樞紐 -->
   <PrimaryTopBar 
     bind:vimMode={state.vimMode}
     tabs={state.tabs}
     activeTabId={state.activeTabId}
+    alchemyCards={state.alchemyCards}
+    isRefining={isRefining}
+    bind:isAlchemyOpen={isAlchemyOpen}
     onSelectTab={selectTab}
     onAddTab={addTab}
     onCloseTab={closeTab}
@@ -1060,31 +1064,17 @@
     onReorderTabs={handleReorderTabs}
     onToggleFileBrowser={() => (isFileBrowserOpen = !isFileBrowserOpen)}
     onOpenSettings={() => {
-      aiModalTab = 'refine';
+      aiModalTab = 'keys';
       isAiModalOpen = true;
     }}
     onOpenKeybindings={() => {
       aiModalTab = 'keybindings';
       isAiModalOpen = true;
     }}
-    isSaved={isSavingIndicator}
-  />
-
-  <!-- 次頂欄 (Secondary Alchemy Bar)：38px 高度、AI 煉丹操作與次頂分頁 -->
-  <SecondaryAlchemyBar 
-    tabs={state.tabs}
-    activeTabId={state.activeTabId}
-    bind:smearEnabled={smearEnabled}
-    onSelectTab={selectTab}
-    onCloseTab={closeTab}
-    onRenameTab={renameTab}
-    onMoveTabDeck={handleMoveTabDeck}
-    onReorderTabs={handleReorderTabs}
     onExecuteRefine={handleExecuteRefine}
-    onOpenAiModal={() => {
-      aiModalTab = 'refine';
-      isAiModalOpen = true;
-    }}
+    onSaveAlchemyCards={handleSaveAlchemyCards}
+    onShowToast={showToast}
+    isSaved={isSavingIndicator}
   />
 
   {#if activeTab?.isAiDraft}
