@@ -1,8 +1,42 @@
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
+use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ExternalFileChangePayload {
+    pub path: String,
+    pub content: String,
+}
+
+pub struct FileWatcherInner {
+    pub watched_files: HashSet<PathBuf>,
+    pub watched_dirs: HashSet<PathBuf>,
+    pub last_written_hashes: HashMap<String, u64>,
+}
+
+#[derive(Clone)]
+pub struct FileWatcherManager {
+    pub inner: Arc<Mutex<FileWatcherInner>>,
+    pub watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
+}
+
+impl Default for FileWatcherManager {
+    fn default() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(FileWatcherInner {
+                watched_files: HashSet::new(),
+                watched_dirs: HashSet::new(),
+                last_written_hashes: HashMap::new(),
+            })),
+            watcher: Arc::new(Mutex::new(None)),
+        }
+    }
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct VaultFileItem {
@@ -139,14 +173,80 @@ fn read_vault_file(file_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn write_vault_file(file_path: String, content: String) -> Result<(), String> {
+fn write_vault_file(
+    file_path: String,
+    content: String,
+    watcher_state: tauri::State<FileWatcherManager>,
+) -> Result<(), String> {
     let path = PathBuf::from(&file_path);
     if let Some(parent) = path.parent() {
         if !parent.exists() {
             fs::create_dir_all(parent).map_err(|e| format!("無法建立目錄: {}", e))?;
         }
     }
+
+    // 計算寫入內容的 Hash 並登記，避免觸發自我監聽迴圈 (Self-trigger loop)
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    std::hash::Hash::hash(&content, &mut hasher);
+    let hash = std::hash::Hasher::finish(&hasher);
+    if let Ok(mut inner) = watcher_state.inner.lock() {
+        inner.last_written_hashes.insert(file_path.clone(), hash);
+        if let Ok(canonical) = path.canonicalize() {
+            inner.last_written_hashes.insert(canonical.to_string_lossy().to_string(), hash);
+        }
+    }
+
     fs::write(&path, content).map_err(|e| format!("無法寫入檔案 {}: {}", file_path, e))
+}
+
+#[tauri::command]
+fn set_watched_files(
+    files: Vec<String>,
+    manager: tauri::State<FileWatcherManager>,
+) -> Result<(), String> {
+    let mut inner = manager.inner.lock().map_err(|e| e.to_string())?;
+    let mut watcher_guard = manager.watcher.lock().map_err(|e| e.to_string())?;
+
+    let watcher = match watcher_guard.as_mut() {
+        Some(w) => w,
+        None => return Ok(()),
+    };
+
+    let mut new_files = HashSet::new();
+    let mut new_dirs = HashSet::new();
+
+    for f in files {
+        let p = PathBuf::from(&f);
+        if let Ok(canonical) = p.canonicalize() {
+            new_files.insert(canonical.clone());
+            if let Some(parent) = canonical.parent() {
+                new_dirs.insert(parent.to_path_buf());
+            }
+        }
+        new_files.insert(p.clone());
+        if let Some(parent) = p.parent() {
+            new_dirs.insert(parent.to_path_buf());
+        }
+    }
+
+    // 移除不再需要的目錄監聽
+    for old_dir in &inner.watched_dirs {
+        if !new_dirs.contains(old_dir) {
+            let _ = watcher.unwatch(old_dir);
+        }
+    }
+
+    // 註冊新增的目錄監聽 (Windows 透過目錄監聽，可完美處理 atomic save / rename 覆寫)
+    for new_dir in &new_dirs {
+        if !inner.watched_dirs.contains(new_dir) && new_dir.exists() {
+            let _ = watcher.watch(new_dir, RecursiveMode::NonRecursive);
+        }
+    }
+
+    inner.watched_files = new_files;
+    inner.watched_dirs = new_dirs;
+
+    Ok(())
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -790,6 +890,82 @@ pub fn run() {
                 }
             }
 
+            // 初始化外部檔案變動即時監聽器 (File Watcher)
+            let watcher_manager = FileWatcherManager::default();
+            let app_handle_clone = app.handle().clone();
+            let inner_clone = Arc::clone(&watcher_manager.inner);
+
+            let watcher_res = RecommendedWatcher::new(
+                move |res: Result<Event, notify::Error>| {
+                    if let Ok(event) = res {
+                        if event.kind.is_modify() || event.kind.is_create() {
+                            for path in event.paths {
+                                if path.is_file() {
+                                    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+                                    let path_str = path.to_string_lossy().to_string();
+
+                                    let is_target = {
+                                        let lock = inner_clone.lock().unwrap();
+                                        lock.watched_files.contains(&path) || lock.watched_files.contains(&canonical_path)
+                                    };
+
+                                    if !is_target {
+                                        continue;
+                                    }
+
+                                    // 稍作等待以避開 Windows 外部編輯器原子寫入時的鎖定
+                                    let mut read_content = None;
+                                    for _ in 0..4 {
+                                        if let Ok(c) = fs::read_to_string(&path) {
+                                            read_content = Some(c);
+                                            break;
+                                        }
+                                        std::thread::sleep(std::time::Duration::from_millis(40));
+                                    }
+
+                                    if let Some(content) = read_content {
+                                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                                        std::hash::Hash::hash(&content, &mut hasher);
+                                        let new_hash = std::hash::Hasher::finish(&hasher);
+
+                                        let should_emit = {
+                                            let mut lock = inner_clone.lock().unwrap();
+                                            if let Some(&last_hash) = lock.last_written_hashes.get(&path_str) {
+                                                if last_hash == new_hash {
+                                                    false
+                                                } else {
+                                                    lock.last_written_hashes.insert(path_str.clone(), new_hash);
+                                                    true
+                                                }
+                                            } else {
+                                                lock.last_written_hashes.insert(path_str.clone(), new_hash);
+                                                true
+                                            }
+                                        };
+
+                                        if should_emit {
+                                            let _ = app_handle_clone.emit(
+                                                "vault-file-changed-externally",
+                                                ExternalFileChangePayload {
+                                                    path: path_str,
+                                                    content,
+                                                },
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                Config::default(),
+            );
+
+            if let Ok(w) = watcher_res {
+                *watcher_manager.watcher.lock().unwrap() = Some(w);
+            }
+            app.manage(watcher_manager);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -797,6 +973,7 @@ pub fn run() {
             scan_vault_folder,
             read_vault_file,
             write_vault_file,
+            set_watched_files,
             detect_onedrive_accounts,
             backup_vault_to_onedrive,
             check_onedrive_backup,

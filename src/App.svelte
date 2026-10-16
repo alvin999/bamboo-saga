@@ -24,7 +24,9 @@
     readVaultFile, 
     writeVaultFile,
     backupVaultToOneDrive,
-    getInitialRouteTarget
+    getInitialRouteTarget,
+    setWatchedFiles,
+    type ExternalFileChangePayload
   } from './lib/storage/fsBridge';
   import { 
     loadRecentFiles, 
@@ -52,6 +54,15 @@
   let smearEnabled = $state(true);
   let isSavingIndicator = $state(true);
   let isRefining = $state(false); // AI 提煉中的動態過場狀態
+
+  // 外部檔案衝突協調狀態
+  interface FileConflictInfo {
+    tabId: string;
+    tabTitle: string;
+    filePath: string;
+    externalContent: string;
+  }
+  let activeConflict = $state<FileConflictInfo | null>(null);
 
   // 本地歷史自動快照狀態
   let historyDebounceTimer: number | null = null;
@@ -105,6 +116,14 @@
   $effect(() => {
     const snapshot = $state.snapshot(state);
     saveVaultState(snapshot);
+  });
+
+  // 即時將所有已連結實體檔案的分頁路徑同步至 Rust Watcher 監聽器
+  $effect(() => {
+    const filePaths = state.tabs
+      .map((t) => t.filePath)
+      .filter(Boolean) as string[];
+    setWatchedFiles(filePaths);
   });
 
   // 直接開啟實體檔案並建立/切換至分頁
@@ -252,6 +271,16 @@
       unlistenNativeRoute = unlisten;
     });
 
+    // 2.1 外部檔案變更即時熱重載監聽 (File Watcher 事件)
+    let unlistenFileWatch: (() => void) | null = null;
+    listen<ExternalFileChangePayload>('vault-file-changed-externally', (event) => {
+      if (event.payload) {
+        handleExternalFileChanged(event.payload);
+      }
+    }).then((unlisten) => {
+      unlistenFileWatch = unlisten;
+    });
+
     // 若先前已連結過資料夾，自動重新整理檔案清單並記錄到常用資料夾
     if (state.vaultFolderPath) {
       recentFolders = recordFolderOpened(state.vaultFolderPath);
@@ -306,11 +335,67 @@
 
     return () => {
       if (unlistenNativeRoute) unlistenNativeRoute();
+      if (unlistenFileWatch) unlistenFileWatch();
       window.clearInterval(backupIntervalTimer);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('keydown', handleGlobalKeydown);
     };
   });
+
+  // 外部檔案變更與衝突協調處理
+  function handleExternalFileChanged(payload: ExternalFileChangePayload) {
+    if (!payload || !payload.path) return;
+    const normalized = payload.path.replace(/\\/g, '/').toLowerCase();
+    const targetTab = state.tabs.find(
+      (t) => t.filePath && t.filePath.replace(/\\/g, '/').toLowerCase() === normalized
+    );
+    if (!targetTab) return;
+
+    // 若磁碟新內容與記憶體中內容完全一致，無需處理
+    if (targetTab.content === payload.content) {
+      return;
+    }
+
+    // 1. 若分頁處於潔淨狀態 (未髒污，沒有尚未寫入磁碟的修改)：直接自動熱重載
+    if (!targetTab.isDirty) {
+      targetTab.content = payload.content;
+      targetTab.lastModified = Date.now();
+      saveVaultState(state, true);
+      showToast(`⚡ 外部程式已修改，自動熱重載：${targetTab.title}`);
+      return;
+    }
+
+    // 2. 若分頁處於髒污狀態（有尚未落盤的修改），保護使用者內容，彈出衝突協調提示
+    activeConflict = {
+      tabId: targetTab.id,
+      tabTitle: targetTab.title,
+      filePath: payload.path,
+      externalContent: payload.content,
+    };
+  }
+
+  function resolveConflictReload() {
+    if (!activeConflict) return;
+    const tab = state.tabs.find((t) => t.id === activeConflict!.tabId);
+    if (tab) {
+      tab.content = activeConflict.externalContent;
+      tab.isDirty = false;
+      tab.lastModified = Date.now();
+      saveVaultState(state, true);
+      showToast(`🔄 已重新載入外部最新版本：${tab.title}`);
+    }
+    activeConflict = null;
+  }
+
+  function resolveConflictKeep() {
+    if (!activeConflict) return;
+    const tab = state.tabs.find((t) => t.id === activeConflict!.tabId);
+    if (tab) {
+      syncToDisk(tab, true);
+      showToast(`🛡️ 已保留廣零散草稿並覆蓋實體檔案：${tab.title}`);
+    }
+    activeConflict = null;
+  }
 
   function detectLanguageByExtension(ext: string): SupportedLanguage {
     switch (ext.toLowerCase()) {
@@ -898,6 +983,28 @@
     </div>
   {/if}
 
+  {#if activeConflict}
+    <!-- 外部檔案變更衝突協調橫幅 (Gruvbox 琥珀警示) -->
+    <div class="external-conflict-banner">
+      <div class="conflict-left">
+        <span class="conflict-pulse"></span>
+        <span class="conflict-title">⚠️ 偵測到外部程式修改了 <strong>{activeConflict.tabTitle}</strong></span>
+        <span class="conflict-desc">此藥帖在廣零散中有未儲存的草稿。請選擇處理方式：</span>
+      </div>
+      <div class="conflict-actions">
+        <button class="conflict-btn reload-btn" onclick={resolveConflictReload}>
+          🔄 載入外部版本 (捨棄草稿)
+        </button>
+        <button class="conflict-btn keep-btn" onclick={resolveConflictKeep}>
+          🛡️ 保留廣零散草稿 (覆蓋磁碟)
+        </button>
+        <button class="conflict-btn close-btn" onclick={() => (activeConflict = null)} title="稍後處理">
+          ✕
+        </button>
+      </div>
+    </div>
+  {/if}
+
   <!-- 主編輯工作台：沉陷包浩斯禪風置中排版 (精準對齊 code.html 第 15 行) -->
   <main class="workbench-sanctuary">
     <div 
@@ -1327,5 +1434,113 @@
   @keyframes overlay-fade {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+
+  /* 外部檔案衝突橫幅樣式 (Gruvbox Dark 風格) */
+  .external-conflict-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: #32261e;
+    border-bottom: 1px solid #d79921;
+    padding: 10px 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 50;
+    animation: conflict-slide-down 0.25s ease-out;
+  }
+
+  .conflict-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #ebdbb2;
+    flex-wrap: wrap;
+  }
+
+  .conflict-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fabd2f;
+    box-shadow: 0 0 8px #fabd2f;
+    animation: conflict-blink 1.5s infinite;
+  }
+
+  .conflict-title strong {
+    color: #fabd2f;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .conflict-desc {
+    color: #a89984;
+    font-size: 12px;
+  }
+
+  .conflict-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .conflict-btn {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+  }
+
+  .conflict-btn.reload-btn {
+    background: #d79921;
+    color: #1d2021;
+  }
+
+  .conflict-btn.reload-btn:hover {
+    background: #fabd2f;
+    transform: translateY(-1px);
+  }
+
+  .conflict-btn.keep-btn {
+    background: #282828;
+    color: #ebdbb2;
+    border-color: #504945;
+  }
+
+  .conflict-btn.keep-btn:hover {
+    background: #3c3836;
+    border-color: #665c54;
+    color: #fbf1c7;
+  }
+
+  .conflict-btn.close-btn {
+    background: transparent;
+    color: #928374;
+    padding: 6px 8px;
+  }
+
+  .conflict-btn.close-btn:hover {
+    color: #fb4934;
+  }
+
+  @keyframes conflict-slide-down {
+    from {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes conflict-blink {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
   }
 </style>

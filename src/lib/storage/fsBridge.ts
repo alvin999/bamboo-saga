@@ -72,6 +72,24 @@ export async function writeVaultFile(filePath: string, content: string): Promise
   console.warn('[fsBridge] 瀏覽器環境無法直接寫入本機檔案:', filePath);
 }
 
+export interface ExternalFileChangePayload {
+  path: string;
+  content: string;
+}
+
+/**
+ * 更新 Rust 後端目前需即時監聽的外部檔案路徑清單
+ */
+export async function setWatchedFiles(files: string[]): Promise<void> {
+  if (isTauriEnvironment()) {
+    try {
+      await invoke<void>('set_watched_files', { files });
+    } catch (err) {
+      console.warn('[fsBridge] set_watched_files failed:', err);
+    }
+  }
+}
+
 /**
  * 自動探測 Windows 系統環境變數中的 OneDrive 個人版與企業/組織版帳號
  */
