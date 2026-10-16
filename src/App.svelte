@@ -943,7 +943,7 @@
     onReorderTabs={handleReorderTabs}
     onToggleFileBrowser={() => (isFileBrowserOpen = !isFileBrowserOpen)}
     onOpenSettings={() => {
-      aiModalTab = 'keys';
+      aiModalTab = 'refine';
       isAiModalOpen = true;
     }}
     onOpenKeybindings={() => {
