@@ -545,8 +545,8 @@
     const newIndex = state.tabs.length + 1;
     const newTab: TabItem = {
       id: `tab-${Date.now()}`,
-      title: `藥帖${newIndex}·竹簡手稿`,
-      content: `# 藥帖${newIndex}\n\n`,
+      title: `素簡${newIndex}`,
+      content: '',
       language: 'plaintext',
       cursor: { line: 1, ch: 0 },
       lastModified: Date.now(),

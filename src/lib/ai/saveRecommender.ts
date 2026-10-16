@@ -99,7 +99,7 @@ export function generateHeuristicRecommendation(
   }
 
   if (!baseName) {
-    baseName = `隨手筆記_${today}`;
+    baseName = `素簡札記_${today}`;
   }
 
   const primaryName = baseName.startsWith('[') ? `${baseName}.${ext}` : `[草稿] - ${baseName}.${ext}`;
