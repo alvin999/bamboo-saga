@@ -6,6 +6,7 @@ import { VimKeyOverrides } from '../../types/tab';
 
 export interface VimOverrideCallbacks {
   onManualSave?: () => void;
+  onSaveAs?: () => void;
   onImeWarning?: (text: string) => void;
 }
 
@@ -15,7 +16,7 @@ export function buildVimOverrideKeymap(
 ): Extension[] {
   const bindings: Array<{ key: string; run: (view: EditorView) => boolean; preventDefault?: boolean }> = [];
 
-  // 1. Ctrl + S: 手動秒存入櫃
+  // 1. Ctrl + S: 手動存檔 / 智薦歸檔
   if (options.ctrlS) {
     bindings.push({
       key: 'Mod-s',
@@ -26,6 +27,16 @@ export function buildVimOverrideKeymap(
       preventDefault: true,
     });
   }
+
+  // 1.1 Ctrl + Shift + S: 另存新檔 (Save As)
+  bindings.push({
+    key: 'Mod-Shift-s',
+    run: () => {
+      callbacks?.onSaveAs?.();
+      return true;
+    },
+    preventDefault: true,
+  });
 
   // 2. Ctrl + C: 複製選取文字到系統剪貼簿
   if (options.ctrlC) {

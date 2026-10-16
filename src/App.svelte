@@ -16,6 +16,7 @@
   import FuzzyFindModal from './components/FuzzyFindModal.svelte';
   import LocalHistoryModal from './components/LocalHistoryModal.svelte';
   import PutLabelModal from './components/PutLabelModal.svelte';
+  import SaveWithAiModal from './components/SaveWithAiModal.svelte';
 
   import type { VaultFileEntry, RecentFileRecord, RecentFolderRecord } from './types/tab';
   import { 
@@ -49,6 +50,7 @@
   let isFuzzyModalOpen = $state(false);
   let isLocalHistoryOpen = $state(false);
   let isPutLabelOpen = $state(false);
+  let isSaveModalOpen = $state(false);
   let fuzzyInitialMode = $state<'fuzzy' | 'ai'>('fuzzy');
   let showDiffView = $state(false);
   let smearEnabled = $state(true);
@@ -673,17 +675,56 @@
     }
   }
 
+  // 另存新檔觸發 (Ctrl+Shift+S / 未命名草稿 Ctrl+S)
+  function handleSaveAs() {
+    if (activeTab) {
+      isSaveModalOpen = true;
+    }
+  }
+
+  // 確認寫入本機實體檔案並綁定分頁
+  async function handleConfirmSaveAs(targetDir: string, fileName: string) {
+    if (!activeTab) return;
+    const separator = targetDir.includes('/') ? '/' : '\\';
+    const fullPath = targetDir.endsWith('/') || targetDir.endsWith('\\')
+      ? `${targetDir}${fileName}`
+      : `${targetDir}${separator}${fileName}`;
+
+    await writeVaultFile(fullPath, activeTab.content);
+    activeTab.filePath = fullPath;
+    activeTab.title = fileName;
+    activeTab.isDirty = false;
+
+    // 記錄至最近開啟檔案清單
+    recordFileOpened({
+      path: fullPath,
+      title: fileName,
+      preview: activeTab.content.slice(0, 150),
+      language: activeTab.language,
+      isLocalFile: true,
+    });
+    recentFiles = loadRecentFiles();
+
+    // 記錄儲存目錄至最近常用資料夾
+    recordFolderOpened(targetDir);
+    recentFolders = loadRecentFolders();
+
+    saveVaultState(state, true);
+    triggerAutoSnapshot(activeTab, 'save');
+    showToast(`💾 檔案已成功歸檔至「${fileName}」！`);
+  }
+
   // 手動存檔觸發 (Ctrl+S / Vim :w)
   function handleManualSave() {
     if (activeTab) {
       if (activeTab.filePath) {
         syncToDisk(activeTab, true);
         showToast('💾 實體檔案已成功保存至磁碟！');
+        triggerAutoSnapshot(activeTab, 'save');
       } else {
-        saveVaultState(state, true);
-        showToast('🛡️ 藥帖狀態已毫秒級持久化入櫃！');
+        // 未綁定實體路徑之散帖，直覺喚起 AI 智薦歸檔對話盒
+        handleSaveAs();
       }
-      triggerAutoSnapshot(activeTab, 'save');
     }
   }
 
@@ -905,7 +946,22 @@
       saveVaultState(state, true);
     }
   }
+
+  // 全域鍵盤快捷鍵攔截（優先於瀏覽器預設行為）
+  function handleWindowKeyDown(e: KeyboardEvent) {
+    const isMod = e.ctrlKey || e.metaKey;
+    if (isMod && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleSaveAs();
+      } else {
+        handleManualSave();
+      }
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleWindowKeyDown} />
 
 <div 
   class="app-layout {activeTab?.isAiDraft ? 'ai-draft-active' : ''} {isRefining ? 'is-refining' : ''} {isDraggingOver ? 'drag-over-active' : ''}"
@@ -1040,6 +1096,7 @@
                 onChange={handleContentChange}
                 onCursorChange={handleCursorChange}
                 onManualSave={handleManualSave}
+                onSaveAs={handleSaveAs}
                 onImeWarning={handleImeWarning}
               />
             </div>
@@ -1058,6 +1115,7 @@
             onChange={handleContentChange}
             onCursorChange={handleCursorChange}
             onManualSave={handleManualSave}
+            onSaveAs={handleSaveAs}
             onImeWarning={handleImeWarning}
           />
         </div>
@@ -1102,6 +1160,19 @@
       fileTitle={activeTab.title}
       onSaveLabel={handleSaveLabel}
       onClose={() => (isPutLabelOpen = false)}
+    />
+
+    <!-- 存為本機檔案 (AI 智薦歸檔對話盒) (Ctrl+S / Ctrl+Shift+S) -->
+    <SaveWithAiModal 
+      isOpen={isSaveModalOpen}
+      tab={activeTab}
+      recentFolders={recentFolders.map((f) => f.path)}
+      groqKey={state.groqApiKey}
+      geminiKey={state.geminiApiKey}
+      modelPreference={state.selectedAiModel}
+      modelId={state.selectedAiModelId}
+      onConfirmSave={handleConfirmSaveAs}
+      onClose={() => (isSaveModalOpen = false)}
     />
   {/if}
 

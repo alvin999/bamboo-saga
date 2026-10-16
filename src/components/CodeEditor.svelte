@@ -28,6 +28,7 @@
     onChange,
     onCursorChange,
     onManualSave,
+    onSaveAs,
     onImeWarning
   } = $props<{
     content: string;
@@ -39,6 +40,7 @@
     onChange: (val: string) => void;
     onCursorChange: (cur: CursorPosition) => void;
     onManualSave?: () => void;
+    onSaveAs?: () => void;
     onImeWarning?: (msg: string) => void;
   }>();
 
@@ -96,11 +98,30 @@
         highlightActiveLineGutter(),
         highlightActiveLine(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([
+          {
+            key: 'Mod-s',
+            run: () => {
+              onManualSave?.();
+              return true;
+            },
+            preventDefault: true,
+          },
+          {
+            key: 'Mod-Shift-s',
+            run: () => {
+              onSaveAs?.();
+              return true;
+            },
+            preventDefault: true,
+          },
+          ...defaultKeymap,
+          ...historyKeymap,
+        ]),
         gruvboxExtension,
         languageCompartment.of(getLanguageExtension(language)),
         vimOverridesCompartment.of(
-          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onImeWarning }) : []
+          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning }) : []
         ),
         vimCompartment.of(vimMode ? vim() : []),
         updateListener,
@@ -155,7 +176,7 @@
         effects: [
           vimCompartment.reconfigure(vimMode ? vim() : []),
           vimOverridesCompartment.reconfigure(
-            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onImeWarning }) : []
+            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning }) : []
           ),
         ],
       });
