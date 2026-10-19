@@ -182,9 +182,10 @@ export function loadVaultState(): AppState {
       parsed.securityMode = 'scheme_3_os_native';
     }
     // 補齊可能缺失的 vimOverrides 欄位
-    if (!parsed.vimOverrides) {
-      parsed.vimOverrides = getDefaultVimOverrides();
-    }
+    parsed.vimOverrides = {
+      ...getDefaultVimOverrides(),
+      ...(parsed.vimOverrides || {}),
+    };
     // 補齊可能缺失的 alchemyCards 欄位
     if (!parsed.alchemyCards) {
       parsed.alchemyCards = getDefaultAlchemyCards();

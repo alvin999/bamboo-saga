@@ -1,8 +1,21 @@
 import { Prec, Extension } from '@codemirror/state';
 import { keymap, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
-import { selectAll } from '@codemirror/commands';
+import { selectAll, cursorCharLeft, cursorCharRight } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
+import { getCM, Vim } from '@replit/codemirror-vim';
 import { VimKeyOverrides } from '../../types/tab';
+
+/**
+ * 檢查 CodeMirror 是否處於 Vim Normal 指令模式 (非 Insert / Visual / Replace 模式)
+ */
+function isVimNormalMode(view: EditorView): boolean {
+  const cm = getCM(view);
+  if (cm?.state?.vim) {
+    return !cm.state.vim.insertMode && !cm.state.vim.visualMode;
+  }
+  // 兜底備援：@replit/codemirror-vim 會在 Normal 模式將 cm-vimMode 賦予在 scrollDOM
+  return view.scrollDOM?.classList?.contains('cm-vimMode') ?? false;
+}
 
 export interface VimOverrideCallbacks {
   onManualSave?: () => void;
@@ -38,8 +51,32 @@ export function buildVimOverrideKeymap(
     preventDefault: true,
   });
 
+  // 0.2 Backspace: 在 Vim Normal 模式下等同於 "h" (左移一格)，嚴禁刪除文字；Insert 模式正常放行刪除
+  bindings.push({
+    key: 'Backspace',
+    run: (view) => {
+      if (isVimNormalMode(view)) {
+        cursorCharLeft(view);
+        return true;
+      }
+      return false;
+    },
+  });
+
+  // 0.3 Delete: 在 Vim Normal 模式下等同於 "l" (右移一格)，嚴禁刪除文字；Insert 模式正常放行刪除
+  bindings.push({
+    key: 'Delete',
+    run: (view) => {
+      if (isVimNormalMode(view)) {
+        cursorCharRight(view);
+        return true;
+      }
+      return false;
+    },
+  });
+
   // 1. Ctrl + S: 手動存檔 / 智薦歸檔
-  if (options.ctrlS) {
+  if (options.ctrlS !== false) {
     bindings.push({
       key: 'Mod-s',
       run: () => {
@@ -61,7 +98,7 @@ export function buildVimOverrideKeymap(
   });
 
   // 2. Ctrl + C: 複製選取文字到系統剪貼簿
-  if (options.ctrlC) {
+  if (options.ctrlC !== false) {
     bindings.push({
       key: 'Mod-c',
       run: (view) => {
@@ -77,7 +114,7 @@ export function buildVimOverrideKeymap(
   }
 
   // 3. Ctrl + V: 貼上系統剪貼簿
-  if (options.ctrlV) {
+  if (options.ctrlV !== false) {
     bindings.push({
       key: 'Mod-v',
       run: (view) => {
@@ -97,12 +134,27 @@ export function buildVimOverrideKeymap(
     });
   }
 
-  // 4. Ctrl + A: 全選
-  if (options.ctrlA) {
+  // 4. Ctrl + A: 全選 (Vim 模式切換至 VISUAL LINE 全選，標準模式調用 selectAll)
+  if (options.ctrlA !== false) {
     bindings.push({
       key: 'Mod-a',
       run: (view) => {
-        selectAll(view);
+        const cm = getCM(view);
+        if (cm && !cm.state?.vim?.insertMode) {
+          // Vim 模式 (Normal 或 Visual)：透過 Vim 狀態機進入 VISUAL LINE 全選 (ggVG)
+          cm.operation(() => {
+            if (cm.state?.vim?.visualMode) {
+              Vim.handleKey(cm, '<Esc>', 'user');
+            }
+            Vim.handleKey(cm, 'g', 'user');
+            Vim.handleKey(cm, 'g', 'user');
+            Vim.handleKey(cm, 'V', 'user');
+            Vim.handleKey(cm, 'G', 'user');
+          });
+        } else {
+          // 標準模式或 Vim Insert 模式：調用 CodeMirror 標準全選
+          selectAll(view);
+        }
         return true;
       },
       preventDefault: true,
@@ -110,7 +162,7 @@ export function buildVimOverrideKeymap(
   }
 
   // 5. Ctrl + F: 呼叫搜尋列
-  if (options.ctrlF) {
+  if (options.ctrlF !== false) {
     bindings.push({
       key: 'Mod-f',
       run: (view) => {
@@ -126,30 +178,63 @@ export function buildVimOverrideKeymap(
     extensions.push(Prec.highest(keymap.of(bindings)));
   }
 
-  // 6. 中文注音防誤觸外掛
+  // 6. 中文注音防誤觸外掛 (支援新酷音、微軟注音、日文等全系列 IME)
   if (options.imeWarning) {
+    let lastWarningTime = 0;
+    const triggerWarning = () => {
+      const now = Date.now();
+      if (now - lastWarningTime > 2000) {
+        lastWarningTime = now;
+        callbacks?.onImeWarning?.('⚠️ 目前處於中文輸入模式，請按「i」切換為 Vim 輸入模式再鍵入中文。');
+      }
+    };
+
     extensions.push(
       ViewPlugin.fromClass(
         class {
-          private domHandler: (e: CompositionEvent) => void;
+          private compHandler: (e: CompositionEvent) => void;
+          private beforeInputHandler: (e: InputEvent) => void;
+          private keyHandler: (e: KeyboardEvent) => void;
+          private view: EditorView;
 
           constructor(view: EditorView) {
-            this.domHandler = (e: CompositionEvent) => {
-              // 檢查編輯器是否處於 Vim Normal 模式
-              const isVimActive = view.dom.classList.contains('cm-vimMode');
-              // CodeMirror Vim 在 insert 模式通常有特殊的游標 class 或狀態
-              const isNormalMode = !view.dom.querySelector('.cm-vim-cursor.cm-vim-insert');
+            this.view = view;
 
-              if (isVimActive && isNormalMode) {
-                callbacks?.onImeWarning?.('⚠️ 目前處於 Vim Normal 指令模式，請按「i」切換為輸入模式再鍵入中文。');
+            // 1. 監聽組字開始 (微軟注音、新酷音等 IME 開啟組字時)
+            this.compHandler = () => {
+              if (isVimNormalMode(this.view)) {
+                triggerWarning();
               }
             };
 
-            view.contentDOM.addEventListener('compositionstart', this.domHandler);
+            // 2. 核心架構防禦：攔截所有 DOM beforeinput 文字寫入 (純事件邏輯，不依賴 hardcode 字元集)
+            // 在 Vim Normal 指令模式下，任何企圖向 DOM 插入文字的行為一律嚴格阻止，徹底杜絕注音外溢寫入
+            this.beforeInputHandler = (e: InputEvent) => {
+              if (isVimNormalMode(this.view)) {
+                e.preventDefault();
+                triggerWarning();
+              }
+            };
+
+            // 3. 監聽 keydown 狀態 (標準 IME 鍵位時主動提醒)
+            this.keyHandler = (e: KeyboardEvent) => {
+              if (!isVimNormalMode(this.view)) return;
+              if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+              if (e.isComposing || e.key === 'Process' || e.keyCode === 229) {
+                triggerWarning();
+              }
+            };
+
+            view.contentDOM.addEventListener('compositionstart', this.compHandler);
+            view.contentDOM.addEventListener('beforeinput', this.beforeInputHandler as EventListener, true);
+            view.contentDOM.addEventListener('keydown', this.keyHandler, true);
           }
 
           destroy() {
-            // contentDOM 銷毀時會自動卸除
+            this.view.contentDOM.removeEventListener('compositionstart', this.compHandler);
+            this.view.contentDOM.removeEventListener('beforeinput', this.beforeInputHandler as EventListener, true);
+            this.view.contentDOM.removeEventListener('keydown', this.keyHandler, true);
           }
         }
       )

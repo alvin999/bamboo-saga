@@ -196,7 +196,7 @@
         effects: [
           vimCompartment.reconfigure(vimMode ? vim() : []),
           vimOverridesCompartment.reconfigure(
-            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning }) : []
+            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab }) : []
           ),
         ],
       });

@@ -1,8 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import type { TabItem, VaultFileEntry, RecentFileRecord, RecentFolderRecord, VaultCave, VaultTreeNode } from '../types/tab';
-  import Fuse from 'fuse.js';
-  import VaultTreeItem from './VaultTreeItem.svelte';
+  import { onMount } from "svelte";
+  import type {
+    TabItem,
+    VaultFileEntry,
+    RecentFileRecord,
+    RecentFolderRecord,
+    VaultCave,
+    VaultTreeNode,
+  } from "../types/tab";
+  import Fuse from "fuse.js";
+  import VaultTreeItem from "./VaultTreeItem.svelte";
   import {
     loadVaultCaves,
     addVaultCave,
@@ -13,28 +20,28 @@
     filterTreeNode,
     normalizePath,
     joinPaths,
-    extractDirectorySkeleton
-  } from '../lib/storage/vaultCaves';
+    extractDirectorySkeleton,
+  } from "../lib/storage/vaultCaves";
   import {
     generateHeuristicRecommendation,
     recommendSaveLocation,
-    type SaveRecommendationResult
-  } from '../lib/ai/saveRecommender';
-  import { readVaultFile } from '../lib/storage/fsBridge';
+    type SaveRecommendationResult,
+  } from "../lib/ai/saveRecommender";
+  import { readVaultFile } from "../lib/storage/fsBridge";
 
   let {
     isOpen = false,
     tabs = [],
-    activeTabId = '',
-    vaultFolderPath = '',
+    activeTabId = "",
+    vaultFolderPath = "",
     vaultFiles = [],
     recentFiles = [],
     recentFolders = [],
     isScanning = false,
-    groqApiKey = '',
-    geminiApiKey = '',
-    selectedAiModel = 'groq',
-    selectedAiModelId = '',
+    groqApiKey = "",
+    geminiApiKey = "",
+    selectedAiModel = "groq",
+    selectedAiModelId = "",
     onSelectTab,
     onAddTab,
     onCloseTab,
@@ -47,7 +54,7 @@
     onOpenVaultFile,
     onOpenFuzzyModal,
     onClearRecent,
-    onConfirmSave
+    onConfirmSave,
   } = $props<{
     isOpen: boolean;
     tabs: TabItem[];
@@ -59,7 +66,7 @@
     isScanning: boolean;
     groqApiKey?: string;
     geminiApiKey?: string;
-    selectedAiModel?: 'groq' | 'gemini';
+    selectedAiModel?: "groq" | "gemini";
     selectedAiModelId?: string;
     onSelectTab: (id: string) => void;
     onAddTab: () => void;
@@ -71,40 +78,42 @@
     onRemoveRecentFolder?: (folderPath: string) => void;
     onRefreshFolder: () => void;
     onOpenVaultFile: (file: VaultFileEntry) => void;
-    onOpenFuzzyModal: (initialMode?: 'fuzzy' | 'ai') => void;
+    onOpenFuzzyModal: (initialMode?: "fuzzy" | "ai") => void;
     onClearRecent: () => void;
     onConfirmSave?: (targetDir: string, fileName: string) => Promise<void>;
   }>();
 
   // 1. 畫面形態模式：'modal' (巨幕中控台) 或 'drawer' (側欄模式)
-  let displayMode = $state<'modal' | 'drawer'>('modal');
+  let displayMode = $state<"modal" | "drawer">("modal");
   let drawerWidth = $state(600); // 側欄模式寬度
   let isDraggingResize = $state(false);
 
   // 2. 視圖分頁切換
-  let activeTabMode = $state<'tree' | 'flat' | 'tabs'>('tree');
-  let searchQuery = $state('');
+  let activeTabMode = $state<"tree" | "flat" | "tabs">("tree");
+  let searchQuery = $state("");
 
   // 3. 藏卷洞天管理狀態
   let caves = $state<VaultCave[]>([]);
-  let selectedCavePath = $state<string>(''); // 空字串代表「全部洞天合併」
+  let selectedCavePath = $state<string>(""); // 空字串代表「全部洞天合併」
 
   // 4. 樹狀選取節點與右欄預覽
   let selectedNode = $state<VaultTreeNode | null>(null);
-  let previewFileContent = $state<string>('');
+  let previewFileContent = $state<string>("");
   let isLoadingPreview = $state(false);
 
-  // 5. Yazi-style Vim 鍵盤導航與心法說明狀態
+  // 5. 鍵盤導航與心法說明狀態
   let isHelpModalOpen = $state(false);
   let expandedPaths = $state<Set<string>>(new Set());
-  let focusedNodePath = $state<string>('');
+  let focusedNodePath = $state<string>("");
   let yankToast = $state<string | null>(null);
   let yankToastTimer: number | null = null;
   let searchInputRef = $state<HTMLInputElement | null>(null);
   let lastKeyGTime = 0;
 
   // 6. 當前分頁與 AI 智慧推薦落點狀態
-  let currentActiveTab = $derived(tabs.find((t) => t.id === activeTabId) || null);
+  let currentActiveTab = $derived(
+    tabs.find((t) => t.id === activeTabId) || null,
+  );
   let aiRecommendation = $state<SaveRecommendationResult | null>(null);
   let isAnalyzingAi = $state(false);
   let isQuickSaving = $state(false);
@@ -128,7 +137,11 @@
     }
     const skeleton = extractDirectorySkeleton(vaultFiles, caves);
     // 立即以本地啟發式推論先行墊底（零延遲）
-    const heuristic = generateHeuristicRecommendation(tab.content, tab.language, allFolderPaths);
+    const heuristic = generateHeuristicRecommendation(
+      tab.content,
+      tab.language,
+      allFolderPaths,
+    );
     aiRecommendation = heuristic;
 
     // 若有 API Key 則背景呼叫 AI
@@ -148,7 +161,7 @@
         });
         aiRecommendation = res;
       } catch (err) {
-        console.warn('[FileBrowserDrawer] AI 推薦落點失敗，沿用啟發式：', err);
+        console.warn("[FileBrowserDrawer] AI 推薦落點失敗，沿用啟發式：", err);
       } finally {
         isAnalyzingAi = false;
       }
@@ -157,14 +170,20 @@
 
   // 構建藏卷洞天樹狀結構（含已授權洞天與當前未收錄之臨時工作區）
   const fullTreeNodes = $derived.by(() => {
-    const unrecordedCave: VaultCave | null = (vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath))
-      ? {
-          id: 'temp-current-workspace',
-          name: `${vaultFolderPath.split(/[/|\\]/).filter(Boolean).pop() || '當前目錄'} (臨時)`,
-          path: vaultFolderPath,
-          lastOpened: Date.now(),
-        }
-      : null;
+    const unrecordedCave: VaultCave | null =
+      vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)
+        ? {
+            id: "temp-current-workspace",
+            name: `${
+              vaultFolderPath
+                .split(/[/|\\]/)
+                .filter(Boolean)
+                .pop() || "當前目錄"
+            } (臨時)`,
+            path: vaultFolderPath,
+            lastOpened: Date.now(),
+          }
+        : null;
 
     if (caves.length === 0) {
       if (unrecordedCave) {
@@ -223,12 +242,13 @@
     }
   });
 
-  // 計算平面的當前可見節點清單 (Yazi-style 游標遍歷依據)
+  // 計算平面的當前可見節點清單 (游標遍歷依據)
   const visibleNodes = $derived.by(() => {
     const list: VaultTreeNode[] = [];
     function walk(node: VaultTreeNode) {
       list.push(node);
-      const isFolderOpen = expandedPaths.has(node.path) || searchQuery.trim().length > 0;
+      const isFolderOpen =
+        expandedPaths.has(node.path) || searchQuery.trim().length > 0;
       if (node.isFolder && isFolderOpen && node.children) {
         for (const child of node.children) {
           walk(child);
@@ -262,15 +282,20 @@
 
   // 滾動至節點可見區域
   function scrollToNode(path: string) {
-    if (typeof document === 'undefined') return;
-    const el = document.getElementById('vault-tree-node-' + encodeURIComponent(path));
+    if (typeof document === "undefined") return;
+    const el = document.getElementById(
+      "vault-tree-node-" + encodeURIComponent(path),
+    );
     if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
   }
 
   // 尋找父資料夾節點 (供 Vim h 鍵返祖使用)
-  function findParentNode(target: VaultTreeNode, roots: VaultTreeNode[]): VaultTreeNode | null {
+  function findParentNode(
+    target: VaultTreeNode,
+    roots: VaultTreeNode[],
+  ): VaultTreeNode | null {
     for (const root of roots) {
       if (root.children && root.children.some((c) => c.path === target.path)) {
         return root;
@@ -292,16 +317,18 @@
     }, 2200);
   }
 
-  // Yazi-style Vim 全域鍵盤監聽處理
+  // 全域鍵盤監聽處理
   function handleVimKeydown(e: KeyboardEvent) {
     if (!isOpen) return;
 
     // 若當前焦點在文字輸入框中
     const activeElem = document.activeElement;
-    const isInputFocused = activeElem && (activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA');
+    const isInputFocused =
+      activeElem &&
+      (activeElem.tagName === "INPUT" || activeElem.tagName === "TEXTAREA");
 
     if (isInputFocused) {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         searchInputRef?.blur();
         e.preventDefault();
       }
@@ -310,7 +337,7 @@
 
     // 若說明彈窗開啟中，Escape 關閉說明
     if (isHelpModalOpen) {
-      if (e.key === 'Escape' || e.key === '?') {
+      if (e.key === "Escape" || e.key === "?") {
         isHelpModalOpen = false;
         e.preventDefault();
       }
@@ -318,22 +345,24 @@
     }
 
     // 只在樹狀檢視模式下啟用 h/j/k/l 導航
-    if (activeTabMode !== 'tree' || visibleNodes.length === 0) {
-      if (e.key === '?') {
+    if (activeTabMode !== "tree" || visibleNodes.length === 0) {
+      if (e.key === "?") {
         e.preventDefault();
         isHelpModalOpen = !isHelpModalOpen;
       }
       return;
     }
 
-    let currentIndex = visibleNodes.findIndex((n) => n.path === focusedNodePath);
+    let currentIndex = visibleNodes.findIndex(
+      (n) => n.path === focusedNodePath,
+    );
     if (currentIndex === -1) currentIndex = 0;
     const currentNode = visibleNodes[currentIndex];
 
     switch (e.key) {
       // 下移 (Next)
-      case 'j':
-      case 'ArrowDown': {
+      case "j":
+      case "ArrowDown": {
         e.preventDefault();
         const nextIdx = Math.min(currentIndex + 1, visibleNodes.length - 1);
         const targetNode = visibleNodes[nextIdx];
@@ -344,8 +373,8 @@
       }
 
       // 上移 (Prev)
-      case 'k':
-      case 'ArrowUp': {
+      case "k":
+      case "ArrowUp": {
         e.preventDefault();
         const prevIdx = Math.max(currentIndex - 1, 0);
         const targetNode = visibleNodes[prevIdx];
@@ -356,8 +385,8 @@
       }
 
       // 深入 / 展開 (In / Expand)
-      case 'l':
-      case 'ArrowRight': {
+      case "l":
+      case "ArrowRight": {
         e.preventDefault();
         if (currentNode.isFolder) {
           if (!expandedPaths.has(currentNode.path)) {
@@ -381,8 +410,8 @@
       }
 
       // 收合 / 返祖 (Out / Collapse)
-      case 'h':
-      case 'ArrowLeft': {
+      case "h":
+      case "ArrowLeft": {
         e.preventDefault();
         if (currentNode.isFolder && expandedPaths.has(currentNode.path)) {
           // 當前資料夾已展開：立即收合
@@ -402,7 +431,7 @@
       }
 
       // 頂峰 (gg)
-      case 'g': {
+      case "g": {
         const now = Date.now();
         if (now - lastKeyGTime < 450) {
           e.preventDefault();
@@ -420,7 +449,7 @@
       }
 
       // 淵底 (G)
-      case 'G': {
+      case "G": {
         e.preventDefault();
         if (visibleNodes.length > 0) {
           const targetNode = visibleNodes[visibleNodes.length - 1];
@@ -432,15 +461,15 @@
       }
 
       // 探尋搜尋 (/)
-      case '/': {
+      case "/": {
         e.preventDefault();
         searchInputRef?.focus();
         break;
       }
 
       // 開卷載入 (Enter / o)
-      case 'o':
-      case 'Enter': {
+      case "o":
+      case "Enter": {
         e.preventDefault();
         if (currentNode.isFolder) {
           handleToggleFolder(currentNode);
@@ -451,9 +480,9 @@
       }
 
       // 拓印路徑 (y)
-      case 'y': {
+      case "y": {
         e.preventDefault();
-        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
           navigator.clipboard.writeText(currentNode.path);
           showYankToast(`📋 已拓印路徑至剪貼簿：${currentNode.name}`);
         }
@@ -461,8 +490,8 @@
       }
 
       // 就地封存入庫 (s 或 i)
-      case 's':
-      case 'i': {
+      case "s":
+      case "i": {
         if (currentNode.isFolder && currentActiveTab && onConfirmSave) {
           e.preventDefault();
           handleQuickSaveToNode(currentNode);
@@ -471,7 +500,7 @@
       }
 
       // 開啟心法指南 (?)
-      case '?': {
+      case "?": {
         e.preventDefault();
         isHelpModalOpen = !isHelpModalOpen;
         break;
@@ -483,12 +512,12 @@
   const fileFuse = $derived(
     new Fuse(vaultFiles, {
       keys: [
-        { name: 'name', weight: 0.6 },
-        { name: 'rel_path', weight: 0.25 },
-        { name: 'preview', weight: 0.15 },
+        { name: "name", weight: 0.6 },
+        { name: "rel_path", weight: 0.25 },
+        { name: "preview", weight: 0.15 },
       ],
       threshold: 0.45,
-    })
+    }),
   );
 
   const filteredVaultFiles = $derived.by(() => {
@@ -500,11 +529,11 @@
   const tabFuse = $derived(
     new Fuse(tabs, {
       keys: [
-        { name: 'title', weight: 0.7 },
-        { name: 'content', weight: 0.3 },
+        { name: "title", weight: 0.7 },
+        { name: "content", weight: 0.3 },
       ],
       threshold: 0.45,
-    })
+    }),
   );
 
   const filteredTabs = $derived.by(() => {
@@ -522,12 +551,12 @@
         const content = await readVaultFile(node.path);
         previewFileContent = content;
       } catch (err) {
-        previewFileContent = node.preview || '(預覽載入失敗)';
+        previewFileContent = node.preview || "(預覽載入失敗)";
       } finally {
         isLoadingPreview = false;
       }
     } else {
-      previewFileContent = '';
+      previewFileContent = "";
     }
   }
 
@@ -540,8 +569,8 @@
         rel_path: node.rel_path,
         size: node.size || 0,
         modified: node.modified || Date.now(),
-        preview: node.preview || '',
-        extension: node.extension || 'md',
+        preview: node.preview || "",
+        extension: node.extension || "md",
       };
       onOpenVaultFile(vf);
     }
@@ -549,12 +578,18 @@
 
   // 一鍵採用 AI 推薦路徑儲存
   async function handleApplyAiRecommendation() {
-    if (!aiRecommendation || !currentActiveTab || !onConfirmSave || isQuickSaving) return;
+    if (
+      !aiRecommendation ||
+      !currentActiveTab ||
+      !onConfirmSave ||
+      isQuickSaving
+    )
+      return;
     const targetFolder = aiRecommendation.recommendedFolder || vaultFolderPath;
     const targetName = aiRecommendation.recommendedFilename;
 
     if (!targetFolder) {
-      alert('請先指定或點選一處藏卷洞天目錄！');
+      alert("請先指定或點選一處藏卷洞天目錄！");
       return;
     }
 
@@ -573,9 +608,10 @@
   // 直接儲存至樹狀上的某個資料夾節點
   async function handleQuickSaveToNode(node: VaultTreeNode) {
     if (!node.isFolder || !currentActiveTab || !onConfirmSave) return;
-    const fileName = currentActiveTab.title && !currentActiveTab.title.startsWith('散帖 #')
-      ? currentActiveTab.title
-      : (aiRecommendation?.recommendedFilename || '新卷軸.md');
+    const fileName =
+      currentActiveTab.title && !currentActiveTab.title.startsWith("散帖 #")
+        ? currentActiveTab.title
+        : aiRecommendation?.recommendedFilename || "新卷軸.md";
 
     try {
       await onConfirmSave(node.path, fileName);
@@ -592,10 +628,10 @@
 
   // 移除洞天
   function handleRemoveCave(cavePath: string) {
-    if (confirm('確定要從藏卷洞天中除役此目錄嗎？（實體檔案不會被刪除）')) {
+    if (confirm("確定要從藏卷洞天中除役此目錄嗎？（實體檔案不會被刪除）")) {
       caves = removeVaultCave(cavePath);
       onRemoveRecentFolder?.(cavePath);
-      if (selectedCavePath === cavePath) selectedCavePath = '';
+      if (selectedCavePath === cavePath) selectedCavePath = "";
     }
   }
 
@@ -608,9 +644,9 @@
   // 全卷導出
   function handleExportAll() {
     const backupData = JSON.stringify(tabs, null, 2);
-    const blob = new Blob([backupData], { type: 'application/json' });
+    const blob = new Blob([backupData], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `bamboo-saga-vault-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
@@ -618,9 +654,9 @@
   }
 
   function formatTime(timestamp: number) {
-    if (!timestamp) return '';
+    if (!timestamp) return "";
     const diff = Math.floor((Date.now() - timestamp) / 1000);
-    if (diff < 60) return '剛剛';
+    if (diff < 60) return "剛剛";
     if (diff < 3600) return `${Math.floor(diff / 60)} 分鐘前`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} 小時前`;
     return new Date(timestamp).toLocaleDateString();
@@ -628,7 +664,7 @@
 
   // 拖曳調整側欄寬度
   function startResize(e: MouseEvent) {
-    if (displayMode !== 'drawer') return;
+    if (displayMode !== "drawer") return;
     isDraggingResize = true;
     const startX = e.clientX;
     const startWidth = drawerWidth;
@@ -640,12 +676,12 @@
 
     function onMouseUp() {
       isDraggingResize = false;
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
     }
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   }
 </script>
 
@@ -658,19 +694,30 @@
 
   <!-- 主體容器：巨幕中控模式 (modal) 或 側欄模式 (drawer) -->
   <div
-    class="vault-master-container {displayMode === 'modal' ? 'modal-view' : 'drawer-view'}"
-    style={displayMode === 'drawer' ? `width: ${drawerWidth}px;` : ''}
+    class="vault-master-container {displayMode === 'modal'
+      ? 'modal-view'
+      : 'drawer-view'}"
+    style={displayMode === "drawer" ? `width: ${drawerWidth}px;` : ""}
     aria-label="藏卷洞天·萬卷中控台"
   >
     <!-- 頂部標頭與全域動作列 -->
     <header class="vault-header">
       <div class="header-brand-group">
         <span class="brand-scroll-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8">
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+          >
             <line x1="7" y1="4" x2="17" y2="4" />
             <line x1="7" y1="20" x2="17" y2="20" />
             <path d="M7 4H4.5A1.5 1.5 0 0 0 3 5.5v13A1.5 1.5 0 0 0 4.5 20H7" />
-            <path d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5v13a1.5 1.5 0 0 1-1.5 1.5H17" />
+            <path
+              d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5v13a1.5 1.5 0 0 1-1.5 1.5H17"
+            />
             <line x1="10" y1="8.5" x2="14" y2="8.5" stroke-width="1.2" />
             <line x1="10" y1="12" x2="14" y2="12" stroke-width="1.2" />
             <line x1="10" y1="15.5" x2="13" y2="15.5" stroke-width="1.2" />
@@ -697,21 +744,39 @@
         <button
           type="button"
           class="control-btn"
-          onclick={() => (displayMode = displayMode === 'modal' ? 'drawer' : 'modal')}
-          title={displayMode === 'modal' ? '切換為側欄視野' : '展開為巨幕大中控台'}
+          onclick={() =>
+            (displayMode = displayMode === "modal" ? "drawer" : "modal")}
+          title={displayMode === "modal"
+            ? "切換為側欄視野"
+            : "展開為巨幕大中控台"}
         >
-          <span>{displayMode === 'modal' ? '◨ 側欄' : '⛶ 巨幕'}</span>
+          <span>{displayMode === "modal" ? "◨ 側欄" : "⛶ 巨幕"}</span>
         </button>
 
-        <button type="button" class="control-btn" onclick={handleExportAll} title="備份導出全卷軸 JSON">
+        <button
+          type="button"
+          class="control-btn"
+          onclick={handleExportAll}
+          title="備份導出全卷軸 JSON"
+        >
           <span>⤓ 導出全卷</span>
         </button>
 
-        <button type="button" class="control-btn primary" onclick={onAddTab} title="新增空白素簡 (Ctrl+T)">
+        <button
+          type="button"
+          class="control-btn primary"
+          onclick={onAddTab}
+          title="新增空白素簡 (Ctrl+T)"
+        >
           <span>+ 展新簡</span>
         </button>
 
-        <button type="button" class="close-btn" onclick={onCloseDrawer} title="關閉 (Esc)">
+        <button
+          type="button"
+          class="close-btn"
+          onclick={onCloseDrawer}
+          title="關閉 (Esc)"
+        >
           ✕
         </button>
       </div>
@@ -731,13 +796,25 @@
         <div class="ai-rec-content">
           <div class="rec-route-line">
             <span class="target-flag">🎯 建議存入：</span>
-            <span class="folder-highlight" title={aiRecommendation?.recommendedFolder ? normalizePath(aiRecommendation.recommendedFolder) : '未指定'}>
-              {aiRecommendation?.recommendedFolder 
-                ? (caves.find(c => normalizePath(c.path) === normalizePath(aiRecommendation?.recommendedFolder || ''))?.name || normalizePath(aiRecommendation.recommendedFolder))
-                : '請先指定或連線一處洞天'}
+            <span
+              class="folder-highlight"
+              title={aiRecommendation?.recommendedFolder
+                ? normalizePath(aiRecommendation.recommendedFolder)
+                : "未指定"}
+            >
+              {aiRecommendation?.recommendedFolder
+                ? caves.find(
+                    (c) =>
+                      normalizePath(c.path) ===
+                      normalizePath(aiRecommendation?.recommendedFolder || ""),
+                  )?.name || normalizePath(aiRecommendation.recommendedFolder)
+                : "請先指定或連線一處洞天"}
             </span>
             <span class="path-sep">/</span>
-            <span class="file-highlight" title={aiRecommendation?.recommendedFilename}>
+            <span
+              class="file-highlight"
+              title={aiRecommendation?.recommendedFilename}
+            >
               {aiRecommendation?.recommendedFilename || currentActiveTab.title}
             </span>
           </div>
@@ -756,7 +833,7 @@
             disabled={isQuickSaving}
             title="直接套用 AI 推薦路徑與檔名封存入庫"
           >
-            <span>{isQuickSaving ? '💾 封存中...' : '📥 一鍵封存入庫'}</span>
+            <span>{isQuickSaving ? "💾 封存中..." : "📥 一鍵封存入庫"}</span>
           </button>
           <button
             type="button"
@@ -789,8 +866,16 @@
         <div class="caves-list">
           <!-- 當前臨時工作區（未收錄至洞天時顯示，提供手動收錄按鈕） -->
           {#if vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)}
-            {@const currentName = vaultFolderPath.split(/[/|\\]/).filter(Boolean).pop() || '當前目錄'}
-            <div class="temp-workspace-card {selectedCavePath === vaultFolderPath ? 'selected' : ''}">
+            {@const currentName =
+              vaultFolderPath
+                .split(/[/|\\]/)
+                .filter(Boolean)
+                .pop() || "當前目錄"}
+            <div
+              class="temp-workspace-card {selectedCavePath === vaultFolderPath
+                ? 'selected'
+                : ''}"
+            >
               <div class="temp-workspace-top">
                 <span class="temp-pill-tag">📍 當前臨時工作區</span>
                 <button
@@ -814,7 +899,9 @@
                 <span class="cave-icon">📂</span>
                 <div class="cave-info">
                   <span class="cave-name">{currentName}</span>
-                  <span class="cave-sub" title={vaultFolderPath}>{vaultFolderPath}</span>
+                  <span class="cave-sub" title={vaultFolderPath}
+                    >{vaultFolderPath}</span
+                  >
                 </div>
               </button>
             </div>
@@ -824,7 +911,7 @@
           <button
             type="button"
             class="cave-item-btn {!selectedCavePath ? 'active' : ''}"
-            onclick={() => (selectedCavePath = '')}
+            onclick={() => (selectedCavePath = "")}
             title="同時聚合瀏覽所有已開放之洞天"
           >
             <span class="cave-icon">🪐</span>
@@ -837,7 +924,11 @@
           <!-- 個別洞天項目 -->
           {#each caves as cave (cave.path)}
             {@const isCurrentLinked = cave.path === vaultFolderPath}
-            <div class="cave-row-container {selectedCavePath === cave.path ? 'selected' : ''}">
+            <div
+              class="cave-row-container {selectedCavePath === cave.path
+                ? 'selected'
+                : ''}"
+            >
               <button
                 type="button"
                 class="cave-item-btn {isCurrentLinked ? 'linked' : ''}"
@@ -849,12 +940,14 @@
                 }}
                 title={`路徑: ${cave.path}`}
               >
-                <span class="cave-icon">{cave.isPinned ? '📌' : '🏞️'}</span>
+                <span class="cave-icon">{cave.isPinned ? "📌" : "🏞️"}</span>
                 <div class="cave-info">
                   <div class="name-line">
                     <span class="cave-name">{cave.name}</span>
                     {#if isCurrentLinked}
-                      <span class="active-dot" title="目前主要掃描連線中">連線</span>
+                      <span class="active-dot" title="目前主要掃描連線中"
+                        >連線</span
+                      >
                     {/if}
                   </div>
                   <span class="cave-sub" title={cave.path}>{cave.path}</span>
@@ -866,7 +959,7 @@
                   type="button"
                   class="cave-opt-btn {cave.isPinned ? 'pinned' : ''}"
                   onclick={() => handleTogglePin(cave.path)}
-                  title={cave.isPinned ? '取消釘選' : '釘選為常用洞天'}
+                  title={cave.isPinned ? "取消釘選" : "釘選為常用洞天"}
                 >
                   📌
                 </button>
@@ -885,7 +978,11 @@
           {#if caves.length === 0}
             <div class="empty-caves-notice">
               <p>尚未闢建藏卷洞天</p>
-              <button type="button" class="btn-create-first" onclick={handleAddNewCave}>
+              <button
+                type="button"
+                class="btn-create-first"
+                onclick={handleAddNewCave}
+              >
                 📁 選擇電腦資料夾
               </button>
             </div>
@@ -897,7 +994,11 @@
           <div class="sidebar-sec-header">
             <span class="sec-title">🕒 墨痕足跡</span>
             {#if recentFiles.length > 0}
-              <button type="button" class="clear-recent-text" onclick={onClearRecent}>清除</button>
+              <button
+                type="button"
+                class="clear-recent-text"
+                onclick={onClearRecent}>清除</button
+              >
             {/if}
           </div>
           <div class="recent-scroll-list">
@@ -937,7 +1038,11 @@
               bind:this={searchInputRef}
             />
             {#if searchQuery}
-              <button type="button" class="clear-query-btn" onclick={() => (searchQuery = '')}>✕</button>
+              <button
+                type="button"
+                class="clear-query-btn"
+                onclick={() => (searchQuery = "")}>✕</button
+              >
             {/if}
           </div>
 
@@ -945,7 +1050,7 @@
             <button
               type="button"
               class="v-tab {activeTabMode === 'tree' ? 'active' : ''}"
-              onclick={() => (activeTabMode = 'tree')}
+              onclick={() => (activeTabMode = "tree")}
               title="樹狀層級檢索 (自動展開匹配子閣，支援 Yazi Vim 導航)"
             >
               🌲 洞天層級樹
@@ -953,7 +1058,7 @@
             <button
               type="button"
               class="v-tab {activeTabMode === 'flat' ? 'active' : ''}"
-              onclick={() => (activeTabMode = 'flat')}
+              onclick={() => (activeTabMode = "flat")}
               title="電腦檔案扁平清單"
             >
               📁 檔案清單 ({filteredVaultFiles.length})
@@ -961,7 +1066,7 @@
             <button
               type="button"
               class="v-tab {activeTabMode === 'tabs' ? 'active' : ''}"
-              onclick={() => (activeTabMode = 'tabs')}
+              onclick={() => (activeTabMode = "tabs")}
               title="當前百子櫃已開分頁"
             >
               📜 已開分頁 ({filteredTabs.length})
@@ -971,7 +1076,7 @@
 
         <!-- 樹狀檢索內容區塊 -->
         <div class="tree-scroll-viewport">
-          {#if activeTabMode === 'tree'}
+          {#if activeTabMode === "tree"}
             {#if isScanning}
               <div class="tree-loading-state">
                 <span class="spinner">⏳</span>
@@ -981,7 +1086,11 @@
               <div class="tree-empty-state">
                 <p>未探尋到相符的卷軸或子閣</p>
                 {#if searchQuery}
-                  <button type="button" class="reset-search-link" onclick={() => (searchQuery = '')}>
+                  <button
+                    type="button"
+                    class="reset-search-link"
+                    onclick={() => (searchQuery = "")}
+                  >
                     清除搜尋條件
                   </button>
                 {/if}
@@ -992,12 +1101,15 @@
                   <VaultTreeItem
                     node={rootNode}
                     depth={0}
-                    selectedNodePath={selectedNode?.path || ''}
+                    selectedNodePath={selectedNode?.path || ""}
                     {focusedNodePath}
-                    activeFilePath={currentActiveTab?.filePath || ''}
+                    activeFilePath={currentActiveTab?.filePath || ""}
                     {searchQuery}
-                    aiRecommendedPath={aiRecommendation?.recommendedFolder || ''}
-                    openedFilePaths={tabs.map((t) => t.filePath).filter(Boolean) as string[]}
+                    aiRecommendedPath={aiRecommendation?.recommendedFolder ||
+                      ""}
+                    openedFilePaths={tabs
+                      .map((t) => t.filePath)
+                      .filter(Boolean) as string[]}
                     {expandedPaths}
                     onSelectNode={handleSelectNode}
                     onOpenNode={handleOpenNode}
@@ -1008,41 +1120,51 @@
               </div>
             {/if}
 
-          <!-- 模式 B：扁平檔案清單 -->
-          {:else if activeTabMode === 'flat'}
+            <!-- 模式 B：扁平檔案清單 -->
+          {:else if activeTabMode === "flat"}
             <div class="flat-files-list">
               {#each filteredVaultFiles as vf (vf.path)}
                 {@const isOpened = tabs.some((t) => t.filePath === vf.path)}
                 <div
-                  class="flat-file-row {selectedNode?.path === vf.path ? 'selected' : ''}"
-                  onclick={() => handleSelectNode({
-                    id: vf.path,
-                    name: vf.name,
-                    path: vf.path,
-                    rel_path: vf.rel_path,
-                    isFolder: false,
-                    extension: vf.extension,
-                    size: vf.size,
-                    modified: vf.modified,
-                    preview: vf.preview,
-                  })}
+                  class="flat-file-row {selectedNode?.path === vf.path
+                    ? 'selected'
+                    : ''}"
+                  onclick={() =>
+                    handleSelectNode({
+                      id: vf.path,
+                      name: vf.name,
+                      path: vf.path,
+                      rel_path: vf.rel_path,
+                      isFolder: false,
+                      extension: vf.extension,
+                      size: vf.size,
+                      modified: vf.modified,
+                      preview: vf.preview,
+                    })}
                   ondblclick={() => onOpenVaultFile(vf)}
                   role="button"
                   tabindex="0"
-                  onkeydown={(e) => e.key === 'Enter' && onOpenVaultFile(vf)}
+                  onkeydown={(e) => e.key === "Enter" && onOpenVaultFile(vf)}
                 >
-                  <span class="file-glyph">{vf.extension === 'md' ? '📝' : '📄'}</span>
+                  <span class="file-glyph"
+                    >{vf.extension === "md" ? "📝" : "📄"}</span
+                  >
                   <div class="file-main-info">
                     <div class="name-row">
                       <span class="file-name">{vf.name}</span>
                       {#if isOpened}<span class="badge-opened">已開</span>{/if}
                     </div>
-                    <span class="file-sub-path">{vf.rel_path} · {(vf.size / 1024).toFixed(1)} KB</span>
+                    <span class="file-sub-path"
+                      >{vf.rel_path} · {(vf.size / 1024).toFixed(1)} KB</span
+                    >
                   </div>
                   <button
                     type="button"
                     class="btn-open-direct"
-                    onclick={(e) => { e.stopPropagation(); onOpenVaultFile(vf); }}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      onOpenVaultFile(vf);
+                    }}
                   >
                     開卷
                   </button>
@@ -1050,26 +1172,38 @@
               {/each}
             </div>
 
-          <!-- 模式 C：百子櫃已開分頁清單 -->
-          {:else if activeTabMode === 'tabs'}
+            <!-- 模式 C：百子櫃已開分頁清單 -->
+          {:else if activeTabMode === "tabs"}
             <div class="tabs-manage-list">
               {#each filteredTabs as t (t.id)}
                 <div
-                  class="tab-manage-row {t.id === activeTabId ? 'active-tab' : ''}"
-                  onclick={() => { onSelectTab(t.id); onCloseDrawer(); }}
+                  class="tab-manage-row {t.id === activeTabId
+                    ? 'active-tab'
+                    : ''}"
+                  onclick={() => {
+                    onSelectTab(t.id);
+                    onCloseDrawer();
+                  }}
                   role="button"
                   tabindex="0"
-                  onkeydown={(e) => e.key === 'Enter' && onSelectTab(t.id)}
+                  onkeydown={(e) => e.key === "Enter" && onSelectTab(t.id)}
                 >
                   <span class="tab-glyph">📜</span>
                   <div class="tab-info">
                     <span class="tab-title">{t.title}</span>
-                    <span class="tab-meta">{t.language.toUpperCase()} · {t.content.length} 字元 {t.filePath ? `· 💾 ${t.filePath}` : '· (未入庫)'}</span>
+                    <span class="tab-meta"
+                      >{t.language.toUpperCase()} · {t.content.length} 字元 {t.filePath
+                        ? `· 💾 ${t.filePath}`
+                        : "· (未入庫)"}</span
+                    >
                   </div>
                   <button
                     type="button"
                     class="btn-tab-close"
-                    onclick={(e) => { e.stopPropagation(); onCloseTab(t.id); }}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      onCloseTab(t.id);
+                    }}
                     title="收合此藥帖"
                   >
                     ✕
@@ -1085,17 +1219,26 @@
       <aside class="vault-preview-sidebar">
         {#if selectedNode}
           <div class="preview-header">
-            <span class="preview-glyph">{selectedNode.isFolder ? '📁' : '📖'}</span>
+            <span class="preview-glyph"
+              >{selectedNode.isFolder ? "📁" : "📖"}</span
+            >
             <div class="preview-meta-title">
-              <span class="item-title" title={selectedNode.name}>{selectedNode.name}</span>
-              <span class="item-path" title={selectedNode.path}>{selectedNode.path}</span>
+              <span class="item-title" title={selectedNode.name}
+                >{selectedNode.name}</span
+              >
+              <span class="item-path" title={selectedNode.path}
+                >{selectedNode.path}</span
+              >
             </div>
           </div>
 
           <div class="preview-stats-row">
             {#if !selectedNode.isFolder}
-              <span>大小：{((selectedNode.size || 0) / 1024).toFixed(1)} KB</span>
-              <span>格式：{selectedNode.extension?.toUpperCase() || 'TXT'}</span>
+              <span
+                >大小：{((selectedNode.size || 0) / 1024).toFixed(1)} KB</span
+              >
+              <span>格式：{selectedNode.extension?.toUpperCase() || "TXT"}</span
+              >
             {:else}
               <span>子閣目錄</span>
               <span>包含：{selectedNode.children?.length || 0} 個項目</span>
@@ -1107,7 +1250,9 @@
             {#if isLoadingPreview}
               <div class="loading-preview">⏳ 正在自洞天讀取卷軸內文...</div>
             {:else if !selectedNode.isFolder}
-              <pre class="preview-code-block">{previewFileContent || selectedNode.preview || '(此卷軸為空白)'}</pre>
+              <pre class="preview-code-block">{previewFileContent ||
+                  selectedNode.preview ||
+                  "(此卷軸為空白)"}</pre>
             {:else}
               <div class="folder-preview-hint">
                 <p>此節點為洞天子閣資料夾。</p>
@@ -1141,10 +1286,15 @@
           <div class="preview-empty-state">
             <span class="empty-zen-icon">📜</span>
             <h3>點選任意卷軸以參詳</h3>
-            <p>於中欄層級樹中點選檔案或子閣，即可在此預覽其內文筆記，無需頻繁開啟分頁。</p>
+            <p>
+              於中欄層級樹中點選檔案或子閣，即可在此預覽其內文筆記，無需頻繁開啟分頁。
+            </p>
             <div class="zen-tip-box">
               <span class="tip-sparkle">💡 洞天心法</span>
-              <p>AI 自動推薦之落點已標注黃金光環，點擊推薦欄「一鍵封存」即可瞬間入庫。</p>
+              <p>
+                AI
+                自動推薦之落點已標注黃金光環，點擊推薦欄「一鍵封存」即可瞬間入庫。
+              </p>
             </div>
           </div>
         {/if}
@@ -1152,7 +1302,7 @@
     </div>
 
     <!-- 側欄模式專用之拖曳寬度把手 -->
-    {#if displayMode === 'drawer'}
+    {#if displayMode === "drawer"}
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
         class="drawer-resize-handle {isDraggingResize ? 'dragging' : ''}"
@@ -1174,9 +1324,20 @@
 
     <!-- 洞天心法與 Yazi / Vim 輕功操作秘笈彈窗 (? 鍵觸發) -->
     {#if isHelpModalOpen}
-      <div class="help-modal-overlay" onclick={() => (isHelpModalOpen = false)} role="presentation">
+      <div
+        class="help-modal-overlay"
+        onclick={() => (isHelpModalOpen = false)}
+        role="presentation"
+      >
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <div class="help-modal-card" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-label="洞天心法指南" tabindex="-1">
+        <div
+          class="help-modal-card"
+          onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-label="洞天心法指南"
+          tabindex="-1"
+        >
           <div class="help-header">
             <div class="help-title-group">
               <span class="help-icon">📜</span>
@@ -1185,24 +1346,46 @@
                 <span class="help-sub">御萬卷於方寸 · 參萬化於靈閣</span>
               </div>
             </div>
-            <button type="button" class="help-close-btn" onclick={() => (isHelpModalOpen = false)} title="關閉 (Esc)">✕</button>
+            <button
+              type="button"
+              class="help-close-btn"
+              onclick={() => (isHelpModalOpen = false)}
+              title="關閉 (Esc)">✕</button
+            >
           </div>
 
           <div class="help-body">
             <!-- 區塊一：設計邏輯與心法 -->
             <section class="help-section">
-              <h4 class="sec-headline">🌌 壹、 藏卷洞天設計心法（為何不是傳統專案？）</h4>
+              <h4 class="sec-headline">
+                🌌 壹、 藏卷洞天設計心法（為何不是傳統專案？）
+              </h4>
               <div class="philosophy-card">
-                <p><strong>打破單一專案工作區的束縛：</strong>傳統筆記軟體常逼迫使用者一次只能打開單一資料夾，使用者必須手動在樹狀深層翻找位置，徒增心智負擔。</p>
-                <p><strong>開放目錄池概念：</strong>使用者僅需授權電腦中願意開放的本機目錄（例如：<em>研發洞天</em>、<em>醫方經閣</em>、<em>隨手草堂</em>）。其餘的層級歸類，全部交由 <strong>AI 靈識</strong>！</p>
-                <p><strong>AI 智慧落點推薦：</strong>當前藥帖若為未存檔散帖，頂部 AI 將自動解析內容語意（程式碼、架構文檔、中醫方劑或會議記錄），秒速在諸洞天中推薦最佳存放目錄與擬定檔名，提供「一鍵封存入庫」。</p>
+                <p>
+                  <strong>打破單一專案工作區的束縛：</strong
+                  >傳統筆記軟體常逼迫使用者一次只能打開單一資料夾，使用者必須手動在樹狀深層翻找位置，徒增心智負擔。
+                </p>
+                <p>
+                  <strong>開放目錄池概念：</strong
+                  >使用者僅需授權電腦中願意開放的本機目錄（例如：<em
+                    >研發洞天</em
+                  >、<em>醫方經閣</em>、<em>隨手草堂</em
+                  >）。其餘的層級歸類，全部交由 <strong>AI 靈識</strong>！
+                </p>
+                <p>
+                  <strong>AI 智慧落點推薦：</strong>當前藥帖若為未存檔散帖，頂部
+                  AI
+                  將自動解析內容語意（程式碼、架構文檔、中醫方劑或會議記錄），秒速在諸洞天中推薦最佳存放目錄與擬定檔名，提供「一鍵封存入庫」。
+                </p>
               </div>
             </section>
 
             <!-- 區塊二：Yazi / Vim 輕功秘笈 -->
             <section class="help-section">
-              <h4 class="sec-headline">⚡ 貳、 Yazi-style Vim 輕功操作指南 (純鍵盤遊歷)</h4>
-              <p class="sec-desc">在中控台中無需動用滑鼠，雙手不離鍵盤即可極速穿梭樹狀層級並即時參詳右欄內文：</p>
+              <h4 class="sec-headline">⚡ 貳、 輕功操作指南 (純鍵盤遊歷)</h4>
+              <p class="sec-desc">
+                在中控台中無需動用滑鼠，雙手不離鍵盤即可極速穿梭樹狀層級並即時參詳右欄內文：
+              </p>
               <div class="shortcut-table-wrapper">
                 <table class="vim-guide-table">
                   <thead>
@@ -1226,12 +1409,16 @@
                     <tr>
                       <td><kbd>h</kbd> / <kbd>←</kbd></td>
                       <td>收合 / 返祖</td>
-                      <td>若為已展開之子閣則收合；若已收合或為檔案則直跳父目錄</td>
+                      <td
+                        >若為已展開之子閣則收合；若已收合或為檔案則直跳父目錄</td
+                      >
                     </tr>
                     <tr>
                       <td><kbd>l</kbd> / <kbd>→</kbd></td>
                       <td>展開 / 步入</td>
-                      <td>若為子閣則展開並步入首項；若為檔案則直接開卷載入分頁</td>
+                      <td
+                        >若為子閣則展開並步入首項；若為檔案則直接開卷載入分頁</td
+                      >
                     </tr>
                     <tr>
                       <td><kbd>o</kbd> / <kbd>Enter</kbd></td>
@@ -1280,8 +1467,14 @@
           </div>
 
           <div class="help-footer">
-            <span class="footer-hint">提示：隨時按下 <kbd>?</kbd> 鍵即可開閉此秘笈</span>
-            <button type="button" class="btn-got-it" onclick={() => (isHelpModalOpen = false)}>領會心法 (Esc)</button>
+            <span class="footer-hint"
+              >提示：隨時按下 <kbd>?</kbd> 鍵即可開閉此秘笈</span
+            >
+            <button
+              type="button"
+              class="btn-got-it"
+              onclick={() => (isHelpModalOpen = false)}>領會心法 (Esc)</button
+            >
           </div>
         </div>
       </div>
@@ -1345,8 +1538,12 @@
   }
 
   @keyframes drawerSlide {
-    from { transform: translateX(-100%); }
-    to { transform: translateX(0); }
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
   }
 
   /* 頂部標頭 */
@@ -1444,7 +1641,11 @@
     align-items: center;
     gap: 16px;
     padding: 10px 20px;
-    background: linear-gradient(90deg, rgba(184, 187, 38, 0.12), rgba(250, 189, 47, 0.08));
+    background: linear-gradient(
+      90deg,
+      rgba(184, 187, 38, 0.12),
+      rgba(250, 189, 47, 0.08)
+    );
     border-bottom: 1px solid rgba(184, 187, 38, 0.3);
     flex-shrink: 0;
   }
@@ -2317,8 +2518,12 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   .help-modal-card {
@@ -2327,7 +2532,9 @@
     max-height: 82vh;
     background: #1d2021;
     border: 1px solid #d79921;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 20px rgba(250, 189, 47, 0.15);
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.8),
+      0 0 20px rgba(250, 189, 47, 0.15);
     border-radius: 10px;
     display: flex;
     flex-direction: column;
