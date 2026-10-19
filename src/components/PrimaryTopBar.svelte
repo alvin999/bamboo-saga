@@ -3,6 +3,28 @@
   import ShortcutCheatSheet from './ShortcutCheatSheet.svelte';
   import AlchemyPopover from './AlchemyPopover.svelte';
 
+  interface PrimaryTopBarProps {
+    vimMode: boolean;
+    tabs: TabItem[];
+    activeTabId: string;
+    alchemyCards?: Record<string, AlchemyCardConfig>;
+    isRefining?: boolean;
+    isAlchemyOpen?: boolean;
+    onSelectTab: (id: string) => void;
+    onAddTab: () => void;
+    onCloseTab: (id: string) => void;
+    onRenameTab: (id: string, newTitle: string) => void;
+    onMoveTabDeck: (id: string, deck: 'primary' | 'secondary') => void;
+    onReorderTabs?: (sourceId: string, targetId: string) => void;
+    onToggleFileBrowser: () => void;
+    onOpenSettings: () => void;
+    onOpenKeybindings?: () => void;
+    onExecuteRefine?: (mode: string, customPrompt: string, cardPrompt?: string) => Promise<void>;
+    onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
+    onShowToast?: (msg: string) => void;
+    isSaved: boolean;
+  }
+
   let { 
     vimMode = $bindable(false),
     tabs = [],
@@ -23,27 +45,8 @@
     onSaveAlchemyCards,
     onShowToast,
     isSaved = true
-  } = $props<{
-    vimMode: boolean;
-    tabs: TabItem[];
-    activeTabId: string;
-    alchemyCards?: Record<string, AlchemyCardConfig>;
-    isRefining?: boolean;
-    isAlchemyOpen?: boolean;
-    onSelectTab: (id: string) => void;
-    onAddTab: () => void;
-    onCloseTab: (id: string) => void;
-    onRenameTab: (id: string, newTitle: string) => void;
-    onMoveTabDeck: (id: string, deck: 'primary' | 'secondary') => void;
-    onReorderTabs?: (sourceId: string, targetId: string) => void;
-    onToggleFileBrowser: () => void;
-    onOpenSettings: () => void;
-    onOpenKeybindings?: () => void;
-    onExecuteRefine?: (mode: string, customPrompt: string, cardPrompt?: string) => Promise<void>;
-    onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
-    onShowToast?: (msg: string) => void;
-    isSaved: boolean;
-  }>();
+  }: PrimaryTopBarProps = $props();
+
 
   let isCheatSheetOpen = $state(false);
   let editingTabId = $state<string | null>(null);

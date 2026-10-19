@@ -10,6 +10,19 @@
   import { pickVaultFolder } from '../lib/storage/fsBridge';
   import { loadSecureKeys } from '../lib/security/keyVault';
 
+  interface SaveWithAiModalProps {
+    isOpen: boolean;
+    tab: TabItem | null;
+    recentFolders: string[];
+    directorySkeleton?: string[];
+    groqKey: string;
+    geminiKey: string;
+    modelPreference?: 'groq' | 'gemini';
+    modelId?: string;
+    onConfirmSave: (targetDir: string, fileName: string) => Promise<void>;
+    onClose: () => void;
+  }
+
   let {
     isOpen = false,
     tab = null,
@@ -21,18 +34,8 @@
     modelId = '',
     onConfirmSave,
     onClose
-  } = $props<{
-    isOpen: boolean;
-    tab: TabItem | null;
-    recentFolders: string[];
-    directorySkeleton?: string[];
-    groqKey: string;
-    geminiKey: string;
-    modelPreference?: 'groq' | 'gemini';
-    modelId?: string;
-    onConfirmSave: (targetDir: string, fileName: string) => Promise<void>;
-    onClose: () => void;
-  }>();
+  }: SaveWithAiModalProps = $props();
+
 
   let targetFileName = $state('');
   let targetFolder = $state('');
@@ -82,7 +85,7 @@
 
     let activeGroq = groqKey;
     let activeGemini = geminiKey;
-    let activeModel = modelPreference;
+    let activeModel: 'groq' | 'gemini' = modelPreference;
     let activeModelId = modelId;
 
     // 若傳入的金鑰為空，主動從本機安全保險庫異步讀取一次，消除時序差

@@ -29,6 +29,34 @@
   } from "../lib/ai/saveRecommender";
   import { readVaultFile } from "../lib/storage/fsBridge";
 
+  interface FileBrowserDrawerProps {
+    isOpen: boolean;
+    tabs: TabItem[];
+    activeTabId: string;
+    vaultFolderPath: string;
+    vaultFiles: VaultFileEntry[];
+    recentFiles: RecentFileRecord[];
+    recentFolders?: RecentFolderRecord[];
+    isScanning: boolean;
+    groqApiKey?: string;
+    geminiApiKey?: string;
+    selectedAiModel?: "groq" | "gemini";
+    selectedAiModelId?: string;
+    onSelectTab: (id: string) => void;
+    onAddTab: () => void;
+    onCloseTab: (id: string) => void;
+    onCloseDrawer: () => void;
+    onPickFolder: () => void;
+    onSwitchFolder?: (folderPath: string) => void;
+    onTogglePinFolder?: (folderPath: string) => void;
+    onRemoveRecentFolder?: (folderPath: string) => void;
+    onRefreshFolder: () => void;
+    onOpenVaultFile: (file: VaultFileEntry) => void;
+    onOpenFuzzyModal: (initialMode?: "fuzzy" | "ai") => void;
+    onClearRecent: () => void;
+    onConfirmSave?: (targetDir: string, fileName: string) => Promise<void>;
+  }
+
   let {
     isOpen = false,
     tabs = [],
@@ -55,33 +83,8 @@
     onOpenFuzzyModal,
     onClearRecent,
     onConfirmSave,
-  } = $props<{
-    isOpen: boolean;
-    tabs: TabItem[];
-    activeTabId: string;
-    vaultFolderPath: string;
-    vaultFiles: VaultFileEntry[];
-    recentFiles: RecentFileRecord[];
-    recentFolders?: RecentFolderRecord[];
-    isScanning: boolean;
-    groqApiKey?: string;
-    geminiApiKey?: string;
-    selectedAiModel?: "groq" | "gemini";
-    selectedAiModelId?: string;
-    onSelectTab: (id: string) => void;
-    onAddTab: () => void;
-    onCloseTab: (id: string) => void;
-    onCloseDrawer: () => void;
-    onPickFolder: () => void;
-    onSwitchFolder?: (folderPath: string) => void;
-    onTogglePinFolder?: (folderPath: string) => void;
-    onRemoveRecentFolder?: (folderPath: string) => void;
-    onRefreshFolder: () => void;
-    onOpenVaultFile: (file: VaultFileEntry) => void;
-    onOpenFuzzyModal: (initialMode?: "fuzzy" | "ai") => void;
-    onClearRecent: () => void;
-    onConfirmSave?: (targetDir: string, fileName: string) => Promise<void>;
-  }>();
+  }: FileBrowserDrawerProps = $props();
+
 
   // 1. 畫面形態模式：'modal' (巨幕中控台) 或 'drawer' (側欄模式)
   let displayMode = $state<"modal" | "drawer">("modal");
