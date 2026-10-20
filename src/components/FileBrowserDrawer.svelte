@@ -22,11 +22,6 @@
     joinPaths,
     extractDirectorySkeleton,
   } from "../lib/storage/vaultCaves";
-  import {
-    generateHeuristicRecommendation,
-    recommendSaveLocation,
-    type SaveRecommendationResult,
-  } from "../lib/ai/saveRecommender";
   import { readVaultFile } from "../lib/storage/fsBridge";
 
   interface FileBrowserDrawerProps {
@@ -35,6 +30,8 @@
     activeTabId: string;
     vaultFolderPath: string;
     vaultFiles: VaultFileEntry[];
+    cavesFileCache?: Record<string, VaultFileEntry[]>;
+    isScanningCaves?: boolean;
     recentFiles: RecentFileRecord[];
     recentFolders?: RecentFolderRecord[];
     isScanning: boolean;
@@ -51,6 +48,7 @@
     onTogglePinFolder?: (folderPath: string) => void;
     onRemoveRecentFolder?: (folderPath: string) => void;
     onRefreshFolder: () => void;
+    onRefreshAllCaves?: () => void;
     onOpenVaultFile: (file: VaultFileEntry) => void;
     onOpenFuzzyModal: (initialMode?: "fuzzy" | "ai") => void;
     onClearRecent: () => void;
@@ -63,6 +61,8 @@
     activeTabId = "",
     vaultFolderPath = "",
     vaultFiles = [],
+    cavesFileCache = {},
+    isScanningCaves = false,
     recentFiles = [],
     recentFolders = [],
     isScanning = false,
@@ -79,6 +79,7 @@
     onTogglePinFolder,
     onRemoveRecentFolder,
     onRefreshFolder,
+    onRefreshAllCaves,
     onOpenVaultFile,
     onOpenFuzzyModal,
     onClearRecent,
@@ -117,59 +118,28 @@
   let currentActiveTab = $derived(
     tabs.find((t) => t.id === activeTabId) || null,
   );
-  let aiRecommendation = $state<SaveRecommendationResult | null>(null);
-  let isAnalyzingAi = $state(false);
-  let isQuickSaving = $state(false);
+  // 當前連線工作區名稱與全洞天總數計算（供視野與落點說明使用）
+  const currentVaultName = $derived(
+    caves.find((c) => c.path === vaultFolderPath)?.name ||
+    vaultFolderPath.split(/[/|\\]/).filter(Boolean).pop() ||
+    "當前目錄"
+  );
+
+  const totalCavesCount = $derived(
+    caves.length + (vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath) ? 1 : 0)
+  );
 
   // 初始化洞天列表
   $effect(() => {
     caves = loadVaultCaves();
   });
 
-  // 當彈窗開啟且有未存檔或活躍中分頁時，啟動 AI 推薦落點分析
+  // 當彈窗開啟時，觸發跨洞天背景批次更新
   $effect(() => {
-    if (isOpen && currentActiveTab) {
-      triggerAiRecommendation(currentActiveTab);
+    if (isOpen) {
+      onRefreshAllCaves?.();
     }
   });
-
-  async function triggerAiRecommendation(tab: TabItem) {
-    const allFolderPaths = caves.map((c) => c.path);
-    if (vaultFolderPath && !allFolderPaths.includes(vaultFolderPath)) {
-      allFolderPaths.unshift(vaultFolderPath);
-    }
-    const skeleton = extractDirectorySkeleton(vaultFiles, caves);
-    // 立即以本地啟發式推論先行墊底（零延遲）
-    const heuristic = generateHeuristicRecommendation(
-      tab.content,
-      tab.language,
-      allFolderPaths,
-    );
-    aiRecommendation = heuristic;
-
-    // 若有 API Key 則背景呼叫 AI
-    if (groqApiKey || geminiApiKey) {
-      isAnalyzingAi = true;
-      try {
-        const res = await recommendSaveLocation({
-          content: tab.content,
-          language: tab.language,
-          currentTitle: tab.title,
-          recentFolders: allFolderPaths,
-          directorySkeleton: skeleton,
-          model: selectedAiModel,
-          modelId: selectedAiModelId,
-          groqKey: groqApiKey,
-          geminiKey: geminiApiKey,
-        });
-        aiRecommendation = res;
-      } catch (err) {
-        console.warn("[FileBrowserDrawer] AI 推薦落點失敗，沿用啟發式：", err);
-      } finally {
-        isAnalyzingAi = false;
-      }
-    }
-  }
 
   // 構建藏卷洞天樹狀結構（含已授權洞天與當前未收錄之臨時工作區）
   const fullTreeNodes = $derived.by(() => {
@@ -190,7 +160,8 @@
 
     if (caves.length === 0) {
       if (unrecordedCave) {
-        return [buildCaveTree(vaultFiles, unrecordedCave)];
+        const filesForUnrecorded = cavesFileCache[unrecordedCave.path] || vaultFiles;
+        return [buildCaveTree(filesForUnrecorded, unrecordedCave)];
       }
       return [];
     }
@@ -198,22 +169,25 @@
     // 依選取的洞天過濾，或全部展示
     if (selectedCavePath) {
       if (unrecordedCave && selectedCavePath === unrecordedCave.path) {
-        return [buildCaveTree(vaultFiles, unrecordedCave)];
+        const filesForUnrecorded = cavesFileCache[unrecordedCave.path] || vaultFiles;
+        return [buildCaveTree(filesForUnrecorded, unrecordedCave)];
       }
       const targetCaves = caves.filter((c) => c.path === selectedCavePath);
       return targetCaves.map((cave) => {
-        const filesForCave = cave.path === vaultFolderPath ? vaultFiles : [];
+        const filesForCave = cavesFileCache[cave.path] || (cave.path === vaultFolderPath ? vaultFiles : []);
         return buildCaveTree(filesForCave, cave);
       });
     }
 
+    // 諸洞天萬卷全覽模式 (selectedCavePath 為空)：所有洞天聚合展示！
     const nodes = caves.map((cave) => {
-      const filesForCave = cave.path === vaultFolderPath ? vaultFiles : [];
+      const filesForCave = cavesFileCache[cave.path] || (cave.path === vaultFolderPath ? vaultFiles : []);
       return buildCaveTree(filesForCave, cave);
     });
 
     if (unrecordedCave) {
-      nodes.unshift(buildCaveTree(vaultFiles, unrecordedCave));
+      const filesForUnrecorded = cavesFileCache[unrecordedCave.path] || vaultFiles;
+      nodes.unshift(buildCaveTree(filesForUnrecorded, unrecordedCave));
     }
 
     return nodes;
@@ -511,9 +485,29 @@
     }
   }
 
+  // 當前選取洞天或諸洞天全覽之檔案集合（具備去重保護）
+  const currentCaveFiles = $derived.by(() => {
+    if (selectedCavePath) {
+      return cavesFileCache[selectedCavePath] || (selectedCavePath === vaultFolderPath ? vaultFiles : []);
+    }
+    // 諸洞天萬卷全覽：聚合所有洞天檔案，依路徑去重 (避免重複顯示母子資料夾檔案)
+    const fileMap = new Map<string, VaultFileEntry>();
+    for (const fileList of Object.values(cavesFileCache)) {
+      for (const f of fileList) {
+        if (!fileMap.has(f.path)) {
+          fileMap.set(f.path, f);
+        }
+      }
+    }
+    if (fileMap.size === 0) {
+      return vaultFiles;
+    }
+    return Array.from(fileMap.values()).sort((a, b) => (b.modified || 0) - (a.modified || 0));
+  });
+
   // 檔案扁平搜尋 (Fuse)
   const fileFuse = $derived(
-    new Fuse(vaultFiles, {
+    new Fuse(currentCaveFiles, {
       keys: [
         { name: "name", weight: 0.6 },
         { name: "rel_path", weight: 0.25 },
@@ -524,7 +518,7 @@
   );
 
   const filteredVaultFiles = $derived.by(() => {
-    if (!searchQuery.trim()) return vaultFiles;
+    if (!searchQuery.trim()) return currentCaveFiles;
     return fileFuse.search(searchQuery).map((r) => r.item);
   });
 
@@ -579,42 +573,13 @@
     }
   }
 
-  // 一鍵採用 AI 推薦路徑儲存
-  async function handleApplyAiRecommendation() {
-    if (
-      !aiRecommendation ||
-      !currentActiveTab ||
-      !onConfirmSave ||
-      isQuickSaving
-    )
-      return;
-    const targetFolder = aiRecommendation.recommendedFolder || vaultFolderPath;
-    const targetName = aiRecommendation.recommendedFilename;
-
-    if (!targetFolder) {
-      alert("請先指定或點選一處藏卷洞天目錄！");
-      return;
-    }
-
-    isQuickSaving = true;
-    try {
-      await onConfirmSave(targetFolder, targetName);
-      // 重新整理洞天掃描
-      onRefreshFolder();
-    } catch (err: any) {
-      alert(`存檔失敗：${err?.message || err}`);
-    } finally {
-      isQuickSaving = false;
-    }
-  }
-
   // 直接儲存至樹狀上的某個資料夾節點
   async function handleQuickSaveToNode(node: VaultTreeNode) {
     if (!node.isFolder || !currentActiveTab || !onConfirmSave) return;
     const fileName =
       currentActiveTab.title && !currentActiveTab.title.startsWith("散帖 #")
         ? currentActiveTab.title
-        : aiRecommendation?.recommendedFilename || "新卷軸.md";
+        : "新卷軸.md";
 
     try {
       await onConfirmSave(node.path, fileName);
@@ -635,6 +600,7 @@
       caves = removeVaultCave(cavePath);
       onRemoveRecentFolder?.(cavePath);
       if (selectedCavePath === cavePath) selectedCavePath = "";
+      onRefreshAllCaves?.();
     }
   }
 
@@ -728,19 +694,20 @@
         </span>
         <div class="brand-text">
           <span class="main-title">藏卷洞天 · 萬卷中控台</span>
-          <span class="sub-title">AI 智慧落點推薦 · Yazi 輕功樹覽</span>
+          <span class="sub-title">御風輕功樹覽 · 諸洞天萬卷全覽</span>
         </div>
       </div>
 
       <div class="header-controls">
-        <!-- 心法說明與快捷鍵指南按鈕 -->
+        <!-- 心法說明與快捷鍵指南按鈕 (右上角簡化為問號，hover 展開洞天心法) -->
         <button
           type="button"
           class="control-btn help-btn {isHelpModalOpen ? 'active' : ''}"
           onclick={() => (isHelpModalOpen = !isHelpModalOpen)}
-          title="查看藏卷洞天設計心法與 Yazi / Vim 輕功操作秘笈 (?)"
+          title="查看藏卷洞天設計心法與鍵道輕功操作秘笈 (?)"
         >
-          <span>? 洞天心法</span>
+          <span class="help-qmark">?</span>
+          <span class="help-hover-text">洞天心法</span>
         </button>
 
         <!-- 尺寸切換按鈕 -->
@@ -785,88 +752,68 @@
       </div>
     </header>
 
-    <!-- ⚡ AI 智慧落點推薦欄 (Contextual Smart Routing) -->
-    {#if currentActiveTab}
-      <section class="ai-recommendation-bar">
-        <div class="ai-badge-label">
-          <span class="sparkle-icon">✨</span>
-          <span class="rec-title">AI 智慧歸納推薦</span>
-          {#if isAnalyzingAi}
-            <span class="analyzing-spinner">⏳ 參詳語意中...</span>
-          {/if}
-        </div>
-
-        <div class="ai-rec-content">
-          <div class="rec-route-line">
-            <span class="target-flag">🎯 建議存入：</span>
-            <span
-              class="folder-highlight"
-              title={aiRecommendation?.recommendedFolder
-                ? normalizePath(aiRecommendation.recommendedFolder)
-                : "未指定"}
-            >
-              {aiRecommendation?.recommendedFolder
-                ? caves.find(
-                    (c) =>
-                      normalizePath(c.path) ===
-                      normalizePath(aiRecommendation?.recommendedFolder || ""),
-                  )?.name || normalizePath(aiRecommendation.recommendedFolder)
-                : "請先指定或連線一處洞天"}
-            </span>
-            <span class="path-sep">/</span>
-            <span
-              class="file-highlight"
-              title={aiRecommendation?.recommendedFilename}
-            >
-              {aiRecommendation?.recommendedFilename || currentActiveTab.title}
-            </span>
-          </div>
-          {#if aiRecommendation?.reason}
-            <div class="rec-reason-line" title={aiRecommendation.reason}>
-              💡 參詳理由：{aiRecommendation.reason}
-            </div>
-          {/if}
-        </div>
-
-        <div class="ai-rec-actions">
-          <button
-            type="button"
-            class="ai-action-btn primary"
-            onclick={handleApplyAiRecommendation}
-            disabled={isQuickSaving}
-            title="直接套用 AI 推薦路徑與檔名封存入庫"
-          >
-            <span>{isQuickSaving ? "💾 封存中..." : "📥 一鍵封存入庫"}</span>
-          </button>
-          <button
-            type="button"
-            class="ai-action-btn secondary"
-            onclick={() => triggerAiRecommendation(currentActiveTab)}
-            title="重新啟動 AI 語意分析推薦"
-          >
-            <span>🔄 重新參詳</span>
-          </button>
-        </div>
-      </section>
-    {/if}
-
     <!-- 核心三欄內容主體 -->
     <div class="vault-body-layout">
       <!-- 欄 1：藏卷洞天清單 (Vault Caves / Permitted Directories) -->
       <aside class="vault-caves-sidebar">
-        <div class="sidebar-sec-header">
-          <span class="sec-title">🌌 藏卷洞天 ({caves.length})</span>
+        <!-- 頂部視野分層區：全域視野 (View Scope) -->
+        <div class="scope-view-section">
+          <div class="scope-label">全域瀏覽視野</div>
           <button
             type="button"
-            class="mini-add-btn"
-            onclick={handleAddNewCave}
-            title="授權開放電腦實體資料夾為新洞天"
+            class="cave-item-btn scope-master-btn {!selectedCavePath ? 'active' : ''}"
+            onclick={() => (selectedCavePath = "")}
+            title={`同時聚合瀏覽所有已開放之洞天。新檔預設存入：${currentVaultName}`}
           >
-            + 開放洞天
+            <span class="cave-icon">🪐</span>
+            <div class="cave-info">
+              <div class="name-line">
+                <span class="cave-name">諸洞天萬卷全覽</span>
+                {#if isScanningCaves}
+                  <span class="active-dot scanning" title="跨洞天卷軸更新彙整中...">⏳ 彙整中</span>
+                {:else if !selectedCavePath}
+                  <span class="active-dot scope-active" title="目前處於全域聚合瀏覽視野">全覽中</span>
+                {/if}
+              </div>
+              <div class="cave-scope-sub">
+                <div class="scope-stat-line">已聚合 {totalCavesCount} 洞天 · 共 {currentCaveFiles.length} 卷</div>
+                <div class="scope-target-line">
+                  <span>📍 新檔預設存入：</span><strong class="target-name">{currentVaultName}</strong>
+                </div>
+              </div>
+            </div>
           </button>
         </div>
 
+        <!-- 實體洞天庫標頭 (切換工作區 / 開放新洞天) -->
+        <div class="sidebar-sec-header">
+          <span class="sec-title" title="點選聚焦／切換工作區">實體洞天庫 ({caves.length})</span>
+          <div class="cave-header-actions">
+            {#if isScanningCaves}
+              <span class="scanning-badge" title="背景探尋諸洞天中...">⏳</span>
+            {:else if onRefreshAllCaves}
+              <button
+                type="button"
+                class="mini-refresh-btn"
+                onclick={() => onRefreshAllCaves?.()}
+                title="重新整理所有洞天掃描"
+              >
+                🔄
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="mini-add-btn"
+              onclick={handleAddNewCave}
+              title="授權開放電腦實體資料夾為新洞天"
+            >
+              + 開放洞天
+            </button>
+          </div>
+        </div>
+
         <div class="caves-list">
+
           <!-- 當前臨時工作區（未收錄至洞天時顯示，提供手動收錄按鈕） -->
           {#if vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)}
             {@const currentName =
@@ -887,6 +834,7 @@
                   onclick={() => {
                     caves = addVaultCave(vaultFolderPath);
                     selectedCavePath = vaultFolderPath;
+                    onRefreshAllCaves?.();
                   }}
                   title="將此目錄正式闢建／收錄入藏卷洞天"
                 >
@@ -910,20 +858,6 @@
             </div>
           {/if}
 
-          <!-- 全部洞天合併視圖選項 -->
-          <button
-            type="button"
-            class="cave-item-btn {!selectedCavePath ? 'active' : ''}"
-            onclick={() => (selectedCavePath = "")}
-            title="同時聚合瀏覽所有已開放之洞天"
-          >
-            <span class="cave-icon">🪐</span>
-            <div class="cave-info">
-              <span class="cave-name">諸洞天萬卷全覽</span>
-              <span class="cave-sub">全域跨目錄層級樹</span>
-            </div>
-          </button>
-
           <!-- 個別洞天項目 -->
           {#each caves as cave (cave.path)}
             {@const isCurrentLinked = cave.path === vaultFolderPath}
@@ -941,15 +875,17 @@
                     onSwitchFolder?.(cave.path);
                   }
                 }}
-                title={`路徑: ${cave.path}`}
+                title={isCurrentLinked
+                  ? `【當前工作區】${cave.name}（新筆記預設存入此目錄）`
+                  : `點擊切換為當前工作區並聚焦此洞天。路徑: ${cave.path}`}
               >
                 <span class="cave-icon">{cave.isPinned ? "📌" : "🏞️"}</span>
                 <div class="cave-info">
                   <div class="name-line">
                     <span class="cave-name">{cave.name}</span>
                     {#if isCurrentLinked}
-                      <span class="active-dot" title="目前主要掃描連線中"
-                        >連線</span
+                      <span class="active-dot active-workspace" title="新筆記預設存入此處，外部檔案熱監聽中"
+                        >當前工作區</span
                       >
                     {/if}
                   </div>
@@ -1054,7 +990,7 @@
               type="button"
               class="v-tab {activeTabMode === 'tree' ? 'active' : ''}"
               onclick={() => (activeTabMode = "tree")}
-              title="樹狀層級檢索 (自動展開匹配子閣，支援 Yazi Vim 導航)"
+              title="樹狀層級檢索 (自動展開匹配子閣，支援鍵道輕功導航)"
             >
               🌲 洞天層級樹
             </button>
@@ -1108,8 +1044,7 @@
                     {focusedNodePath}
                     activeFilePath={currentActiveTab?.filePath || ""}
                     {searchQuery}
-                    aiRecommendedPath={aiRecommendation?.recommendedFolder ||
-                      ""}
+                    aiRecommendedPath=""
                     openedFilePaths={tabs
                       .map((t) => t.filePath)
                       .filter(Boolean) as string[]}
@@ -1325,7 +1260,7 @@
       </div>
     {/if}
 
-    <!-- 洞天心法與 Yazi / Vim 輕功操作秘笈彈窗 (? 鍵觸發) -->
+    <!-- 洞天心法與鍵道輕功操作秘笈彈窗 (? 鍵觸發) -->
     {#if isHelpModalOpen}
       <div
         class="help-modal-overlay"
@@ -1383,7 +1318,7 @@
               </div>
             </section>
 
-            <!-- 區塊二：Yazi / Vim 輕功秘笈 -->
+            <!-- 區塊二：鍵道輕功秘笈 -->
             <section class="help-section">
               <h4 class="sec-headline">⚡ 貳、 輕功操作指南 (純鍵盤遊歷)</h4>
               <p class="sec-desc">
@@ -1394,7 +1329,7 @@
                   <thead>
                     <tr>
                       <th style="width: 130px;">心法按鍵</th>
-                      <th>身法動作 (Yazi 導航)</th>
+                      <th>身法動作 (輕功導航)</th>
                       <th>詳細心法</th>
                     </tr>
                   </thead>
@@ -1605,6 +1540,38 @@
     transition: all 0.15s;
   }
 
+  .control-btn.help-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 9px;
+    font-weight: 700;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .help-qmark {
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .help-hover-text {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: max-width 0.22s ease, opacity 0.18s ease, margin 0.18s ease;
+    margin-left: 0;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .control-btn.help-btn:hover .help-hover-text {
+    max-width: 80px;
+    opacity: 1;
+    margin-left: 5px;
+  }
+
   .control-btn:hover {
     background: #504945;
     color: #fbf1c7;
@@ -1638,123 +1605,6 @@
     color: #fb4934;
   }
 
-  /* ⚡ AI 智慧推薦橫幅 */
-  .ai-recommendation-bar {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 10px 20px;
-    background: linear-gradient(
-      90deg,
-      rgba(184, 187, 38, 0.12),
-      rgba(250, 189, 47, 0.08)
-    );
-    border-bottom: 1px solid rgba(184, 187, 38, 0.3);
-    flex-shrink: 0;
-  }
-
-  .ai-badge-label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    font-weight: 700;
-    color: #b8bb26;
-    white-space: nowrap;
-  }
-
-  .sparkle-icon {
-    font-size: 14px;
-  }
-
-  .analyzing-spinner {
-    font-size: 11px;
-    color: #fabd2f;
-    margin-left: 4px;
-  }
-
-  .ai-rec-content {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .rec-route-line {
-    font-size: 13px;
-    color: #ebdbb2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .target-flag {
-    color: #a89984;
-  }
-
-  .folder-highlight {
-    color: #fabd2f;
-    font-weight: 600;
-  }
-
-  .file-highlight {
-    color: #8ec07c;
-    font-weight: 600;
-  }
-
-  .path-sep {
-    color: #928374;
-    margin: 0 4px;
-    font-weight: bold;
-    user-select: none;
-  }
-
-  .rec-reason-line {
-    font-size: 11px;
-    color: #a89984;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .ai-rec-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .ai-action-btn {
-    border: none;
-    font-size: 12px;
-    padding: 5px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .ai-action-btn.primary {
-    background: #b8bb26;
-    color: #1d2021;
-    font-weight: 700;
-  }
-
-  .ai-action-btn.primary:hover:not(:disabled) {
-    background: #98971a;
-    box-shadow: 0 0 10px rgba(184, 187, 38, 0.4);
-  }
-
-  .ai-action-btn.secondary {
-    background: #3c3836;
-    border: 1px solid #504945;
-    color: #ebdbb2;
-  }
-
-  .ai-action-btn.secondary:hover {
-    background: #504945;
-  }
-
   /* 核心佈局 */
   .vault-body-layout {
     flex: 1;
@@ -1786,6 +1636,120 @@
     color: #a89984;
     text-transform: uppercase;
   }
+
+  .cave-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mini-refresh-btn {
+    background: #3c3836;
+    border: 1px solid #504945;
+    color: #ebdbb2;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .mini-refresh-btn:hover {
+    background: #fabd2f;
+    color: #1d2021;
+  }
+
+  .scanning-badge {
+    font-size: 11px;
+    color: #fabd2f;
+  }
+
+  .active-dot.scanning {
+    background: rgba(250, 189, 47, 0.2);
+    color: #fabd2f;
+    border: 1px solid rgba(250, 189, 47, 0.4);
+  }
+
+  .active-dot.active-workspace {
+    background: #8ec07c;
+    color: #1d2021;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+  }
+
+  .active-dot.scope-active {
+    background: rgba(250, 189, 47, 0.25);
+    color: #fabd2f;
+    border: 1px solid rgba(250, 189, 47, 0.5);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .scope-view-section {
+    padding: 8px;
+    border-bottom: 1px solid #282828;
+    background: rgba(0, 0, 0, 0.12);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  .scope-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #7c6f64;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 4px 6px;
+  }
+
+  .scope-master-btn {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+  }
+
+  .scope-master-btn.active {
+    background: rgba(250, 189, 47, 0.12);
+    border-color: rgba(250, 189, 47, 0.35);
+  }
+
+  .cave-scope-sub {
+    font-size: 10px;
+    line-height: 1.45;
+    margin-top: 3px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .scope-stat-line {
+    color: #928374;
+    font-size: 10px;
+  }
+
+  .scope-target-line {
+    color: #ebdbb2;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .scope-target-line .target-name {
+    color: #fabd2f;
+    font-weight: 600;
+  }
+
 
   .mini-add-btn {
     background: #3c3836;
@@ -1927,6 +1891,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
+    width: 100%;
   }
 
   .cave-name {
@@ -1935,15 +1901,19 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
+    flex-shrink: 1;
   }
 
   .active-dot {
     font-size: 9px;
     background: #8ec07c;
     color: #1d2021;
-    padding: 1px 4px;
+    padding: 1px 5px;
     border-radius: 3px;
     font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .cave-sub {

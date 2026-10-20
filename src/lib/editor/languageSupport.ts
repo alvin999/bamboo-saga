@@ -7,6 +7,7 @@ import { python } from '@codemirror/lang-python';
 import { sql } from '@codemirror/lang-sql';
 import { SupportedLanguage } from '../../types/tab';
 import { smartHighlightPlugin } from './smartHighlighter';
+import { taskCheckboxExtension } from './taskCheckbox';
 
 const markdownLanguages: LanguageDescription[] = [
   LanguageDescription.of({
@@ -30,8 +31,8 @@ const markdownLanguages: LanguageDescription[] = [
 ];
 
 export function getLanguageExtension(lang: SupportedLanguage): Extension[] {
-  // 智慧染色作為核心筆記體驗，無條件在全語言（特別是 plaintext 與 markdown）掛載生效
-  const extensions: Extension[] = [smartHighlightPlugin];
+  // 智慧染色與任務清單互動切換作為核心筆記體驗，無條件在全語言（特別是 plaintext 與 markdown）掛載生效
+  const extensions: Extension[] = [smartHighlightPlugin, taskCheckboxExtension];
 
   switch (lang) {
     case 'markdown':

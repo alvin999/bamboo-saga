@@ -171,6 +171,160 @@ async fn scan_vault_folder(folder_path: String) -> Result<Vec<VaultFileItem>, St
     .map_err(|e| format!("背景掃描工作失敗: {}", e))?
 }
 
+/// 標準化路徑字串：統一轉為正斜線、去除尾部斜線，並將 Windows 磁碟機代號轉為小寫
+fn normalize_path_str(p: &str) -> String {
+    let mut normalized = p.replace('\\', "/");
+    while normalized.ends_with('/') {
+        normalized.pop();
+    }
+    if normalized.len() >= 2 && normalized.as_bytes()[1] == b':' {
+        let first_char = normalized.chars().next().unwrap();
+        if first_char.is_ascii_alphabetic() {
+            let lower = first_char.to_ascii_lowercase();
+            normalized.replace_range(0..1, &lower.to_string());
+        }
+    }
+    normalized
+}
+
+/// 判斷 child 是否為 parent 本身或是其子資料夾（具備邊界斜線防護）
+fn is_sub_or_same_path(parent_norm: &str, child_norm: &str) -> bool {
+    if parent_norm == child_norm {
+        return true;
+    }
+    if child_norm.starts_with(parent_norm) {
+        let rem = &child_norm[parent_norm.len()..];
+        if rem.starts_with('/') {
+            return true;
+        }
+    }
+    false
+}
+
+/// 跨洞天背景批次掃描：具備母子資料夾自動去重與記憶體投影切片
+#[tauri::command]
+async fn scan_multiple_vault_folders(
+    folder_paths: Vec<String>,
+) -> Result<HashMap<String, Vec<VaultFileItem>>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut final_map: HashMap<String, Vec<VaultFileItem>> = HashMap::new();
+        if folder_paths.is_empty() {
+            return Ok(final_map);
+        }
+
+        // 1. 整理並標準化所有輸入路徑，預先標記有效目錄
+        struct CaveMeta {
+            original: String,
+            norm: String,
+            exists: bool,
+        }
+
+        let mut cave_metas: Vec<CaveMeta> = Vec::new();
+        for orig in &folder_paths {
+            let norm = normalize_path_str(orig);
+            let path_buf = PathBuf::from(orig);
+            let exists = path_buf.exists() && path_buf.is_dir();
+            cave_metas.push(CaveMeta {
+                original: orig.clone(),
+                norm,
+                exists,
+            });
+        }
+
+        // 不存在的目錄直接回傳空清單，避免整批掃描中斷
+        for meta in &cave_metas {
+            if !meta.exists {
+                final_map.insert(meta.original.clone(), Vec::new());
+            }
+        }
+
+        let valid_caves: Vec<&CaveMeta> = cave_metas.iter().filter(|m| m.exists).collect();
+        if valid_caves.is_empty() {
+            return Ok(final_map);
+        }
+
+        // 2. 母子資料夾去重演算法 (Minimal Independent Roots)
+        // 依據正規化路徑長度升冪排列（短者為潛在的母目錄）
+        let mut sorted_valid = valid_caves.clone();
+        sorted_valid.sort_by_key(|m| m.norm.len());
+
+        let mut independent_roots: Vec<String> = Vec::new();
+        let mut cave_norm_to_root: HashMap<String, String> = HashMap::new();
+
+        for meta in &sorted_valid {
+            // 檢查是否已被現有的母目錄包含
+            let existing_parent = independent_roots
+                .iter()
+                .find(|root| is_sub_or_same_path(root, &meta.norm));
+
+            match existing_parent {
+                Some(parent_root) => {
+                    // 屬於子目錄：略過實體重複掃描，直接映射至母根目錄
+                    cave_norm_to_root.insert(meta.norm.clone(), parent_root.clone());
+                }
+                None => {
+                    // 獨立全新根目錄
+                    independent_roots.push(meta.norm.clone());
+                    cave_norm_to_root.insert(meta.norm.clone(), meta.norm.clone());
+                }
+            }
+        }
+
+        // 3. 實體磁碟遍歷：僅針對獨立母根目錄進行遞迴掃描 (Zero redundant disk I/O)
+        let mut root_scanned_files: HashMap<String, Vec<VaultFileItem>> = HashMap::new();
+        for root_norm in &independent_roots {
+            let base_path = PathBuf::from(root_norm);
+            let mut results = Vec::new();
+            walk_directory_internal(&base_path, &base_path, 0, 7, &mut results);
+            root_scanned_files.insert(root_norm.clone(), results);
+        }
+
+        // 4. 結果投影與切片：為每個原始輸入洞天產生專屬檔案清單並重新計算相對路徑
+        for meta in &valid_caves {
+            let root_norm = match cave_norm_to_root.get(&meta.norm) {
+                Some(r) => r,
+                None => continue,
+            };
+
+            let all_files_in_root = match root_scanned_files.get(root_norm) {
+                Some(f) => f,
+                None => continue,
+            };
+
+            let mut cave_files: Vec<VaultFileItem> = Vec::new();
+            for file in all_files_in_root {
+                let file_norm = normalize_path_str(&file.path);
+                if is_sub_or_same_path(&meta.norm, &file_norm) {
+                    // 計算相對於該洞天的 rel_path
+                    let rel_path = if file_norm.len() > meta.norm.len() {
+                        let sub = &file_norm[meta.norm.len()..];
+                        sub.trim_start_matches('/').to_string()
+                    } else {
+                        file.name.clone()
+                    };
+
+                    cave_files.push(VaultFileItem {
+                        path: file.path.clone(),
+                        name: file.name.clone(),
+                        rel_path,
+                        size: file.size,
+                        modified: file.modified,
+                        preview: file.preview.clone(),
+                        extension: file.extension.clone(),
+                    });
+                }
+            }
+
+            cave_files.sort_by(|a, b| b.modified.cmp(&a.modified));
+            final_map.insert(meta.original.clone(), cave_files);
+        }
+
+        Ok(final_map)
+    })
+    .await
+    .map_err(|e| format!("批次背景掃描洞天失敗: {}", e))?
+}
+
 #[tauri::command]
 fn read_vault_file(file_path: String) -> Result<String, String> {
     fs::read_to_string(&file_path).map_err(|e| format!("無法讀取檔案 {}: {}", file_path, e))
@@ -975,6 +1129,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             pick_vault_folder,
             scan_vault_folder,
+            scan_multiple_vault_folders,
             read_vault_file,
             write_vault_file,
             set_watched_files,

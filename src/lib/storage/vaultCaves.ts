@@ -21,6 +21,21 @@ export function joinPaths(dir: string, file: string): string {
 }
 
 /**
+ * 檢查 child 是否為 parent 本身或是其子目錄路徑（具備大小寫與邊界斜線防護）
+ */
+export function isSubOrSamePath(parent: string, child: string): boolean {
+  if (!parent || !child) return false;
+  const p = normalizePath(parent).toLowerCase();
+  const c = normalizePath(child).toLowerCase();
+  if (p === c) return true;
+  if (c.startsWith(p)) {
+    const rem = c.slice(p.length);
+    return rem.startsWith('/');
+  }
+  return false;
+}
+
+/**
  * 從目前已掃描的檔案與洞天清單中，高度精煉出本機已存在的「目錄骨架」（嚴格限制 Token 預算）
  * 1. 排除檔案，僅保留相異的資料夾路徑
  * 2. 依包含檔案數量排序，優先保留核心目錄（最多 25~35 個）

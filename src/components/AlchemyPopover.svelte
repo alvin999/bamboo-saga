@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { AlchemyCardConfig, TabItem } from '../types/tab';
   import { getDefaultAlchemyCards } from '../lib/storage/vault';
-  import { Sparkles, Plus, Trash2, Pin, PinOff, Settings, Check, ArrowRight, X, Flame, Pencil, RotateCcw } from 'lucide-svelte';
+  import { Sparkles, Plus, Trash2, Pin, PinOff, Settings, Check, ArrowRight, X, Flame, Pencil, RotateCcw, AlertCircle } from 'lucide-svelte';
 
   let {
     activeTab = null,
@@ -27,6 +27,10 @@
   let closeTimer: number | null = null;
   let customPrompt = $state('');
   let isAddingNew = $state(false);
+
+  // 恢復預設的兩階段二次確認狀態
+  let isConfirmingReset = $state(false);
+  let resetConfirmTimer: number | null = null;
 
   // 正在編輯的丹方 ID
   let editingCardId = $state<string | null>(null);
@@ -214,6 +218,32 @@
     onSaveAlchemyCards?.(updated);
     onShowToast?.(`🗑️ 已移除丹方「${title}」`);
   }
+
+  // 恢復所有丹方為官方預設值（原地兩階段二次確認）
+  function handleResetAllDefaultCards() {
+    if (!isConfirmingReset) {
+      isConfirmingReset = true;
+      if (resetConfirmTimer) clearTimeout(resetConfirmTimer);
+      resetConfirmTimer = window.setTimeout(() => {
+        isConfirmingReset = false;
+        resetConfirmTimer = null;
+      }, 3500); // 3.5 秒內未再次點擊則自動取消
+      return;
+    }
+
+    // 第二次點擊：真正執行還原
+    if (resetConfirmTimer) {
+      clearTimeout(resetConfirmTimer);
+      resetConfirmTimer = null;
+    }
+    isConfirmingReset = false;
+
+    const defaults = getDefaultAlchemyCards();
+    onSaveAlchemyCards?.(defaults);
+    if (editingCardId) editingCardId = null;
+    if (isAddingNew) isAddingNew = false;
+    onShowToast?.('↺ 已成功將所有煉丹爐丹方恢復為官方預設值！');
+  }
 </script>
 
 <div 
@@ -309,12 +339,25 @@
         <div class="cards-section-header">
           <span class="section-label">現有丹方 ({cardList.length})</span>
           {#if !isAddingNew && !editingCardId}
-            <button 
-              class="add-card-toggle-btn"
-              onclick={handleStartAddNew}
-            >
-              <Plus size={12} /> 新增丹方
-            </button>
+            <div class="header-btn-group">
+              <button 
+                class="reset-all-cards-btn {isConfirmingReset ? 'is-confirming' : ''}"
+                onclick={handleResetAllDefaultCards}
+                title={isConfirmingReset ? '再次點擊確認還原官方預設，或靜候 3 秒自動取消' : '將所有煉丹爐丹方還原為官方預設值'}
+              >
+                {#if isConfirmingReset}
+                  <AlertCircle size={11} class="blink-icon" /> 確定還原？
+                {:else}
+                  <RotateCcw size={11} /> 恢復預設
+                {/if}
+              </button>
+              <button 
+                class="add-card-toggle-btn"
+                onclick={handleStartAddNew}
+              >
+                <Plus size={12} /> 新增丹方
+              </button>
+            </div>
           {/if}
         </div>
 
@@ -676,6 +719,51 @@
     color: #a89984;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+  }
+
+  .header-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .reset-all-cards-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 2px 7px;
+    background: rgba(146, 131, 116, 0.12);
+    border: 1px solid rgba(146, 131, 116, 0.35);
+    border-radius: 3px;
+    color: #a89984;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .reset-all-cards-btn:hover {
+    background: rgba(204, 36, 29, 0.18);
+    border-color: rgba(204, 36, 29, 0.5);
+    color: #fb4934;
+  }
+
+  .reset-all-cards-btn.is-confirming {
+    background: rgba(204, 36, 29, 0.28) !important;
+    border-color: #cc241d !important;
+    color: #fb4934 !important;
+    font-weight: 600 !important;
+    animation: pulseAlert 1.2s infinite ease-in-out;
+  }
+
+  @keyframes pulseAlert {
+    0%, 100% {
+      box-shadow: 0 0 4px rgba(204, 36, 29, 0.3);
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 10px rgba(204, 36, 29, 0.65);
+      transform: scale(1.02);
+    }
   }
 
   .add-card-toggle-btn {

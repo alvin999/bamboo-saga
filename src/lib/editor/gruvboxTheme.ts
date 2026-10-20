@@ -65,10 +65,57 @@ export const gruvboxDarkTheme = EditorView.theme(
     },
     '.cm-foldGutter': {
       color: '#736e63',
+      width: '18px',
+    },
+    '.cm-foldGutter .cm-gutterElement': {
+      cursor: 'pointer',
+      padding: '0 2px',
+      transition: 'color 0.15s ease',
+    },
+    '.cm-foldGutter .cm-gutterElement:hover': {
+      color: '#fabd2f',
     },
     '.cm-scroller': {
       fontFamily: "'JetBrains Mono', var(--font-mono, monospace)",
       overflow: 'auto',
+    },
+
+    /* ========================================================
+       任務清單互動方塊 (Markdown Interactive Task Checkbox)
+    ======================================================== */
+    '.gb-task-checkbox': {
+      cursor: 'pointer !important',
+      display: 'inline-block !important',
+      fontWeight: '700 !important',
+      fontFamily: "'JetBrains Mono', monospace !important",
+      padding: '0 3px !important',
+      margin: '0 2px !important',
+      borderRadius: '4px !important',
+      userSelect: 'none !important',
+      transition: 'all 0.15s ease !important',
+    },
+    '.gb-task-open': {
+      color: '#fabd2f !important', // 琥珀金
+      backgroundColor: 'rgba(250, 189, 47, 0.12) !important',
+      border: '1px solid rgba(250, 189, 47, 0.35) !important',
+    },
+    '.gb-task-open:hover': {
+      backgroundColor: 'rgba(250, 189, 47, 0.25) !important',
+      boxShadow: '0 0 6px rgba(250, 189, 47, 0.35) !important',
+    },
+    '.gb-task-done': {
+      color: '#b8bb26 !important', // 竹墨翠綠
+      backgroundColor: 'rgba(184, 187, 38, 0.15) !important',
+      border: '1px solid rgba(184, 187, 38, 0.4) !important',
+    },
+    '.gb-task-done:hover': {
+      backgroundColor: 'rgba(184, 187, 38, 0.28) !important',
+      boxShadow: '0 0 6px rgba(184, 187, 38, 0.35) !important',
+    },
+    '.gb-task-done-line': {
+      color: '#928374 !important', // 灰褐沉穩
+      textDecoration: 'line-through !important',
+      opacity: '0.65 !important',
     },
 
     /* ========================================================

@@ -52,6 +52,28 @@ export async function scanVaultFolder(folderPath: string): Promise<VaultFileEntr
 }
 
 /**
+ * 跨洞天背景批次掃描本機實體檔案清單（具備母子資料夾去重優化與非同步並行執行）
+ */
+export async function scanMultipleVaultFolders(
+  folderPaths: string[]
+): Promise<Record<string, VaultFileEntry[]>> {
+  if (isTauriEnvironment() && folderPaths.length > 0) {
+    try {
+      const map = await invoke<Record<string, VaultFileEntry[]>>(
+        'scan_multiple_vault_folders',
+        { folderPaths }
+      );
+      return map;
+    } catch (err) {
+      console.error('[fsBridge] scan_multiple_vault_folders failed:', err);
+      throw err;
+    }
+  }
+
+  return {};
+}
+
+/**
  * 讀取本機實體檔案文字
  */
 export async function readVaultFile(filePath: string): Promise<string> {

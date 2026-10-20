@@ -23,6 +23,7 @@
   import { 
     pickVaultFolder, 
     scanVaultFolder, 
+    scanMultipleVaultFolders,
     readVaultFile, 
     writeVaultFile,
     backupVaultToOneDrive,
@@ -108,6 +109,10 @@
   let recentFolders = $state<RecentFolderRecord[]>(loadRecentFolders());
   let isScanningFolder = $state(false);
 
+  // 諸洞天萬卷全覽：跨洞天檔案快取池與背景掃描狀態
+  let cavesFileCache = $state<Record<string, VaultFileEntry[]>>({});
+  let isScanningAllCaves = $state(false);
+
   // 跨平台檔案拖曳 (Drag & Drop) 狀態
   let isDraggingOver = $state(false);
   let dragCounter = 0;
@@ -125,10 +130,12 @@
     return computeSideBySideDiff(activeTab.preAiSnapshot.content, activeTab.content);
   });
 
-  // 精煉本機洞天目錄骨架（供 AI 推論時精準鎖定已存在的資料夾，嚴格限額 Token）
-  const directorySkeleton = $derived(
-    extractDirectorySkeleton(vaultFiles, loadVaultCaves(state.vaultFolderPath))
-  );
+  // 精煉本機洞天目錄骨架（供 AI 推論時精準鎖定已存在的資料夾，嚴格限額 Token，聚合所有洞天檔案）
+  const directorySkeleton = $derived.by(() => {
+    const allScannedFiles = Object.values(cavesFileCache).flat();
+    const sourceFiles = allScannedFiles.length > 0 ? allScannedFiles : vaultFiles;
+    return extractDirectorySkeleton(sourceFiles, loadVaultCaves(state.vaultFolderPath));
+  });
 
   // 當狀態有任何細微變更時（包含 VIM 模式切換、分頁內容等），建立快照並觸發毫秒級持久化
   $effect(() => {
@@ -303,6 +310,7 @@
     if (state.vaultFolderPath) {
       recentFolders = recordFolderOpened(state.vaultFolderPath);
       refreshVaultFiles(state.vaultFolderPath);
+      refreshAllCaves();
     }
 
     // 3. 從本機安全保險庫載入加密金鑰 (支援方案 3 與方案 2+1，100% 本機)
@@ -444,6 +452,7 @@
         recentFolders = recordFolderOpened(folder);
         saveVaultState(state, true);
         await refreshVaultFiles(folder);
+        refreshAllCaves();
         showToast(`📁 已連接電腦資料夾：${folder.split(/[/|\\]/).pop()}`);
       }
     } catch (err: any) {
@@ -458,6 +467,7 @@
       recentFolders = recordFolderOpened(folderPath);
       saveVaultState(state, true);
       await refreshVaultFiles(folderPath);
+      refreshAllCaves();
       const folderName = folderPath.split(/[/|\\]/).filter(Boolean).pop() || folderPath;
       showToast(`📂 已切換至：${folderName}`);
     } catch (err: any) {
@@ -484,6 +494,37 @@
       console.error('[App] Failed to scan vault folder:', err);
     } finally {
       isScanningFolder = false;
+    }
+  }
+
+  /**
+   * 背景非同步掃描所有藏卷洞天（具備母子資料夾去重優化，不阻塞前端編輯）
+   */
+  async function refreshAllCaves(targetCavePaths?: string[]) {
+    isScanningAllCaves = true;
+    try {
+      let paths = targetCavePaths;
+      if (!paths || paths.length === 0) {
+        const caves = loadVaultCaves(state.vaultFolderPath);
+        paths = caves.map((c) => c.path);
+        if (state.vaultFolderPath && !paths.includes(state.vaultFolderPath)) {
+          paths.unshift(state.vaultFolderPath);
+        }
+      }
+
+      if (paths.length > 0) {
+        const cacheMap = await scanMultipleVaultFolders(paths);
+        cavesFileCache = cacheMap;
+
+        // 若當前工作目錄在快取中，同步保險更新 vaultFiles
+        if (state.vaultFolderPath && cacheMap[state.vaultFolderPath]) {
+          vaultFiles = cacheMap[state.vaultFolderPath];
+        }
+      }
+    } catch (err) {
+      console.warn('[App] 跨洞天背景批次掃描失敗：', err);
+    } finally {
+      isScanningAllCaves = false;
     }
   }
 
@@ -1253,6 +1294,8 @@
     activeTabId={state.activeTabId}
     vaultFolderPath={state.vaultFolderPath || ''}
     vaultFiles={vaultFiles}
+    cavesFileCache={cavesFileCache}
+    isScanningCaves={isScanningAllCaves}
     recentFiles={recentFiles}
     recentFolders={recentFolders}
     isScanning={isScanningFolder}
@@ -1269,6 +1312,7 @@
     onTogglePinFolder={handleTogglePinFolder}
     onRemoveRecentFolder={handleRemoveRecentFolder}
     onRefreshFolder={() => state.vaultFolderPath && refreshVaultFiles(state.vaultFolderPath)}
+    onRefreshAllCaves={() => refreshAllCaves()}
     onOpenVaultFile={handleOpenVaultFile}
     onOpenFuzzyModal={(mode) => {
       fuzzyInitialMode = mode || 'fuzzy';
