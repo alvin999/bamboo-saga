@@ -29,6 +29,8 @@
     backupVaultToOneDrive,
     getInitialRouteTarget,
     setWatchedFiles,
+    loadCavesCache,
+    saveCavesCache,
     type ExternalFileChangePayload
   } from './lib/storage/fsBridge';
   import { 
@@ -43,7 +45,13 @@
   import { recordSnapshot, pruneOldSnapshots } from './lib/storage/localHistory';
   import type { SnapshotReason } from './types/history';
   import { loadSecureKeys, saveSecureKeys, type SecurityMode } from './lib/security/keyVault';
-  import { extractDirectorySkeleton, loadVaultCaves } from './lib/storage/vaultCaves';
+  import { 
+    extractDirectorySkeleton, 
+    loadVaultCaves,
+    loadCachedCavesFiles,
+    getLastCavesScanTime,
+    areCavesCacheEqual
+  } from './lib/storage/vaultCaves';
 
   // 核心應用狀態
   let state: AppState = $state(loadVaultState());
@@ -103,14 +111,21 @@
     }
   }
 
-  // 本機資料夾與最近開啟狀態
-  let vaultFiles = $state<VaultFileEntry[]>([]);
+  // 諸洞天萬卷全覽：跨洞天檔案快取池（冷啟動自本機持久化空間秒開載入）
+  const initialCavesCache = loadCachedCavesFiles();
+  let cavesFileCache = $state<Record<string, VaultFileEntry[]>>(initialCavesCache);
+  let lastCavesScanTime = getLastCavesScanTime();
+  const CAVES_CACHE_TTL_MS = 3 * 60 * 1000; // 3 分鐘 TTL 快取時效
+
+  // 本機資料夾與最近開啟狀態（優先使用快取保底以防初次開啟白屏閃爍）
+  let vaultFiles = $state<VaultFileEntry[]>(
+    state.vaultFolderPath && initialCavesCache[state.vaultFolderPath]
+      ? initialCavesCache[state.vaultFolderPath]
+      : []
+  );
   let recentFiles = $state<RecentFileRecord[]>(loadRecentFiles());
   let recentFolders = $state<RecentFolderRecord[]>(loadRecentFolders());
   let isScanningFolder = $state(false);
-
-  // 諸洞天萬卷全覽：跨洞天檔案快取池與背景掃描狀態
-  let cavesFileCache = $state<Record<string, VaultFileEntry[]>>({});
   let isScanningAllCaves = $state(false);
 
   // 跨平台檔案拖曳 (Drag & Drop) 狀態
@@ -306,12 +321,23 @@
       unlistenFileWatch = unlisten;
     });
 
-    // 若先前已連結過資料夾，自動重新整理檔案清單並記錄到常用資料夾
-    if (state.vaultFolderPath) {
-      recentFolders = recordFolderOpened(state.vaultFolderPath);
-      refreshVaultFiles(state.vaultFolderPath);
-      refreshAllCaves();
-    }
+    // 2.2 冷啟動秒載原生磁碟快取（突破 LocalStorage 5MB 配額限制，提供 8 萬筆以上毫秒級秒開）
+    loadCavesCache().then(({ cache, timestamp }) => {
+      if (cache && Object.keys(cache).length > 0) {
+        cavesFileCache = cache;
+        if (timestamp) lastCavesScanTime = timestamp;
+        if (state.vaultFolderPath && cache[state.vaultFolderPath] && vaultFiles.length === 0) {
+          vaultFiles = cache[state.vaultFolderPath];
+        }
+      }
+
+      // 若先前已連結過資料夾，自動重新整理檔案清單並記錄到常用資料夾
+      if (state.vaultFolderPath) {
+        recentFolders = recordFolderOpened(state.vaultFolderPath);
+        refreshVaultFiles(state.vaultFolderPath);
+        refreshAllCaves(); // 若快取在 3 分鐘有效期內直接命中，絕不重跑磁碟
+      }
+    });
 
     // 3. 從本機安全保險庫載入加密金鑰 (支援方案 3 與方案 2+1，100% 本機)
     loadSecureKeys().then((keys) => {
@@ -452,7 +478,7 @@
         recentFolders = recordFolderOpened(folder);
         saveVaultState(state, true);
         await refreshVaultFiles(folder);
-        refreshAllCaves();
+        refreshAllCaves(undefined, true);
         showToast(`📁 已連接電腦資料夾：${folder.split(/[/|\\]/).pop()}`);
       }
     } catch (err: any) {
@@ -467,7 +493,7 @@
       recentFolders = recordFolderOpened(folderPath);
       saveVaultState(state, true);
       await refreshVaultFiles(folderPath);
-      refreshAllCaves();
+      refreshAllCaves(undefined, true);
       const folderName = folderPath.split(/[/|\\]/).filter(Boolean).pop() || folderPath;
       showToast(`📂 已切換至：${folderName}`);
     } catch (err: any) {
@@ -498,9 +524,19 @@
   }
 
   /**
-   * 背景非同步掃描所有藏卷洞天（具備母子資料夾去重優化，不阻塞前端編輯）
+   * 背景非同步掃描所有藏卷洞天（具備母子資料夾去重優化、TTL 快取節流與靜默防閃爍）
+   * @param targetCavePaths 指定掃描的洞天路徑清單（若未指定則讀取所有授權洞天）
+   * @param force 是否強制略過 TTL 檢查立即重掃硬碟（手動點選重整、增刪洞天時傳入 true）
    */
-  async function refreshAllCaves(targetCavePaths?: string[]) {
+  async function refreshAllCaves(targetCavePaths?: string[], force = false) {
+    const hasExistingCache = Object.keys(cavesFileCache).length > 0;
+    const now = Date.now();
+
+    // 方案 1: TTL 節流機制。若非強制掃描、快取已有資料且尚未過期，直接沿用現有記憶體快取秒開
+    if (!force && hasExistingCache && (now - lastCavesScanTime < CAVES_CACHE_TTL_MS)) {
+      return;
+    }
+
     isScanningAllCaves = true;
     try {
       let paths = targetCavePaths;
@@ -514,7 +550,19 @@
 
       if (paths.length > 0) {
         const cacheMap = await scanMultipleVaultFolders(paths);
-        cavesFileCache = cacheMap;
+
+        // 方案 2: 靜默防閃爍。比對新舊快取是否有實質內容變動
+        const isIdentical = areCavesCacheEqual(cavesFileCache, cacheMap);
+        if (!isIdentical) {
+          cavesFileCache = cacheMap;
+          // 方案 3: 本機持久化快取（原生磁碟快取，突破 5MB 配額限制）
+          saveCavesCache(cacheMap);
+        } else {
+          // 檔案內容無變動，僅刷新持久化時間戳，不重設 Svelte 物件參照以防止畫面樹狀節點重新計算閃爍
+          saveCavesCache(cavesFileCache);
+        }
+
+        lastCavesScanTime = now;
 
         // 若當前工作目錄在快取中，同步保險更新 vaultFiles
         if (state.vaultFolderPath && cacheMap[state.vaultFolderPath]) {
@@ -1312,7 +1360,7 @@
     onTogglePinFolder={handleTogglePinFolder}
     onRemoveRecentFolder={handleRemoveRecentFolder}
     onRefreshFolder={() => state.vaultFolderPath && refreshVaultFiles(state.vaultFolderPath)}
-    onRefreshAllCaves={() => refreshAllCaves()}
+    onRefreshAllCaves={(force) => refreshAllCaves(undefined, force)}
     onOpenVaultFile={handleOpenVaultFile}
     onOpenFuzzyModal={(mode) => {
       fuzzyInitialMode = mode || 'fuzzy';

@@ -48,7 +48,7 @@
     onTogglePinFolder?: (folderPath: string) => void;
     onRemoveRecentFolder?: (folderPath: string) => void;
     onRefreshFolder: () => void;
-    onRefreshAllCaves?: () => void;
+    onRefreshAllCaves?: (force?: boolean) => void;
     onOpenVaultFile: (file: VaultFileEntry) => void;
     onOpenFuzzyModal: (initialMode?: "fuzzy" | "ai") => void;
     onClearRecent: () => void;
@@ -134,10 +134,10 @@
     caves = loadVaultCaves();
   });
 
-  // 當彈窗開啟時，觸發跨洞天背景批次更新
+  // 當彈窗開啟時，觸發跨洞天背景批次更新（受 TTL 快取過期判定保護，未過期直接沿用快取）
   $effect(() => {
     if (isOpen) {
-      onRefreshAllCaves?.();
+      onRefreshAllCaves?.(false);
     }
   });
 
@@ -600,7 +600,7 @@
       caves = removeVaultCave(cavePath);
       onRemoveRecentFolder?.(cavePath);
       if (selectedCavePath === cavePath) selectedCavePath = "";
-      onRefreshAllCaves?.();
+      onRefreshAllCaves?.(true);
     }
   }
 
@@ -795,8 +795,8 @@
               <button
                 type="button"
                 class="mini-refresh-btn"
-                onclick={() => onRefreshAllCaves?.()}
-                title="重新整理所有洞天掃描"
+                onclick={() => onRefreshAllCaves?.(true)}
+                title="強制重新整理所有洞天掃描（略過快取）"
               >
                 🔄
               </button>
@@ -834,7 +834,7 @@
                   onclick={() => {
                     caves = addVaultCave(vaultFolderPath);
                     selectedCavePath = vaultFolderPath;
-                    onRefreshAllCaves?.();
+                    onRefreshAllCaves?.(true);
                   }}
                   title="將此目錄正式闢建／收錄入藏卷洞天"
                 >

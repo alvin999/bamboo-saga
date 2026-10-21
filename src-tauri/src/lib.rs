@@ -187,13 +187,15 @@ fn normalize_path_str(p: &str) -> String {
     normalized
 }
 
-/// 判斷 child 是否為 parent 本身或是其子資料夾（具備邊界斜線防護）
-fn is_sub_or_same_path(parent_norm: &str, child_norm: &str) -> bool {
-    if parent_norm == child_norm {
+/// 判斷 child 是否為 parent 本身或是其子資料夾（具備邊界斜線防護、UTF-8 字符邊界防護與 Windows 磁碟機大小寫相容）
+fn is_sub_or_same_path(parent: &str, child: &str) -> bool {
+    let p = parent.trim_end_matches('/');
+    let c = child.trim_end_matches('/');
+    if p.eq_ignore_ascii_case(c) {
         return true;
     }
-    if child_norm.starts_with(parent_norm) {
-        let rem = &child_norm[parent_norm.len()..];
+    if c.len() > p.len() && c.is_char_boundary(p.len()) && c[..p.len()].eq_ignore_ascii_case(p) {
+        let rem = &c[p.len()..];
         if rem.starts_with('/') {
             return true;
         }
@@ -273,7 +275,13 @@ async fn scan_multiple_vault_folders(
         // 3. 實體磁碟遍歷：僅針對獨立母根目錄進行遞迴掃描 (Zero redundant disk I/O)
         let mut root_scanned_files: HashMap<String, Vec<VaultFileItem>> = HashMap::new();
         for root_norm in &independent_roots {
-            let base_path = PathBuf::from(root_norm);
+            // Windows 磁碟機根目錄（例如 "d:"）若無後綴斜線會被視為相對路徑，必須補全為 "d:/"
+            let safe_root = if root_norm.len() == 2 && root_norm.ends_with(':') {
+                format!("{}/", root_norm)
+            } else {
+                root_norm.clone()
+            };
+            let base_path = PathBuf::from(&safe_root);
             let mut results = Vec::new();
             walk_directory_internal(&base_path, &base_path, 0, 7, &mut results);
             root_scanned_files.insert(root_norm.clone(), results);
@@ -292,12 +300,14 @@ async fn scan_multiple_vault_folders(
             };
 
             let mut cave_files: Vec<VaultFileItem> = Vec::new();
+            let meta_clean = meta.norm.trim_end_matches('/');
+
             for file in all_files_in_root {
                 let file_norm = normalize_path_str(&file.path);
                 if is_sub_or_same_path(&meta.norm, &file_norm) {
                     // 計算相對於該洞天的 rel_path
-                    let rel_path = if file_norm.len() > meta.norm.len() {
-                        let sub = &file_norm[meta.norm.len()..];
+                    let rel_path = if file_norm.len() > meta_clean.len() && file_norm.is_char_boundary(meta_clean.len()) {
+                        let sub = &file_norm[meta_clean.len()..];
                         sub.trim_start_matches('/').to_string()
                     } else {
                         file.name.clone()
@@ -317,6 +327,21 @@ async fn scan_multiple_vault_folders(
 
             cave_files.sort_by(|a, b| b.modified.cmp(&a.modified));
             final_map.insert(meta.original.clone(), cave_files);
+        }
+
+        // 自動將完整掃描結果持久化至原生磁碟快取，冷啟動時免除配額限制極速秒開
+        if let Ok(cache_path) = get_caves_cache_file_path() {
+            let now = std::time::SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+            let payload = CavesCachePayload {
+                timestamp: now,
+                cache: final_map.clone(),
+            };
+            if let Ok(json) = serde_json::to_string(&payload) {
+                let _ = fs::write(&cache_path, json);
+            }
         }
 
         Ok(final_map)
@@ -1013,6 +1038,61 @@ fn purge_os_secure_keys() -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct CavesCachePayload {
+    pub timestamp: u64,
+    pub cache: HashMap<String, Vec<VaultFileItem>>,
+}
+
+fn get_caves_cache_file_path() -> Result<PathBuf, String> {
+    let local_appdata = std::env::var("LOCALAPPDATA")
+        .or_else(|_| std::env::var("APPDATA"))
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|_| "無法解析本機資料目錄路徑".to_string())?;
+
+    let root = PathBuf::from(local_appdata).join("BambooSaga");
+    let _ = fs::create_dir_all(&root);
+    Ok(root.join("caves_cache.json"))
+}
+
+#[tauri::command]
+async fn load_caves_cache() -> Result<CavesCachePayload, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = get_caves_cache_file_path()?;
+        if !path.exists() {
+            return Ok(CavesCachePayload {
+                timestamp: 0,
+                cache: HashMap::new(),
+            });
+        }
+        let data = fs::read_to_string(&path).map_err(|e| format!("讀取洞天快取檔案失敗: {}", e))?;
+        let payload: CavesCachePayload = serde_json::from_str(&data).map_err(|e| format!("解析洞天快取 JSON 失敗: {}", e))?;
+        Ok(payload)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn save_caves_cache(cache: HashMap<String, Vec<VaultFileItem>>) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = get_caves_cache_file_path()?;
+        let now = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        let payload = CavesCachePayload {
+            timestamp: now,
+            cache,
+        };
+        let json = serde_json::to_string(&payload).map_err(|e| format!("序列化洞天快取失敗: {}", e))?;
+        fs::write(&path, json).map_err(|e| format!("寫入洞天快取檔案失敗: {}", e))?;
+        Ok(now)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
@@ -1143,7 +1223,9 @@ pub fn run() {
             toggle_windows_context_menu,
             save_os_secure_keys,
             load_os_secure_keys,
-            purge_os_secure_keys
+            purge_os_secure_keys,
+            load_caves_cache,
+            save_caves_cache
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -1168,3 +1250,27 @@ pub fn run() {
         }
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_caves_scan_logic() {
+        let p_d = "D:\\";
+        let p_work = "D:\\Documents\\工單";
+        let norm_d = normalize_path_str(p_d);
+        let norm_work = normalize_path_str(p_work);
+        assert!(is_sub_or_same_path(&norm_d, &norm_work));
+
+        let file_in_work = "d:/Documents/工單/項目.md";
+        assert!(is_sub_or_same_path(&norm_d, file_in_work));
+        assert!(is_sub_or_same_path(&norm_work, file_in_work));
+
+        // 驗證包含多位元組中文字符（如「擷」）時絕不發生 byte index panic
+        let parent_utf8 = "d:/Documents/1234567"; // 19 bytes
+        let child_utf8 = "d:/Documents/123456擷取/note.md"; // 18..21 為「擷」
+        assert!(!is_sub_or_same_path(parent_utf8, child_utf8));
+    }
+}
+

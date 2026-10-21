@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { EditorState, Compartment } from '@codemirror/state';
   import type { Extension } from '@codemirror/state';
-  import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine } from '@codemirror/view';
+  import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection } from '@codemirror/view';
   import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
   import { foldGutter, foldKeymap } from '@codemirror/language';
   import { vim } from '@replit/codemirror-vim';
@@ -103,6 +103,7 @@
         foldGutter(),
         highlightActiveLineGutter(),
         highlightActiveLine(),
+        drawSelection(),
         history(),
         keymap.of([
           {

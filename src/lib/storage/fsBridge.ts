@@ -73,6 +73,39 @@ export async function scanMultipleVaultFolders(
   return {};
 }
 
+export interface CavesCachePayload {
+  timestamp: number;
+  cache: Record<string, VaultFileEntry[]>;
+}
+
+/**
+ * 載入原生磁碟持久化洞天快取（突破 LocalStorage 5MB 配額限制，支援數十萬卷秒級冷啟動）
+ */
+export async function loadCavesCache(): Promise<CavesCachePayload> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<CavesCachePayload>('load_caves_cache');
+    } catch (err) {
+      console.warn('[fsBridge] load_caves_cache failed:', err);
+    }
+  }
+  return { timestamp: 0, cache: {} };
+}
+
+/**
+ * 儲存原生磁碟持久化洞天快取
+ */
+export async function saveCavesCache(cache: Record<string, VaultFileEntry[]>): Promise<number> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<number>('save_caves_cache', { cache });
+    } catch (err) {
+      console.warn('[fsBridge] save_caves_cache failed:', err);
+    }
+  }
+  return Date.now();
+}
+
 /**
  * 讀取本機實體檔案文字
  */

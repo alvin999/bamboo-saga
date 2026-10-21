@@ -2,6 +2,86 @@ import type { VaultCave, VaultTreeNode, VaultFileEntry } from '../../types/tab';
 import { loadRecentFolders } from './recent';
 
 export const VAULT_CAVES_STORAGE_KEY = 'bamboo-saga-vault-caves';
+export const CAVES_CACHE_STORAGE_KEY = 'bamboo-saga-caves-file-cache';
+export const CAVES_LAST_SCAN_KEY = 'bamboo-saga-caves-last-scan';
+
+/**
+ * 載入持久化的跨洞天檔案快取（冷啟動時提供秒級呈現）
+ */
+export function loadCachedCavesFiles(): Record<string, VaultFileEntry[]> {
+  try {
+    const raw = localStorage.getItem(CAVES_CACHE_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('[vaultCaves] 載入持久化洞天快取失敗：', err);
+  }
+  return {};
+}
+
+/**
+ * 儲存跨洞天檔案快取至本機持久化空間（帶時間戳）
+ */
+export function saveCachedCavesFiles(cache: Record<string, VaultFileEntry[]>): void {
+  try {
+    localStorage.setItem(CAVES_CACHE_STORAGE_KEY, JSON.stringify(cache));
+    localStorage.setItem(CAVES_LAST_SCAN_KEY, Date.now().toString());
+  } catch (err) {
+    console.warn('[vaultCaves] 儲存持久化洞天快取失敗（可能超出配額）：', err);
+  }
+}
+
+/**
+ * 取得上次掃描洞天的時間戳記
+ */
+export function getLastCavesScanTime(): number {
+  try {
+    const raw = localStorage.getItem(CAVES_LAST_SCAN_KEY);
+    if (raw) {
+      const t = parseInt(raw, 10);
+      if (!isNaN(t)) return t;
+    }
+  } catch (_) {}
+  return 0;
+}
+
+/**
+ * 比對新舊洞天快取是否有實質異動（避免無謂觸發 Svelte 樹狀狀態重繪）
+ */
+export function areCavesCacheEqual(
+  oldCache: Record<string, VaultFileEntry[]>,
+  newCache: Record<string, VaultFileEntry[]>
+): boolean {
+  const oldKeys = Object.keys(oldCache);
+  const newKeys = Object.keys(newCache);
+  if (oldKeys.length !== newKeys.length) return false;
+
+  for (const key of newKeys) {
+    const oldFiles = oldCache[key];
+    const newFiles = newCache[key];
+    if (!oldFiles || !newFiles) return false;
+    if (oldFiles.length !== newFiles.length) return false;
+
+    // 比對每一項檔案的 path、modified、size
+    for (let i = 0; i < newFiles.length; i++) {
+      const nf = newFiles[i];
+      const of = oldFiles[i];
+      if (
+        nf.path !== of.path ||
+        nf.modified !== of.modified ||
+        nf.size !== of.size
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
 
 /**
  * 跨平台標準化路徑（將反斜線統一轉為標準正斜線，去除末尾重複斜線）
