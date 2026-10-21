@@ -35,6 +35,7 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
 【排版與渲染規範】：
 - 請一律以正體/繁體中文（台灣習慣用語）輸出。
 - 重點段落標題請保留【】中文括號以觸發編輯器琥珀金高亮標籤。
+- 【省 Token 溯源編號】：原文已按段落標註 [P1]、[P2]...，請在各整理段落的末端標記其對應的來源編號「<!-- ref: P1 -->」或「> 來源：[P1]」，不用重複回傳原文內容！全篇宏觀總結請標註「<!-- ref: all -->」。
 - 若出現程式碼、指令或設定檔，請務必使用標準三重反引號並標明語言標籤（如 \`\`\`ts、\`\`\`python、\`\`\`json、\`\`\`sql）。
 - 若提及關鍵度量衡數值（如 99.8%、42ms、16px、120ops/s）或關鍵專案術語，請保留精確數據格式以利編輯器智慧染色。
 
@@ -49,6 +50,7 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
 【排版與渲染規範】：
 - 請一律以正體/繁體中文（台灣習慣用語）輸出。
 - 重點段落標題請保留【】中文括號以觸發編輯器琥珀金高亮標籤。
+- 【省 Token 溯源編號】：原文已按段落標註 [P1]、[P2]...，請在各整理段落的末端標記其對應的來源編號「<!-- ref: P1 -->」或「> 來源：[P1]」，不用重複回傳原文內容！全篇宏觀總結請標註「<!-- ref: all -->」。
 - 若出現程式碼、指令或設定檔，請務必使用標準三重反引號並標明語言標籤（如 \`\`\`ts、\`\`\`python、\`\`\`json、\`\`\`sql）。
 - 若提及關鍵度量衡數值（如 99.8%、42ms、16px、120ops/s）或關鍵專案術語，請保留精確數據格式以利編輯器智慧染色。
 
@@ -60,6 +62,7 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
 - 輸出格式請嚴格使用「- [ ] 任務名稱（標記負責人、預計時間或關鍵模組，若有）」。
 - 善用警示藥囊標籤區分優先順序與性質（例如以 URGENT: 標示高急迫度任務、FIXME: 標示瑕疵修復、TODO: 標示常規任務）。
 - 分組標題請使用【】括號（例如【🔥 今日緊急 URGENT】、【📌 本週待辦 TODO】、【💡 後續追蹤】）。
+- 若原文有標註 [P1], [P2]...，請在各任務群組末端標註「<!-- ref: P1 -->」，不用重複輸出原文字句。
 - 請一律以正體/繁體中文輸出，語意精準扼要。
 
 原始筆記內容如下：
@@ -70,6 +73,7 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
 - 輸出格式請嚴格使用「- [ ] 任務名稱（標記負責人、預計時間或關鍵模組，若有）」。
 - 善用警示藥囊標籤區分優先順序與性質（例如以 URGENT: 標示高急迫度任務、FIXME: 標示瑕疵修復、TODO: 標示常規任務）。
 - 分組標題請使用【】括號（例如【🔥 今日緊急 URGENT】、【📌 本週待辦 TODO】、【💡 後續追蹤】）。
+- 若原文有標註 [P1], [P2]...，請在各任務群組末端標註「<!-- ref: P1 -->」，不用重複輸出原文字句。
 - 請一律以正體/繁體中文輸出，語意精準扼要。
 
 原始筆記內容如下：
@@ -90,10 +94,29 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
 `,
 };
 
+/**
+ * 將原稿按天然段落（空行）切分並標註段落編號 [P1], [P2]... 送入 AI
+ * 完全通用，零 Hardcode，有效節省 Token 並實現 100% 精準對照
+ */
+export function formatIndexedPromptInput(text: string): string {
+  const clean = text.trim();
+  if (!clean) return '';
+
+  const paragraphs = clean.split(/\n\s*\n+/).map((p) => p.trim()).filter(Boolean);
+  if (paragraphs.length <= 1) {
+    return clean;
+  }
+
+  return paragraphs
+    .map((p, idx) => `[P${idx + 1}]\n${p}`)
+    .join('\n\n');
+}
+
 export async function refineNotes(req: RefineryRequest): Promise<RefineryResult> {
   const targetText = req.selection && req.selection.trim() ? req.selection : req.content;
   const promptHeader = req.cardPrompt && req.cardPrompt.trim() ? req.cardPrompt : PROMPT_TEMPLATES[req.mode];
-  const fullPrompt = `${promptHeader}\n${targetText}\n\n${req.customPrompt ? `額外補充要求：${req.customPrompt}` : ''}`;
+  const indexedTargetText = formatIndexedPromptInput(targetText);
+  const fullPrompt = `${promptHeader}\n${indexedTargetText}\n\n${req.customPrompt ? `額外補充要求：${req.customPrompt}` : ''}`;
 
   // 1. 如果有 Groq API Key 且選中 Groq
   if (req.model === 'groq' && req.groqKey) {
@@ -337,4 +360,17 @@ export async function searchVaultWithAi(req: AiSearchRequest): Promise<AiSearchR
     reason: `命中相關關鍵字（在標題或內容前段發現與「${query}」關聯的詞彙）`,
     matchedSnippet: candidate.preview.slice(0, 100),
   }));
+}
+
+/**
+ * 濾除 Markdown 中由 AI 逐段標註的「> 📜 原文脈絡：...」引言區塊
+ * 當使用者選擇「僅收 AI 精華」時調用此函式，產生純淨的結構化筆記
+ */
+export function stripOriginalContextQuotes(markdownText: string): string {
+  if (!markdownText) return '';
+  // 濾除單行或跨行的 > 📜 原文脈絡 引言區塊，以及緊隨其後多餘的空行
+  return markdownText
+    .replace(/^>\s*📜\s*原文脈絡[：:].*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

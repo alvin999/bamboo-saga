@@ -3,9 +3,11 @@
   import { listen } from '@tauri-apps/api/event';
   import type { AppState, TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig, LayoutConfig, NativeRoutePayload } from './types/tab';
   import { loadVaultState, saveVaultState, INITIAL_WELCOME_CONTENT } from './lib/storage/vault';
-  import { refineNotes } from './lib/ai/refinery';
+  import { refineNotes, stripOriginalContextQuotes } from './lib/ai/refinery';
   import type { RefineryMode } from './lib/ai/refinery';
   import { computeSideBySideDiff } from './lib/editor/diffEngine';
+  import AiChunkReviewView from './components/AiChunkReviewView.svelte';
+  import { buildReviewChunks, assembleFinalNote, type ReviewChunk, type ChunkDecision } from './lib/editor/chunkReview';
 
   import PrimaryTopBar from './components/PrimaryTopBar.svelte';
   import SecondaryAlchemyBar from './components/SecondaryAlchemyBar.svelte';
@@ -68,6 +70,7 @@
   let smearEnabled = $state(true);
   let isSavingIndicator = $state(true);
   let isRefining = $state(false); // AI 提煉中的動態過場狀態
+  let reviewChunks = $state<ReviewChunk[]>([]); // 逐段審核的對照段落卡片清單
 
   // 外部檔案衝突協調狀態
   interface FileConflictInfo {
@@ -929,30 +932,59 @@
         cardPrompt,
       });
 
-      // 3. 寫入煉丹結果並切換為草稿審核狀態
-      activeTab.content = res.refinedText;
+      // 3. 建立逐段對照結構，並切換為草稿審核狀態（此時不覆蓋原稿，進入逐段卡片對照流）
+      reviewChunks = buildReviewChunks(activeTab.content, res.refinedText);
       activeTab.isAiDraft = true;
       activeTab.aiPromptSummary = `${res.summary} [${res.engineUsed}]`;
-      activeTab.language = 'markdown'; // AI 產出預設為標準 Markdown
       activeTab.lastModified = Date.now();
-      showDiffView = state.layoutConfig?.autoDiffOnAi !== false; // 預設開啟雙鑑對照模式
+      showDiffView = false;
       saveVaultState(state, true);
       triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI煉丹成果 (${res.summary})`);
-      showToast(`✨ 煉丹完成：${res.summary}`);
+      showToast(`✨ 煉丹完成：請逐段審核成果與原始手稿`);
     } finally {
       isRefining = false;
     }
   }
 
-  // Saga 補償：確認收丹
-  function handleAcceptAi() {
+  // 更新單一段落的決策狀態
+  function handleUpdateChunkDecision(chunkId: string, decision: ChunkDecision) {
+    const chunk = reviewChunks.find((c) => c.id === chunkId);
+    if (chunk) {
+      chunk.decision = decision;
+    }
+  }
+
+  // 依目前各段選擇收丹入櫃
+  function handleApplyChunkDecisions() {
     if (!activeTab) return;
+    const finalContent = assembleFinalNote(reviewChunks);
+    activeTab.content = finalContent;
     activeTab.isAiDraft = false;
     activeTab.preAiSnapshot = null;
     activeTab.aiPromptSummary = undefined;
+    activeTab.language = 'markdown';
+    activeTab.lastModified = Date.now();
+    reviewChunks = [];
     showDiffView = false;
     saveVaultState(state, true);
-    showToast('📜 丹道落成：已納入藥帖典藏！');
+    triggerAutoSnapshot(activeTab, 'post-ai', undefined, 'AI逐段審核收丹');
+    showToast('📜 丹道落成：已依審核決策收丹入櫃！');
+  }
+
+  // 一次全採納 AI
+  function handleAcceptAllAi() {
+    for (const c of reviewChunks) {
+      c.decision = 'ai';
+    }
+    handleApplyChunkDecisions();
+  }
+
+  // 一次全並存對照 (AI + 原文脈絡)
+  function handleAcceptAllBoth() {
+    for (const c of reviewChunks) {
+      c.decision = 'both';
+    }
+    handleApplyChunkDecisions();
   }
 
   // Saga 補償：一鍵退回原稿 (Rollback)
@@ -962,6 +994,7 @@
     activeTab.isAiDraft = false;
     activeTab.preAiSnapshot = null;
     activeTab.aiPromptSummary = undefined;
+    reviewChunks = [];
     showDiffView = false;
     saveVaultState(state, true);
     showToast('⏪ 原稿回滾：時空膠囊完好還原！');
@@ -1226,12 +1259,10 @@
       <AiReviewBar 
         summary={activeTab.aiPromptSummary}
         timestamp={activeTab.preAiSnapshot?.timestamp}
-        additions={aiDiffResult.additions}
-        deletions={aiDiffResult.deletions}
-        onAccept={handleAcceptAi}
+        onApplyDecisions={handleApplyChunkDecisions}
+        onAcceptAllAi={handleAcceptAllAi}
+        onAcceptAllBoth={handleAcceptAllBoth}
         onRollback={handleRollbackAi}
-        onToggleDiff={() => (showDiffView = !showDiffView)}
-        showDiff={showDiffView}
       />
     </div>
   {/if}
@@ -1261,58 +1292,15 @@
   <!-- 主編輯工作台：沉陷包浩斯禪風置中排版 (精準對齊 code.html 第 15 行) -->
   <main class="workbench-sanctuary">
     <div 
-      class="zen-canvas-frame {showDiffView ? 'is-split-view' : ''} {state.layoutConfig?.workbenchWidth === 'full' ? 'is-full-width' : ''}"
+      class="zen-canvas-frame {state.layoutConfig?.workbenchWidth === 'full' ? 'is-full-width' : ''}"
       style="--editor-font-size: {state.layoutConfig?.fontSize || '14px'};"
     >
-      {#if showDiffView && activeTab?.preAiSnapshot}
-        <!-- 雙鑑對照模式：左側舊稿草痕，右側丹成新篇 -->
-        <div class="diff-split-view ai-git-diff-container">
-          <div class="diff-split-header">
-            <div class="diff-pane-title origin-side">
-              <span class="hud-pill">RAW // SNAPSHOT</span>
-              <span class="pane-title">📜 舊稿草痕（AI 介入前快照）</span>
-            </div>
-            <div class="diff-pane-title ai-side">
-              <div class="pane-title-left">
-                <span class="hud-pill accent">SAGA // REFINED</span>
-                <span class="pane-title">✨ 丹成新篇</span>
-              </div>
-              <div class="diff-summary-badges">
-                {#if aiDiffResult.hasChanges}
-                  <span class="diff-stat-pill add">+{aiDiffResult.additions} 行</span>
-                  <span class="diff-stat-pill del">-{aiDiffResult.deletions} 行</span>
-                {:else}
-                  <span class="diff-stat-pill match">內容完全一致</span>
-                {/if}
-              </div>
-            </div>
-          </div>
-
-          <div class="ai-diff-scroll-body">
-            {#if aiDiffResult.rows.length === 0}
-              <div class="empty-diff-state">尚無比對差異</div>
-            {:else}
-              <div class="ai-diff-rows">
-                {#each aiDiffResult.rows as row, idx (idx)}
-                  <div class="ai-diff-row">
-                    <!-- 左欄：原始手稿 (舊版) -->
-                    <div class="ai-diff-cell left {row.left.type}">
-                      <div class="col-num">{row.left.lineNumber !== undefined ? row.left.lineNumber : ''}</div>
-                      <div class="col-indicator">{row.left.type === 'removed' ? '-' : ' '}</div>
-                      <pre class="col-text">{row.left.text || ' '}</pre>
-                    </div>
-                    <!-- 右欄：AI 提煉成果 (新版) -->
-                    <div class="ai-diff-cell right {row.right.type}">
-                      <div class="col-num">{row.right.lineNumber !== undefined ? row.right.lineNumber : ''}</div>
-                      <div class="col-indicator">{row.right.type === 'added' ? '+' : ' '}</div>
-                      <pre class="col-text">{row.right.text || ' '}</pre>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </div>
+      {#if activeTab?.isAiDraft && reviewChunks.length > 0}
+        <!-- 逐段對照審核模式：清晰卡片流，原文與 AI 提煉一目了然 -->
+        <AiChunkReviewView 
+          chunks={reviewChunks} 
+          onUpdateDecision={handleUpdateChunkDecision} 
+        />
       {:else if activeTab}
         <!-- 單一全功能沉浸編輯模式：置中書卷感、精確包浩斯邊線 -->
         <div class="zen-editor-pod">
@@ -1637,194 +1625,6 @@
 
   .editor-wrapper {
     height: 100%;
-  }
-
-  /* 煉丹雙欄 Git Diff 模式樣式 */
-  .ai-git-diff-container {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    background: #18191a;
-    overflow: hidden;
-  }
-
-  .diff-split-header {
-    display: flex;
-    height: 36px;
-    background: #141617;
-    border-bottom: 1px solid #282828;
-    user-select: none;
-    flex-shrink: 0;
-  }
-
-  .diff-pane-title {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 16px;
-    font-size: 11.5px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .diff-pane-title.origin-side {
-    border-right: 1px solid #282828;
-    color: #928374;
-  }
-
-  .diff-pane-title.ai-side {
-    justify-content: space-between;
-    color: #d49b35;
-  }
-
-  .pane-title-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .diff-summary-badges {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .diff-stat-pill {
-    padding: 2px 7px;
-    border-radius: 3px;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: monospace;
-  }
-
-  .diff-stat-pill.add {
-    background: rgba(184, 187, 38, 0.18);
-    color: #b8bb26;
-    border: 1px solid rgba(184, 187, 38, 0.35);
-  }
-
-  .diff-stat-pill.del {
-    background: rgba(251, 73, 52, 0.18);
-    color: #fb4934;
-    border: 1px solid rgba(251, 73, 52, 0.35);
-  }
-
-  .diff-stat-pill.match {
-    background: rgba(131, 165, 152, 0.18);
-    color: #83a598;
-  }
-
-  .ai-diff-scroll-body {
-    flex: 1;
-    overflow: auto;
-    background: #18191a;
-    font-family: 'Consolas', 'Fira Code', 'JetBrains Mono', monospace;
-    font-size: 13px;
-    line-height: 22px;
-  }
-
-  .ai-diff-rows {
-    display: flex;
-    flex-direction: column;
-    min-width: 100%;
-    width: max-content;
-  }
-
-  .ai-diff-row {
-    display: flex;
-    min-height: 22px;
-    width: 100%;
-    transition: background 0.05s;
-  }
-
-  .ai-diff-row:hover {
-    background: rgba(255, 255, 255, 0.02);
-  }
-
-  .ai-diff-cell {
-    flex: 1;
-    min-width: 420px;
-    display: flex;
-    position: relative;
-    box-sizing: border-box;
-  }
-
-  .ai-diff-cell.left {
-    border-right: 1px solid #282828;
-  }
-
-  .ai-diff-cell.added {
-    background: rgba(184, 187, 38, 0.14);
-  }
-
-  .ai-diff-cell.removed {
-    background: rgba(251, 73, 52, 0.14);
-  }
-
-  .ai-diff-cell.empty {
-    background: rgba(0, 0, 0, 0.22);
-    user-select: none;
-  }
-
-  .ai-diff-cell .col-num {
-    width: 46px;
-    min-width: 46px;
-    text-align: right;
-    padding-right: 10px;
-    color: #504945;
-    font-size: 11px;
-    user-select: none;
-    box-sizing: border-box;
-    border-right: 1px solid #242627;
-  }
-
-  .ai-diff-cell .col-indicator {
-    width: 22px;
-    min-width: 22px;
-    text-align: center;
-    user-select: none;
-    font-weight: bold;
-    font-size: 12px;
-  }
-
-  .ai-diff-cell.added .col-indicator {
-    color: #b8bb26;
-  }
-
-  .ai-diff-cell.removed .col-indicator {
-    color: #fb4934;
-  }
-
-  .ai-diff-cell.unchanged .col-indicator {
-    color: transparent;
-  }
-
-  .ai-diff-cell .col-text {
-    flex: 1;
-    margin: 0;
-    padding: 0 12px;
-    white-space: pre;
-    color: #ebdbb2;
-    tab-size: 2;
-  }
-
-  .ai-diff-cell.added .col-text {
-    color: #b8bb26;
-  }
-
-  .ai-diff-cell.removed .col-text {
-    color: #fb4934;
-    opacity: 0.9;
-  }
-
-  .empty-diff-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #7c6f64;
-    font-size: 13px;
   }
 
   /* 浮動 Toast */
