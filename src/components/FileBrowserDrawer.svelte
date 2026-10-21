@@ -108,6 +108,7 @@
   // 5. 鍵盤導航與心法說明狀態
   let isHelpModalOpen = $state(false);
   let expandedPaths = $state<Set<string>>(new Set());
+  let initializedRootPaths = new Set<string>();
   let focusedNodePath = $state<string>("");
   let yankToast = $state<string | null>(null);
   let yankToastTimer: number | null = null;
@@ -206,16 +207,23 @@
     return results;
   });
 
-  // 自動展開各洞天根目錄
+  // 自動展開各洞天根目錄（初次探索時預設展開）
   $effect(() => {
     if (fullTreeNodes.length > 0) {
+      let hasNewRoots = false;
       const nextSet = new Set(expandedPaths);
       for (const root of fullTreeNodes) {
-        if (!nextSet.has(root.path)) {
-          nextSet.add(root.path);
+        if (!initializedRootPaths.has(root.path)) {
+          initializedRootPaths.add(root.path);
+          if (!nextSet.has(root.path)) {
+            nextSet.add(root.path);
+            hasNewRoots = true;
+          }
         }
       }
-      expandedPaths = nextSet;
+      if (hasNewRoots) {
+        expandedPaths = nextSet;
+      }
     }
   });
 
@@ -541,6 +549,7 @@
   // 點選樹狀節點（觸發右欄預覽）
   async function handleSelectNode(node: VaultTreeNode) {
     selectedNode = node;
+    focusedNodePath = node.path;
     if (!node.isFolder) {
       // 載入檔案內容
       isLoadingPreview = true;
@@ -555,6 +564,15 @@
     } else {
       previewFileContent = "";
     }
+  }
+
+  // 深入導航至子資料夾（展開並選取）
+  function handleDrillDownFolder(folderNode: VaultTreeNode) {
+    const nextSet = new Set(expandedPaths);
+    nextSet.add(folderNode.path);
+    expandedPaths = nextSet;
+    handleSelectNode(folderNode);
+    scrollToNode(folderNode.path);
   }
 
   // 開啟節點入編輯器分頁
@@ -1192,16 +1210,114 @@
                   selectedNode.preview ||
                   "(此卷軸為空白)"}</pre>
             {:else}
-              <div class="folder-preview-hint">
-                <p>此節點為洞天子閣資料夾。</p>
-                <p>您可點選下方動作將當前藥帖直接封存入此目錄。</p>
+              <!-- 子閣資料夾瀏覽檢視 (Sub-folder Explorer) -->
+              {@const parentNode = findParentNode(selectedNode, fullTreeNodes)}
+              <div class="folder-preview-container">
+                {#if parentNode}
+                  <button
+                    type="button"
+                    class="folder-nav-parent-btn"
+                    onclick={() => handleDrillDownFolder(parentNode)}
+                    title="返回上一層：{parentNode.name}"
+                  >
+                    <span class="nav-arrow">⮥</span>
+                    <span class="nav-label">返回上一層 ({parentNode.name})</span>
+                  </button>
+                {/if}
+
+                {#if selectedNode.children && selectedNode.children.length > 0}
+                  <div class="folder-children-list">
+                    <div class="folder-children-header">
+                      <span>子閣內藏卷軸與目錄 ({selectedNode.children.length})</span>
+                    </div>
+                    {#each selectedNode.children as child (child.id || child.path)}
+                      {@const isOpened = tabs.some((t) => t.filePath === child.path)}
+                      <div
+                        class="folder-child-item {child.isFolder ? 'is-folder' : 'is-file'}"
+                        onclick={() => {
+                          if (child.isFolder) {
+                            handleDrillDownFolder(child);
+                          } else {
+                            handleSelectNode(child);
+                          }
+                        }}
+                        ondblclick={() => {
+                          if (!child.isFolder) {
+                            handleOpenNode(child);
+                          } else {
+                            handleDrillDownFolder(child);
+                          }
+                        }}
+                        role="button"
+                        tabindex="0"
+                        onkeydown={(e) => {
+                          if (e.key === "Enter") {
+                            if (child.isFolder) {
+                              handleDrillDownFolder(child);
+                            } else {
+                              handleOpenNode(child);
+                            }
+                          }
+                        }}
+                      >
+                        <span class="child-icon">{child.isFolder ? "📁" : (child.extension === "md" ? "📝" : "📄")}</span>
+                        <div class="child-meta">
+                          <div class="child-title-row">
+                            <span class="child-name" title={child.name}>{child.name}</span>
+                            {#if isOpened}<span class="badge-opened">已開</span>{/if}
+                          </div>
+                          <span class="child-desc">
+                            {#if child.isFolder}
+                              子閣目錄 · 包含 {child.children?.length || 0} 個項目
+                            {:else}
+                              卷軸筆記 · {((child.size || 0) / 1024).toFixed(1)} KB
+                            {/if}
+                          </span>
+                        </div>
+                        <div class="child-actions">
+                          {#if child.isFolder}
+                            <button
+                              type="button"
+                              class="child-action-btn enter-btn"
+                              title="進入此子閣"
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                handleDrillDownFolder(child);
+                              }}
+                            >
+                              進入 ➔
+                            </button>
+                          {:else}
+                            <button
+                              type="button"
+                              class="child-action-btn open-btn"
+                              title="立即載入分頁"
+                              onclick={(e) => {
+                                e.stopPropagation();
+                                handleOpenNode(child);
+                              }}
+                            >
+                              開卷
+                            </button>
+                          {/if}
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <div class="folder-empty-hint">
+                    <span class="empty-icon">📂</span>
+                    <p class="empty-title">此子閣目前為空目錄</p>
+                    <p class="empty-desc">此資料夾內尚無任何卷軸筆記或子目錄。</p>
+                  </div>
+                {/if}
               </div>
             {/if}
           </div>
 
-          <!-- 底部動作列 -->
-          <div class="preview-action-bar">
-            {#if !selectedNode.isFolder}
+          <!-- 底部動作列（僅卷軸檔案需開卷載入按鈕） -->
+          {#if !selectedNode.isFolder}
+            <div class="preview-action-bar">
               <button
                 type="button"
                 class="action-btn-main"
@@ -1209,16 +1325,8 @@
               >
                 📜 立即開卷載入
               </button>
-            {:else}
-              <button
-                type="button"
-                class="action-btn-main"
-                onclick={() => handleQuickSaveToNode(selectedNode!)}
-              >
-                📥 將當前藥帖歸入此閣
-              </button>
-            {/if}
-          </div>
+            </div>
+          {/if}
         {:else}
           <!-- 尚未選取任何節點時的歡迎指引 -->
           <div class="preview-empty-state">
@@ -2327,11 +2435,162 @@
     word-break: break-all;
   }
 
-  .folder-preview-hint {
-    padding: 24px 8px;
-    color: #a89984;
+  /* 子閣資料夾瀏覽樣式 */
+  .folder-preview-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+  }
+
+  .folder-nav-parent-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #202224;
+    border: 1px dashed #504945;
+    color: #ebdbb2;
+    padding: 7px 12px;
+    border-radius: 6px;
     font-size: 12px;
-    line-height: 1.6;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+  }
+
+  .folder-nav-parent-btn:hover {
+    background: #2d3032;
+    border-color: #fabd2f;
+    color: #fabd2f;
+  }
+
+  .folder-nav-parent-btn .nav-arrow {
+    font-size: 13px;
+    color: #fabd2f;
+  }
+
+  .folder-children-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .folder-children-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: #928374;
+    padding: 2px 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .folder-child-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #202224;
+    border: 1px solid #2d3032;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .folder-child-item:hover {
+    background: #2a2c2e;
+    border-color: #504945;
+    transform: translateX(2px);
+  }
+
+  .folder-child-item.is-folder:hover {
+    border-color: #fabd2f;
+  }
+
+  .folder-child-item .child-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .folder-child-item .child-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .folder-child-item .child-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .folder-child-item .child-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: #ebdbb2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .folder-child-item .child-desc {
+    font-size: 11px;
+    color: #928374;
+  }
+
+  .folder-child-item .child-actions {
+    flex-shrink: 0;
+  }
+
+  .child-action-btn {
+    background: #32302f;
+    border: 1px solid #504945;
+    color: #ebdbb2;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .child-action-btn:hover {
+    background: #fabd2f;
+    color: #1d2021;
+    border-color: #fabd2f;
+  }
+
+  .child-action-btn.enter-btn:hover {
+    background: #83a598;
+    color: #1d2021;
+    border-color: #83a598;
+  }
+
+  .folder-empty-hint {
+    padding: 32px 16px;
+    text-align: center;
+    color: #928374;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .folder-empty-hint .empty-icon {
+    font-size: 32px;
+    opacity: 0.6;
+  }
+
+  .folder-empty-hint .empty-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #d5c4a1;
+    margin: 0;
+  }
+
+  .folder-empty-hint .empty-desc {
+    font-size: 12px;
+    margin: 0;
+    line-height: 1.5;
   }
 
   .preview-action-bar {

@@ -42,7 +42,7 @@
     if (searchQuery.trim().length > 0) return true;
     if (expandedPaths.has(node.path)) return true;
     if (isAiTarget) return true;
-    return depth === 0;
+    return false;
   });
 
   const isOpened = $derived(!node.isFolder && openedFilePaths.includes(node.path));
@@ -56,11 +56,16 @@
 
   function handleNodeClick() {
     onSelectNode(node);
+    if (node.isFolder) {
+      onToggleFolder?.(node);
+    }
   }
 
   function handleNodeDblClick() {
     if (!node.isFolder) {
       onOpenNode(node);
+    } else {
+      onToggleFolder?.(node);
     }
   }
 
@@ -137,19 +142,7 @@
 
     <!-- 浮動快速操作按鈕 -->
     <div class="node-hover-actions">
-      {#if node.isFolder && onQuickSaveToNode}
-        <button
-          type="button"
-          class="quick-action-btn"
-          title="將當前藥帖存入此資料夾"
-          onclick={(e) => {
-            e.stopPropagation();
-            onQuickSaveToNode(node);
-          }}
-        >
-          📥 存入
-        </button>
-      {:else if !node.isFolder}
+      {#if !node.isFolder}
         <button
           type="button"
           class="quick-action-btn"
