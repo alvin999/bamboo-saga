@@ -1,10 +1,10 @@
-export type RefineryMode = 
-  | 'structure' 
-  | 'actions' 
-  | 'explain' 
-  | 'format' 
-  | 'organize' 
-  | 'action_items' 
+export type RefineryMode =
+  | 'structure'
+  | 'actions'
+  | 'explain'
+  | 'format'
+  | 'organize'
+  | 'action_items'
   | 'code_refactor';
 
 export interface RefineryRequest {
@@ -26,10 +26,10 @@ export interface RefineryResult {
 }
 
 const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
-  structure: `你是一位敏銳且擅長知識提煉的結構化筆記師。請分析以下文字或速記片段，判斷其核心情境（如技術架構、系統排錯、決策會議、研究讀書或靈感草稿），並重整為層次分明、版面優雅的 Markdown 結構：
+  structure: `你是一位敏銳且擅長知識提煉的結構化筆記師。請分析以下文字或速記片段，判斷其核心情境，並重整為層次分明、版面優雅的 Markdown 結構：
 
 1. 【🎯 核心概要】：以精煉 1-3 句話提煉精髓或最高決策
-2. 【📐 關鍵內涵】：依據內容屬性，自行劃分 2-4 個邏輯段落（例如：架構重點、問題根因、技術規格或論點分析）
+2. 【📐 關鍵內涵】：依據內容屬性，自行劃分 2-4 個邏輯段落
 3. 【⚡ 待辦與推進項目 (Action Items)】：若內容包含待辦或下一步，請以 Markdown 清單「- [ ]」輸出；若無明確行動，則列出 1-3 點潛在延伸評估
 
 【排版與渲染規範】：
@@ -40,10 +40,10 @@ const PROMPT_TEMPLATES: Record<RefineryMode, string> = {
 
 原始內容如下：
 `,
-  organize: `你是一位敏銳且擅長知識提煉的結構化筆記師。請分析以下文字或速記片段，判斷其核心情境（如技術架構、系統排錯、決策會議、研究讀書或靈感草稿），並重整為層次分明、版面優雅的 Markdown 結構：
+  organize: `你是一位敏銳且擅長知識提煉的結構化筆記師。請分析以下文字或速記片段，判斷其核心情境，並重整為層次分明、版面優雅的 Markdown 結構：
 
 1. 【🎯 核心概要】：以精煉 1-3 句話提煉精髓或最高決策
-2. 【📐 關鍵內涵】：依據內容屬性，自行劃分 2-4 個邏輯段落（例如：架構重點、問題根因、技術規格或論點分析）
+2. 【📐 關鍵內涵】：依據內容屬性，自行劃分 2-4 個邏輯段落
 3. 【⚡ 待辦與推進項目 (Action Items)】：若內容包含待辦或下一步，請以 Markdown 清單「- [ ]」輸出；若無明確行動，則列出 1-3 點潛在延伸評估
 
 【排版與渲染規範】：

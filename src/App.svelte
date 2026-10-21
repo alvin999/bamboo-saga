@@ -1056,6 +1056,43 @@
     showToast('📐 工作台版面與檢視偏好已成功儲存！');
   }
 
+  function handleToggleSmear() {
+    smearEnabled = !smearEnabled;
+    if (state.layoutConfig) {
+      state.layoutConfig.smearCursor = smearEnabled;
+    } else {
+      state.layoutConfig = {
+        theme: 'bauhaus-dark',
+        workbenchWidth: 'zen',
+        fontSize: '14px',
+        lineHeight: 1.6,
+        fontFamily: 'JetBrains Mono',
+        smearCursor: smearEnabled,
+      };
+    }
+    saveVaultState(state, true);
+    showToast(`🖌️ 墨韻殘影特效已${smearEnabled ? '開啟' : '關閉'}`);
+  }
+
+  function handleToggleWorkbenchWidth() {
+    const current = state.layoutConfig?.workbenchWidth || 'zen';
+    const nextWidth = current === 'full' ? 'zen' : 'full';
+    if (state.layoutConfig) {
+      state.layoutConfig.workbenchWidth = nextWidth;
+    } else {
+      state.layoutConfig = {
+        theme: 'bauhaus-dark',
+        workbenchWidth: nextWidth,
+        fontSize: '14px',
+        lineHeight: 1.6,
+        fontFamily: 'JetBrains Mono',
+        smearCursor: smearEnabled,
+      };
+    }
+    saveVaultState(state, true);
+    showToast(`📐 工作台畫布已切換為：${nextWidth === 'full' ? '全螢幕滿版 (FULL)' : '禪風置中 (ZEN)'}`);
+  }
+
   function handleSaveOneDrivePreference(path: string, auto: boolean, intervalMinutes?: number, enablePeriodic?: boolean) {
     state.selectedOneDrivePath = path;
     state.autoOneDriveBackup = auto;
@@ -1137,9 +1174,13 @@
   <!-- 包浩斯形上學極簡微點陣 (24px x 24px) -->
   <div class="metaphysical-grid"></div>
 
-  <!-- 主頂欄 (Primary Constructivist Command Bar)：56px 高度、檔案瀏覽功能、主頂分頁與意圖煉丹樞紐 -->
+  <!-- 主頂欄 (Primary Constructivist Command Bar)：56px 高度、懸停快捷中樞、檔案瀏覽功能、主頂分頁與意圖煉丹樞紐 -->
   <PrimaryTopBar 
     bind:vimMode={state.vimMode}
+    {smearEnabled}
+    workbenchWidth={state.layoutConfig?.workbenchWidth || 'zen'}
+    autoOneDriveBackup={state.autoOneDriveBackup}
+    selectedOneDrivePath={state.selectedOneDrivePath}
     tabs={state.tabs}
     activeTabId={state.activeTabId}
     alchemyCards={state.alchemyCards}
@@ -1152,6 +1193,20 @@
     onMoveTabDeck={handleMoveTabDeck}
     onReorderTabs={handleReorderTabs}
     onToggleFileBrowser={() => (isFileBrowserOpen = !isFileBrowserOpen)}
+    onManualSave={handleManualSave}
+    onOpenFuzzy={() => {
+      fuzzyInitialMode = 'fuzzy';
+      isFuzzyModalOpen = true;
+    }}
+    onSaveAs={handleSaveAs}
+    onOpenHistory={() => (isLocalHistoryOpen = true)}
+    onOpenBackup={() => {
+      aiModalTab = 'onedrive';
+      isAiModalOpen = true;
+    }}
+    onToggleVim={handleToggleVimMode}
+    onToggleSmear={handleToggleSmear}
+    onToggleWorkbenchWidth={handleToggleWorkbenchWidth}
     onOpenSettings={() => {
       aiModalTab = 'keys';
       isAiModalOpen = true;
