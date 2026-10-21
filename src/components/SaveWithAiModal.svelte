@@ -44,6 +44,8 @@
   let recommendation = $state<SaveRecommendationResult | null>(null);
   let hasUserEditedName = $state(false);
   let hasUserEditedFolder = $state(false);
+  let rejectedFilenames = $state<string[]>([]);
+  let rejectedFolders = $state<string[]>([]);
 
   let inputEl = $state<HTMLInputElement | null>(null);
 
@@ -53,6 +55,8 @@
       hasUserEditedName = false;
       hasUserEditedFolder = false;
       isSaving = false;
+      rejectedFilenames = [];
+      rejectedFolders = [];
 
       // 1. 立即以本地啟發式預設檔名與路徑（零延遲，使用者可立即敲 Enter 存檔）
       const heuristic = generateHeuristicRecommendation(tab.content, tab.language, recentFolders);
@@ -76,11 +80,33 @@
       });
 
       // 2. 啟動背景 AI 推薦（若有金鑰或可從保險庫異步讀取）
-      fetchAiRecommendation();
+      fetchAiRecommendation(false);
     }
   });
 
-  async function fetchAiRecommendation() {
+  async function handleRetryRecommendation() {
+    if (isAnalyzing || !tab) return;
+
+    // 將前次建議的主檔名、備選檔名與當前輸入欄位納入排除清單
+    if (recommendation) {
+      const candidates = [
+        recommendation.recommendedFilename,
+        ...(recommendation.alternativeFilenames || []),
+        targetFileName.trim()
+      ].filter(Boolean);
+      rejectedFilenames = Array.from(new Set([...rejectedFilenames, ...candidates]));
+
+      if (recommendation.recommendedFolder) {
+        rejectedFolders = Array.from(new Set([...rejectedFolders, recommendation.recommendedFolder]));
+      }
+    }
+
+    // 重新分析時重置編輯標記，使全新 AI 建議能直接套入
+    hasUserEditedName = false;
+    await fetchAiRecommendation(true);
+  }
+
+  async function fetchAiRecommendation(isRetry = false) {
     if (!tab) return;
 
     let activeGroq = groqKey;
@@ -117,6 +143,9 @@
         modelId: activeModelId,
         groqKey: activeGroq,
         geminiKey: activeGemini,
+        excludeFilenames: rejectedFilenames,
+        excludeFolders: rejectedFolders,
+        isRetry,
       });
 
       recommendation = res;
@@ -245,9 +274,9 @@
             <button
               type="button"
               class="btn-retry-analysis"
-              onclick={fetchAiRecommendation}
+              onclick={handleRetryRecommendation}
               disabled={isAnalyzing}
-              title="重新呼叫 AI 全域分析命名與落點目錄"
+              title="排除先前建議，重新呼叫 AI 提煉新命名與落點目錄"
             >
               <RefreshCw size={13} class={isAnalyzing ? 'spin' : ''} />
               <span>{isAnalyzing ? '分析中...' : '重新 AI 分析'}</span>

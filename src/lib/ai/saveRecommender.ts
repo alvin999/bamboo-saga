@@ -10,6 +10,9 @@ export interface SaveRecommendationRequest {
   modelId?: string;
   groqKey?: string;
   geminiKey?: string;
+  excludeFilenames?: string[]; // 使用者不滿意或略過的歷史建議檔名
+  excludeFolders?: string[];   // 略過的歷史推薦目錄
+  isRetry?: boolean;          // 是否為重新分析模式
 }
 
 export interface SaveRecommendationResult {
@@ -161,13 +164,21 @@ export async function recommendSaveLocation(
     ? skeletonList.map((f, i) => `[${i + 1}] ${f.replace(/\\+/g, '/')}`).join('\n')
     : '(無本機目錄清單，請依筆記主題推論合理的專案或工作區路徑)';
 
+  const excludeFilenamesText = req.excludeFilenames && req.excludeFilenames.length > 0
+    ? `\n【排除清單：使用者已看過但不滿意的先前檔名（請絕對避免重複或僅做微幅變換，必須從不同語意角度或維度重新命名）】\n${req.excludeFilenames.map((f) => `- ${f}`).join('\n')}\n`
+    : '';
+
+  const excludeFoldersText = req.excludeFolders && req.excludeFolders.length > 0
+    ? `\n【排除清單：使用者不考慮的存放路徑（請改選其他合適的子目錄）】\n${req.excludeFolders.map((f) => `- ${f}`).join('\n')}\n`
+    : '';
+
   const systemPrompt = `你是一位高階知識管理架構師。請分析使用者的筆記或程式碼內容，自動推論其核心屬性、語意檔名與電腦中最適合的本機存放路徑。
 今天的日期是：${today}。
 偏好副檔名：.${ext}。
 
 【使用者電腦中真實存在的本機洞天與資料夾路徑清單】
 ${skeletonText}
-
+${excludeFilenamesText}${excludeFoldersText}
 【命名規範】
 1. 格式一律採用：[類型] - 語意檔名.${ext}
 2. 語意清晰、好搜尋優先。
@@ -210,6 +221,9 @@ ${skeletonText}
   const groqModel = sanitizeModelId('groq', req.modelId);
   const geminiModel = sanitizeModelId('gemini', req.modelId);
 
+  // 初次推薦保持 0.2（嚴謹符合規範）；重新分析或有排除項時提高到 0.7（激發更多語意創意）
+  const temperature = req.isRetry || (req.excludeFilenames && req.excludeFilenames.length > 0) ? 0.7 : 0.2;
+
   let lastApiError: string | null = null;
 
   // 封裝 Groq 呼叫
@@ -228,7 +242,7 @@ ${skeletonText}
             { role: 'system', content: systemPrompt },
             { role: 'user', content: `以下為筆記前段內容：\n${snippet}` },
           ],
-          temperature: 0.2,
+          temperature,
         }),
       });
 
@@ -276,7 +290,7 @@ ${skeletonText}
         body: JSON.stringify({
           contents: [{ parts: [{ text: `${systemPrompt}\n\n內容如下：\n${snippet}` }] }],
           generationConfig: {
-            temperature: 0.2,
+            temperature,
           },
         }),
       });
