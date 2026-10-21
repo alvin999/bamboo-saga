@@ -920,7 +920,7 @@
       };
       triggerAutoSnapshot(activeTab, 'pre-ai', undefined, `AI煉丹前 (${mode})`);
 
-      // 2. 呼叫推論引擎 (使用動態熱重載指定之模型)
+      // 2. 呼叫推論引擎 (使用動態熱重載指定之模型，支援超長文本自動 Map-Reduce 分段)
       const res = await refineNotes({
         model: state.selectedAiModel,
         modelId: state.selectedAiModelId,
@@ -930,6 +930,9 @@
         content: activeTab.content,
         customPrompt,
         cardPrompt,
+        onProgress: (p) => {
+          showToast(p.message);
+        },
       });
 
       // 3. 建立逐段對照結構，並切換為草稿審核狀態（此時不覆蓋原稿，進入逐段卡片對照流）

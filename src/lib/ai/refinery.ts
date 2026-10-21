@@ -7,6 +7,12 @@ export type RefineryMode =
   | 'action_items'
   | 'code_refactor';
 
+import {
+  isChunkingNeeded,
+  executeChunkedRefineryPipeline,
+  type PipelineProgress,
+} from './chunkPipeline';
+
 export interface RefineryRequest {
   model: 'groq' | 'gemini';
   modelId?: string;
@@ -17,6 +23,8 @@ export interface RefineryRequest {
   selection?: string;
   customPrompt?: string;
   cardPrompt?: string;
+  onProgress?: (progress: PipelineProgress) => void;
+  signal?: AbortSignal;
 }
 
 export interface RefineryResult {
@@ -115,6 +123,18 @@ export function formatIndexedPromptInput(text: string): string {
 export async function refineNotes(req: RefineryRequest): Promise<RefineryResult> {
   const targetText = req.selection && req.selection.trim() ? req.selection : req.content;
   const promptHeader = req.cardPrompt && req.cardPrompt.trim() ? req.cardPrompt : PROMPT_TEMPLATES[req.mode];
+
+  // 若原稿內容龐大（超出門檻，如預設 3,500 字），自動分流進入 Map-Reduce 分段管線處理
+  if (isChunkingNeeded(targetText)) {
+    return await executeChunkedRefineryPipeline(
+      req,
+      promptHeader,
+      undefined,
+      req.onProgress,
+      req.signal
+    );
+  }
+
   const indexedTargetText = formatIndexedPromptInput(targetText);
   const fullPrompt = `${promptHeader}\n${indexedTargetText}\n\n${req.customPrompt ? `額外補充要求：${req.customPrompt}` : ''}`;
 
