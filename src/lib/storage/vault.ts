@@ -89,7 +89,7 @@ export function getDefaultAlchemyCards(): Record<string, AlchemyCardConfig> {
   return JSON.parse(JSON.stringify(DEFAULT_ALCHEMY_CARDS));
 }
 
-export const INITIAL_WELCOME_CONTENT = `# 🎋 廣零散 (bamboo-saga)
+export const INITIAL_WELCOME_CONTENT = `# ![廣零散](/bamboo.svg) 廣零散 (bamboo-saga)
 > 「廣納零散思緒，一帖 AI 煉丹。」
 
 歡迎踏入專為工程行者與修思筆耕打造的隨手丹室。
@@ -141,7 +141,19 @@ export const INITIAL_WELCOME_CONTENT = `# 🎋 廣零散 (bamboo-saga)
 
 ---
 
-### 6. ⚡ 丹方煉製進度 (Markdown Alchemy Checklist)
+### 6. 🖼️ 丹青靈圖行內即顯 (Markdown Image Live Preview)
+<!-- 
+  💡 圖片插入心法：
+  在筆記中寫入標準 Markdown 圖片語法，即可原地即時顯影；游標移入時自動展開原始碼方便修改：
+  - 語法：![圖片說明](圖片網址或本機路徑)
+  - 範例：![丹道靈竹](/bamboo.svg)
+-->
+- 支援專案圖資、網路圖片或截圖貼上：
+![丹道靈竹](/bamboo.svg)
+
+---
+
+### 7. ⚡ 丹方煉製進度 (Markdown Alchemy Checklist)
 - [x] 神識不滅秒存（無須 Ctrl+S 施法，字字入骨，縱遭天劫重啟亦不滅）
 - [x] 洞悉純文字五行智慧染色異象
 - [ ] 催動頂部「✨ 煉丹」陣眼，一鍵將凌亂藥渣提煉為純陽極品丹方

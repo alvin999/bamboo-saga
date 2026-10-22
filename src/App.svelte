@@ -1366,7 +1366,7 @@
   {#if isDraggingOver}
     <div class="drag-drop-overlay">
       <div class="drag-drop-card">
-        <span class="drop-icon">🎋</span>
+        <img src="/bamboo.svg" alt="Bamboo" class="drop-bamboo-icon" />
         <div class="drop-title">納入新簡</div>
         <div class="drop-desc">鬆開滑鼠將檔案直接納入素簡工作台</div>
       </div>
@@ -1898,9 +1898,12 @@
     transform: scale(1.02);
   }
 
-  .drop-icon {
-    font-size: 42px;
+  .drop-bamboo-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
     filter: drop-shadow(0 4px 12px rgba(212, 155, 53, 0.4));
+    display: block;
   }
 
   .drop-title {

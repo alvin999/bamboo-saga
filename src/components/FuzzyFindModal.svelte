@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
+  import { Scroll, Clock, FileText, Zap, Sparkles } from 'lucide-svelte';
   import type { TabItem, VaultFileEntry, RecentFileRecord } from '../types/tab';
   import { buildSearchIndex, DEMO_ACTION_ITEM, type UnifiedSearchItem } from '../lib/search/fuzzy';
   import { searchVaultWithAi, type AiSearchResultItem, type AiSearchCandidate } from '../lib/ai/refinery';
@@ -213,7 +214,13 @@
     <!-- 頂部切換與搜尋輸入 -->
     <div class="fuzzy-header">
       <div class="search-input-wrapper">
-        <span class="search-icon">{mode === 'fuzzy' ? '⚡' : '✨'}</span>
+        <span class="search-icon">
+          {#if mode === 'fuzzy'}
+            <Zap size={16} />
+          {:else}
+            <Sparkles size={16} />
+          {/if}
+        </span>
         <input
           bind:this={searchInputEl}
           type="text"
@@ -234,14 +241,16 @@
           onclick={() => { mode = 'fuzzy'; }}
           title="Fuzzy Find 模糊匹配"
         >
-          <span>⚡ 模糊跳轉</span>
+          <Zap size={13} />
+          <span>模糊跳轉</span>
         </button>
         <button
           class="toggle-btn {mode === 'ai' ? 'active' : ''}"
           onclick={() => { mode = 'ai'; if (searchQuery) runAiSearch(); }}
           title="AI 對話智慧尋卷"
         >
-          <span>✨ AI 助查</span>
+          <Sparkles size={13} />
+          <span>AI 助查</span>
         </button>
       </div>
     </div>
@@ -266,13 +275,13 @@
             >
               <div class="item-icon">
                 {#if item.type === 'action'}
-                  🎋
+                  <img src="/bamboo.svg" alt="示範手稿" class="action-bamboo-icon" />
                 {:else if item.type === 'tab'}
-                  📜
+                  <Scroll size={17} class="type-icon tab-icon" />
                 {:else if item.type === 'recent'}
-                  🕒
+                  <Clock size={17} class="type-icon recent-icon" />
                 {:else}
-                  📄
+                  <FileText size={17} class="type-icon file-icon" />
                 {/if}
               </div>
 
@@ -361,7 +370,9 @@
           </div>
         {:else}
           <div class="ai-empty-prompt">
-            <div class="empty-icon">🎋</div>
+            <div class="empty-icon">
+              <img src="/bamboo.svg" alt="Bamboo" class="empty-bamboo-icon" />
+            </div>
             <div class="empty-title">AI 對話輔助尋卷</div>
             <div class="empty-sub">
               請在上方輸入您想找的筆記細節，例如：<br/>
@@ -438,7 +449,9 @@
   }
 
   .search-icon {
-    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: #fabd2f;
   }
 
@@ -475,6 +488,9 @@
   }
 
   .toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     background: transparent;
     border: none;
     color: #a89984;
@@ -525,8 +541,41 @@
   }
 
   .item-icon {
-    font-size: 18px;
-    padding-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .action-bamboo-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    object-fit: contain;
+    display: block;
+  }
+
+  :global(.type-icon.tab-icon) {
+    color: #b8bb26;
+  }
+
+  :global(.type-icon.recent-icon) {
+    color: #fabd2f;
+  }
+
+  :global(.type-icon.file-icon) {
+    color: #83a598;
+  }
+
+  .empty-bamboo-icon {
+    width: 44px;
+    height: 44px;
+    opacity: 0.75;
+    border-radius: 8px;
+    display: inline-block;
   }
 
   .item-body {

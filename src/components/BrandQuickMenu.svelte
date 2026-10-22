@@ -158,7 +158,9 @@
           onclick={() => handleAction(onAddTab)}
         >
           <div class="item-left">
-            <span class="item-icon">🎋</span>
+            <span class="item-icon">
+              <img src="/bamboo.svg" alt="素簡" class="menu-bamboo-icon" />
+            </span>
             <div class="item-info">
               <span class="item-name">添新素簡</span>
               <span class="item-tip">開闢隨手空白筆記與代碼分頁</span>
@@ -576,6 +578,17 @@
     font-size: 14px;
     line-height: 1;
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .menu-bamboo-icon {
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+    vertical-align: middle;
+    display: inline-block;
   }
 
   .item-info {

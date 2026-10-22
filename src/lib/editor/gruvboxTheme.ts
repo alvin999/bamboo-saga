@@ -82,15 +82,22 @@ export const gruvboxDarkTheme = EditorView.theme(
 
     /* ========================================================
        任務清單互動方塊 (Markdown Interactive Task Checkbox)
+       配合使用者字型設定 (--editor-font-size)，尺寸緊湊得體
     ======================================================== */
     '.gb-task-checkbox': {
       cursor: 'pointer !important',
-      display: 'inline-block !important',
-      fontWeight: '700 !important',
+      display: 'inline-flex !important',
+      alignItems: 'center !important',
+      justifyContent: 'center !important',
       fontFamily: "'JetBrains Mono', monospace !important",
+      fontSize: 'calc(var(--editor-font-size, 14px) * 0.74) !important',
+      lineHeight: '1 !important',
+      height: 'calc(var(--editor-font-size, 14px) * 1.08) !important',
       padding: '0 3px !important',
-      margin: '0 2px !important',
-      borderRadius: '4px !important',
+      margin: '0 5px 0 1px !important',
+      borderRadius: '3px !important',
+      verticalAlign: '1px !important',
+      boxSizing: 'border-box !important',
       userSelect: 'none !important',
       transition: 'all 0.15s ease !important',
     },
@@ -161,6 +168,49 @@ export const gruvboxDarkTheme = EditorView.theme(
       padding: '0 4px !important',
       fontFamily: "'JetBrains Mono', monospace !important",
       fontSize: '0.9em !important',
+    },
+
+    /* ========================================================
+       Markdown 即時行內圖片渲染 (Markdown Image Live Preview)
+    ======================================================== */
+    '.gb-img-wrap-inline': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      verticalAlign: '-3px',
+      margin: '0 4px',
+    },
+    '.gb-img-inline': {
+      display: 'inline-block',
+      height: '1.25em',
+      width: 'auto',
+      maxHeight: '26px',
+      borderRadius: '4px',
+      objectFit: 'contain',
+    },
+    '.gb-img-wrap-block': {
+      display: 'block',
+      margin: '12px 0',
+      userSelect: 'none',
+    },
+    '.gb-img-block': {
+      display: 'block',
+      maxWidth: '100%',
+      maxHeight: '420px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.45)',
+      border: '1px solid rgba(80, 69, 52, 0.35)',
+      objectFit: 'contain',
+    },
+    '.gb-img-fallback': {
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '2px 8px',
+      fontSize: '12px',
+      color: '#fabd2f',
+      backgroundColor: 'rgba(250, 189, 47, 0.1)',
+      border: '1px dashed rgba(250, 189, 47, 0.4)',
+      borderRadius: '4px',
+      fontStyle: 'italic',
     },
   },
   { dark: true }
