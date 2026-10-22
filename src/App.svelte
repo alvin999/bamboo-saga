@@ -20,6 +20,9 @@
   import LocalHistoryModal from './components/LocalHistoryModal.svelte';
   import PutLabelModal from './components/PutLabelModal.svelte';
   import SaveWithAiModal from './components/SaveWithAiModal.svelte';
+  import AiInlinePrompt from './components/AiInlinePrompt.svelte';
+  import AiChatDrawer from './components/AiChatDrawer.svelte';
+  import { executeInlinePromptRefine } from './lib/ai/chatSession';
 
   import type { VaultFileEntry, RecentFileRecord, RecentFolderRecord } from './types/tab';
   import { 
@@ -71,6 +74,13 @@
   let isSavingIndicator = $state(true);
   let isRefining = $state(false); // AI 提煉中的動態過場狀態
   let reviewChunks = $state<ReviewChunk[]>([]); // 逐段審核的對照段落卡片清單
+  let isInlineAiPromptOpen = $state(false); // 行內浮動指令框 (Ctrl+I)
+  let isAiChatDrawerOpen = $state(false); // AI 參謀問道抽屜 (Ctrl+Shift+I)
+  let isInlineExecuting = $state(false); // 行內修煉執行狀態
+  let currentSelectionText = $state(''); // 編輯器目前選取的文字片段
+  let inlinePromptCoords = $state<{ x: number; y: number } | null>(null); // 行內指令框精準定位座標
+  let codeEditorRef = $state<any>(null); // 編輯器實例引用（供計算段落座標）
+  let editorApi = $state<{ getParagraphScreenCoords: () => { x: number; y: number } | null; scrollToMakeRoom: () => void } | null>(null); // 編輯器 API Handle
 
   // 外部檔案衝突協調狀態
   interface FileConflictInfo {
@@ -382,18 +392,37 @@
       } else if (e.altKey && e.key.toLowerCase() === 'l') {
         e.preventDefault();
         isPutLabelOpen = !isPutLabelOpen;
+      } else if (e.altKey && e.key.toLowerCase() === 'i') {
+        // Alt+I: 喚起 AI 參謀問道抽屜（與 Alt+H, Alt+L 一致，避開 Edge DevTools 原生衝突）
+        e.preventDefault();
+        isAiChatDrawerOpen = !isAiChatDrawerOpen;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') {
+        // Ctrl+J: 常用抽屜面板快捷鍵
+        e.preventDefault();
+        isAiChatDrawerOpen = !isAiChatDrawerOpen;
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey) {
+          isAiChatDrawerOpen = !isAiChatDrawerOpen;
+        } else {
+          // 精確透過 CodeEditor 註冊的 API Handle 取得游標當前段落正下方的幾何座標
+          const coords = editorApi?.getParagraphScreenCoords() || codeEditorRef?.getParagraphScreenCoords();
+          inlinePromptCoords = coords || null;
+          isInlineAiPromptOpen = !isInlineAiPromptOpen;
+        }
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('keydown', handleGlobalKeydown);
+    window.addEventListener('keydown', handleGlobalKeydown, true);
 
     return () => {
       if (unlistenNativeRoute) unlistenNativeRoute();
       if (unlistenFileWatch) unlistenFileWatch();
       window.clearInterval(backupIntervalTimer);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('keydown', handleGlobalKeydown);
+      window.removeEventListener('keydown', handleGlobalKeydown, true);
     };
   });
 
@@ -949,6 +978,133 @@
     }
   }
 
+  // 智慧探測游標所在段落（以空行分隔的自然段落）
+  function getCurrentParagraphText(): string {
+    if (!activeTab || !activeTab.content) return '';
+    const lines = activeTab.content.split('\n');
+    const curLine = Math.max(0, Math.min((activeTab.cursor?.line || 1) - 1, lines.length - 1));
+
+    let start = curLine;
+    while (start > 0 && lines[start - 1].trim() !== '') {
+      start--;
+    }
+
+    let end = curLine;
+    while (end < lines.length - 1 && lines[end + 1].trim() !== '') {
+      end++;
+    }
+
+    return lines.slice(start, end + 1).join('\n').trim();
+  }
+
+  // 行內 AI 浮動指令修煉：支援「該段落」與「整篇手稿」自由切換
+  async function handleExecuteInlinePrompt(instruction: string, scope: 'paragraph' | 'full' = 'paragraph') {
+    if (!activeTab || isInlineExecuting) return;
+    isInlineExecuting = true;
+
+    try {
+      // 1. Saga 快照建立：保留 AI 指令介入前的 100% 原稿
+      activeTab.preAiSnapshot = {
+        content: activeTab.content,
+        timestamp: Date.now(),
+        reason: `行內指令修煉前快照 (${scope === 'paragraph' ? '該段落' : '整篇手稿'})`,
+      };
+      triggerAutoSnapshot(activeTab, 'pre-ai', undefined, `AI行內指令修煉前`);
+
+      let targetSegment: string | undefined = undefined;
+
+      if (scope === 'paragraph') {
+        // 若有反白文字優先以反白文字為主，否則自動抓取游標所在段落
+        const para = getCurrentParagraphText();
+        targetSegment = currentSelectionText?.trim() || para || undefined;
+      }
+
+      // 2. 呼叫單次修煉推論模組
+      const res = await executeInlinePromptRefine({
+        instruction,
+        content: activeTab.content,
+        selection: targetSegment,
+        model: state.selectedAiModel,
+        modelId: state.selectedAiModelId,
+        groqKey: state.groqApiKey,
+        geminiKey: state.geminiApiKey,
+      });
+
+      // 3. 建立逐段對照結構，並切換為草稿審核狀態
+      if (scope === 'paragraph' && targetSegment) {
+        // 記錄局部段落標的，以便收丹時精準置換，不傷全篇前後文
+        activeTab.partialReplaceTarget = targetSegment;
+        reviewChunks = buildReviewChunks(targetSegment, res.refinedText);
+      } else {
+        activeTab.partialReplaceTarget = undefined;
+        reviewChunks = buildReviewChunks(activeTab.content, res.refinedText);
+      }
+
+      activeTab.isAiDraft = true;
+      activeTab.aiPromptSummary = `${res.summary} [${res.engineUsed}]`;
+      activeTab.lastModified = Date.now();
+      showDiffView = false;
+      saveVaultState(state, true);
+      triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI行內指令成果 (${res.summary})`);
+
+      // 關閉輸入列並提示
+      isInlineAiPromptOpen = false;
+      showToast(`✨ ${scope === 'paragraph' ? '段落' : '整篇'}修煉完成：請審核成果與原始手稿`);
+    } catch (err: any) {
+      showToast(`⚠️ 修煉失敗：${err.message || err}`);
+    } finally {
+      isInlineExecuting = false;
+    }
+  }
+
+  // 將參謀抽屜中的成果直接送入逐段對照審核
+  function handleChatSendToReview(aiContent: string, summary: string) {
+    if (!activeTab) {
+      showToast('⚠️ 尚未選取任何藥帖分頁');
+      return;
+    }
+
+    // 1. 建立快照留底
+    activeTab.preAiSnapshot = {
+      content: activeTab.content,
+      timestamp: Date.now(),
+      reason: `AI參謀審核前快照 (${summary})`,
+    };
+    triggerAutoSnapshot(activeTab, 'pre-ai', undefined, `AI參謀審核前`);
+
+    // 2. 構建逐段卡片對照
+    reviewChunks = buildReviewChunks(activeTab.content, aiContent);
+    activeTab.isAiDraft = true;
+    activeTab.aiPromptSummary = summary;
+    activeTab.lastModified = Date.now();
+    showDiffView = false;
+    saveVaultState(state, true);
+    triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI參謀成果 (${summary})`);
+
+    showToast('📜 丹道對照已就緒：請於工作台逐段審核參謀成果！');
+  }
+
+  // 將參謀建議直接插入至編輯器游標處
+  function handleChatInsertToEditor(contentToInsert: string) {
+    if (!activeTab) return;
+    const original = activeTab.content;
+    const cur = activeTab.cursor;
+
+    // 計算插入位置 offset
+    const lines = original.split('\n');
+    let offset = 0;
+    const targetLine = Math.min(cur.line - 1, lines.length - 1);
+    for (let i = 0; i < targetLine; i++) {
+      offset += lines[i].length + 1;
+    }
+    offset += Math.min(cur.ch, (lines[targetLine] || '').length);
+
+    const updated = original.slice(0, offset) + '\n' + contentToInsert + '\n' + original.slice(offset);
+    activeTab.content = updated;
+    activeTab.lastModified = Date.now();
+    saveVaultState(state);
+  }
+
   // 更新單一段落的決策狀態
   function handleUpdateChunkDecision(chunkId: string, decision: ChunkDecision) {
     const chunk = reviewChunks.find((c) => c.id === chunkId);
@@ -961,7 +1117,16 @@
   function handleApplyChunkDecisions() {
     if (!activeTab) return;
     const finalContent = assembleFinalNote(reviewChunks);
-    activeTab.content = finalContent;
+
+    // 若為局部段落修煉，精準置換該段落；若為全篇修煉，覆蓋整篇
+    if (activeTab.partialReplaceTarget && activeTab.content.includes(activeTab.partialReplaceTarget)) {
+      activeTab.content = activeTab.content.replace(activeTab.partialReplaceTarget, finalContent);
+      activeTab.partialReplaceTarget = undefined;
+    } else {
+      activeTab.content = finalContent;
+      activeTab.partialReplaceTarget = undefined;
+    }
+
     activeTab.isAiDraft = false;
     activeTab.preAiSnapshot = null;
     activeTab.aiPromptSummary = undefined;
@@ -997,6 +1162,7 @@
     activeTab.isAiDraft = false;
     activeTab.preAiSnapshot = null;
     activeTab.aiPromptSummary = undefined;
+    activeTab.partialReplaceTarget = undefined;
     reviewChunks = [];
     showDiffView = false;
     saveVaultState(state, true);
@@ -1253,6 +1419,8 @@
     }}
     onExecuteRefine={handleExecuteRefine}
     onSaveAlchemyCards={handleSaveAlchemyCards}
+    onToggleAiChat={() => (isAiChatDrawerOpen = !isAiChatDrawerOpen)}
+    isAiChatOpen={isAiChatDrawerOpen}
     onShowToast={showToast}
     isSaved={isSavingIndicator}
   />
@@ -1308,6 +1476,7 @@
         <!-- 單一全功能沉浸編輯模式：置中書卷感、精確包浩斯邊線 -->
         <div class="zen-editor-pod">
           <CodeEditor 
+            bind:this={codeEditorRef}
             content={activeTab.content}
             language={activeTab.language}
             vimMode={state.vimMode}
@@ -1316,6 +1485,12 @@
             smearEnabled={smearEnabled}
             onChange={handleContentChange}
             onCursorChange={handleCursorChange}
+            onSelectionChange={(sel) => (currentSelectionText = sel)}
+            onRegisterApi={(api) => (editorApi = api)}
+            onOpenInlinePrompt={(coords) => {
+              inlinePromptCoords = coords || null;
+              isInlineAiPromptOpen = true;
+            }}
             onManualSave={handleManualSave}
             onSaveAs={handleSaveAs}
             onImeWarning={handleImeWarning}
@@ -1470,6 +1645,33 @@
     onSaveOneDrivePreference={handleSaveOneDrivePreference}
     onShowToast={showToast}
     onRestoreVault={handleRestoreVaultFromOneDrive}
+  />
+
+  <!-- 功能 A：行內 AI 修煉指令浮動列 (Ctrl+I) -->
+  <AiInlinePrompt 
+    isOpen={isInlineAiPromptOpen}
+    selectionText={currentSelectionText}
+    paragraphText={getCurrentParagraphText()}
+    fullTextLength={activeTab?.content?.length || 0}
+    coords={inlinePromptCoords}
+    isExecuting={isInlineExecuting}
+    onSubmit={handleExecuteInlinePrompt}
+    onClose={() => (isInlineAiPromptOpen = false)}
+  />
+
+  <!-- 功能 B：竹語參謀多輪對話問道抽屜 (Ctrl+Shift+I) -->
+  <AiChatDrawer 
+    isOpen={isAiChatDrawerOpen}
+    activeTab={activeTab}
+    selectionText={currentSelectionText}
+    groqKey={state.groqApiKey}
+    geminiKey={state.geminiApiKey}
+    selectedAiModel={state.selectedAiModel}
+    selectedAiModelId={state.selectedAiModelId}
+    onClose={() => (isAiChatDrawerOpen = false)}
+    onSendToReview={handleChatSendToReview}
+    onInsertToEditor={handleChatInsertToEditor}
+    onShowToast={showToast}
   />
 </div>
 

@@ -26,6 +26,22 @@ export const DEFAULT_SHORTCUT_GROUPS: ShortcutGroup[] = [
         badge: '全域',
       },
       {
+        id: 'inline_ai_prompt',
+        category: 'global',
+        label: '行內 AI 修煉指令',
+        description: '呼叫浮動指令列，以自然語言快速改寫手稿並進入逐段對照審核',
+        keys: ['Ctrl', 'I'],
+        badge: '全域',
+      },
+      {
+        id: 'ai_chat_drawer',
+        category: 'global',
+        label: 'AI 參謀問道抽屜',
+        description: '拉開右側參謀抽屜進行多輪對話問答，可一鍵將成果送入對照審核 (支援 Alt+I 或 Ctrl+J)',
+        keys: ['Alt', 'I'],
+        badge: '全域',
+      },
+      {
         id: 'file_browser',
         category: 'global',
         label: '檔案總管抽屜',

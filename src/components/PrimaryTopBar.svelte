@@ -34,6 +34,8 @@
     onOpenKeybindings?: () => void;
     onExecuteRefine?: (mode: string, customPrompt: string, cardPrompt?: string) => Promise<void>;
     onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
+    onToggleAiChat?: () => void;
+    isAiChatOpen?: boolean;
     onShowToast?: (msg: string) => void;
     isSaved: boolean;
   }
@@ -68,6 +70,8 @@
     onOpenKeybindings,
     onExecuteRefine,
     onSaveAlchemyCards,
+    onToggleAiChat,
+    isAiChatOpen = false,
     onShowToast,
     isSaved = true
   }: PrimaryTopBarProps = $props();
@@ -299,6 +303,16 @@
           {onOpenSettings}
           {onShowToast}
         />
+      {/if}
+
+      {#if onToggleAiChat}
+        <button 
+          class="tune-btn ai-chat-btn {isAiChatOpen ? 'active' : ''}" 
+          onclick={onToggleAiChat} 
+          title="竹語參謀 (AI 問道多輪對話 Alt+I / Ctrl+J)"
+        >
+          <span class="material-symbols-outlined text-[16px]">forum</span>
+        </button>
       {/if}
 
       <button 
@@ -569,6 +583,12 @@
   .shortcut-btn.active {
     color: #d49b35;
     background: rgba(212, 155, 53, 0.1);
+    border-radius: 3px;
+  }
+
+  .ai-chat-btn.active {
+    color: #fabd2f;
+    background: rgba(250, 189, 47, 0.12);
     border-radius: 3px;
   }
 

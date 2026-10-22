@@ -22,6 +22,7 @@ export interface TabItem {
   preAiSnapshot: TabSnapshot | null;
   isAiDraft: boolean;
   aiPromptSummary?: string;
+  partialReplaceTarget?: string; // 局部段落修煉時的替換標的
   // 停靠層級：主頂欄 (primary) 或是次頂 AI 煉丹欄 (secondary)
   deck?: 'primary' | 'secondary';
   // 連接實體檔案系統路徑（選填）

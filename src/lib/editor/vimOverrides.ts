@@ -23,6 +23,7 @@ export interface VimOverrideCallbacks {
   onImeWarning?: (text: string) => void;
   onAddTab?: () => void;
   onCloseTab?: () => void;
+  onOpenInlinePrompt?: (coords?: { x: number; y: number } | null) => void;
 }
 
 export function buildVimOverrideKeymap(
@@ -30,6 +31,40 @@ export function buildVimOverrideKeymap(
   callbacks?: VimOverrideCallbacks
 ): Extension[] {
   const bindings: Array<{ key: string; run: (view: EditorView) => boolean; preventDefault?: boolean }> = [];
+
+  // -1. Ctrl + I / Cmd + I: 喚出行內 AI 浮動修煉指令框（定位於當前段落下方）
+  bindings.push({
+    key: 'Mod-i',
+    run: (view) => {
+      let coords: { x: number; y: number } | null = null;
+      try {
+        const sel = view.state.selection.main;
+        const currentLine = view.state.doc.lineAt(sel.head);
+        let endLineNum = currentLine.number;
+        const totalLines = view.state.doc.lines;
+        while (endLineNum < totalLines) {
+          const nextLine = view.state.doc.line(endLineNum + 1);
+          if (nextLine.text.trim() === '') break;
+          endLineNum++;
+        }
+        const endLine = view.state.doc.line(endLineNum);
+        // 重要：使用 side: -1 保證行尾亦能精準取得幾何邊界，並以行首 (side: 1) 與游標雙重兜底
+        const geo = view.coordsAtPos(endLine.to, -1) || 
+                    view.coordsAtPos(endLine.from, 1) || 
+                    view.coordsAtPos(sel.head, -1) ||
+                    view.coordsAtPos(sel.head, 1);
+        if (geo) {
+          const editorRect = view.dom?.getBoundingClientRect();
+          const dialogWidth = Math.min(680, window.innerWidth - 32);
+          const x = editorRect ? editorRect.left + (editorRect.width - dialogWidth) / 2 : geo.left;
+          coords = { x: Math.max(16, x), y: geo.bottom + 8 };
+        }
+      } catch (e) {}
+      callbacks?.onOpenInlinePrompt?.(coords);
+      return true;
+    },
+    preventDefault: true,
+  });
 
   // 0. Ctrl + T / Cmd + T: 添新簡 (新增分頁)
   bindings.push({

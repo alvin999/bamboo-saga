@@ -32,7 +32,10 @@
     onSaveAs,
     onImeWarning,
     onAddTab,
-    onCloseTab
+    onCloseTab,
+    onSelectionChange,
+    onOpenInlinePrompt,
+    onRegisterApi
   } = $props<{
     content: string;
     language: SupportedLanguage;
@@ -47,6 +50,9 @@
     onImeWarning?: (msg: string) => void;
     onAddTab?: () => void;
     onCloseTab?: () => void;
+    onSelectionChange?: (selectedText: string) => void;
+    onOpenInlinePrompt?: (coords?: { x: number; y: number } | null) => void;
+    onRegisterApi?: (handle: { getParagraphScreenCoords: () => { x: number; y: number } | null; scrollToMakeRoom: () => void }) => void;
   }>();
 
   let editorHost: HTMLDivElement;
@@ -73,13 +79,19 @@
       }
 
       if (update.selectionSet || update.docChanged || update.geometryChanged) {
-        const head = update.state.selection.main.head;
+        const sel = update.state.selection.main;
+        const head = sel.head;
         const line = update.state.doc.lineAt(head);
         const cur: CursorPosition = {
           line: line.number,
           ch: head - line.from,
         };
         onCursorChange(cur);
+
+        if (onSelectionChange) {
+          const selectedText = sel.empty ? '' : update.state.sliceDoc(sel.from, sel.to);
+          onSelectionChange(selectedText);
+        }
 
         // 追蹤游標物理殘影
         if (smearEnabled && smearRenderer && view) {
@@ -138,6 +150,37 @@
             },
             preventDefault: true,
           },
+          {
+            key: 'Mod-i',
+            run: (v) => {
+              let coords: { x: number; y: number } | null = null;
+              try {
+                const sel = v.state.selection.main;
+                const currentLine = v.state.doc.lineAt(sel.head);
+                let endLineNum = currentLine.number;
+                const totalLines = v.state.doc.lines;
+                while (endLineNum < totalLines) {
+                  const nextLine = v.state.doc.line(endLineNum + 1);
+                  if (nextLine.text.trim() === '') break;
+                  endLineNum++;
+                }
+                const endLine = v.state.doc.line(endLineNum);
+                const geo = v.coordsAtPos(endLine.to, -1) || 
+                            v.coordsAtPos(endLine.from, 1) || 
+                            v.coordsAtPos(sel.head, -1) ||
+                            v.coordsAtPos(sel.head, 1);
+                if (geo) {
+                  const editorRect = v.dom?.getBoundingClientRect();
+                  const dialogWidth = Math.min(680, window.innerWidth - 32);
+                  const x = editorRect ? editorRect.left + (editorRect.width - dialogWidth) / 2 : geo.left;
+                  coords = { x: Math.max(16, x), y: geo.bottom + 8 };
+                }
+              } catch (e) {}
+              onOpenInlinePrompt?.(coords);
+              return true;
+            },
+            preventDefault: true,
+          },
           ...foldKeymap,
           ...defaultKeymap,
           ...historyKeymap,
@@ -145,7 +188,7 @@
         gruvboxExtension,
         languageCompartment.of(getLanguageExtension(language)),
         vimOverridesCompartment.of(
-          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab }) : []
+          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt }) : []
         ),
         vimCompartment.of(vimMode ? vim() : []),
         updateListener,
@@ -156,6 +199,12 @@
     view = new EditorView({
       state: startState,
       parent: editorHost,
+    });
+
+    // 向父組件註冊命令式操作 Handle（完美適配 Svelte 5 Runes 模式）
+    onRegisterApi?.({
+      getParagraphScreenCoords,
+      scrollToMakeRoom,
     });
 
     // 視窗 resize 處理
@@ -174,6 +223,70 @@
     view?.destroy();
     view = null;
   });
+
+  /**
+   * 計算當前游標所在段落正下方的螢幕像素座標 (Screen Pixels)
+   * 確保浮動框永遠出現在該段落文字的最下方，絕對不遮蔽當前編輯段落
+   */
+  export function getParagraphScreenCoords(): { x: number; y: number } | null {
+    if (!view || !editorHost) return null;
+    try {
+      const sel = view.state.selection.main;
+      const currentLine = view.state.doc.lineAt(sel.head);
+
+      // 往下尋找該段落的末尾行（遇到空行即為段落結尾）
+      let endLineNum = currentLine.number;
+      const totalLines = view.state.doc.lines;
+      while (endLineNum < totalLines) {
+        const nextLine = view.state.doc.line(endLineNum + 1);
+        if (nextLine.text.trim() === '') break;
+        endLineNum++;
+      }
+
+      const endLine = view.state.doc.line(endLineNum);
+      // 重要：傳入 side: -1 確保在行尾亦能精準取得幾何邊界，並有多層備援防護，保證絕不回傳 null
+      const geo = view.coordsAtPos(endLine.to, -1) || 
+                  view.coordsAtPos(endLine.from, 1) || 
+                  view.coordsAtPos(sel.head, -1) ||
+                  view.coordsAtPos(sel.head, 1);
+      if (!geo) return null;
+
+      // 取得編輯器宿主 DOM 在視窗的邊界，置中對齊於編輯器主工作台
+      const editorRect = editorHost.getBoundingClientRect();
+      const dialogWidth = Math.min(680, window.innerWidth - 32);
+      const x = editorRect.left + (editorRect.width - dialogWidth) / 2;
+
+      // 自動檢查下方空間：若段落底部過於貼近視窗底部（預留小於 220px 供浮動列放置），平滑向下捲動釋放視野
+      const neededSpace = 220;
+      if (geo.bottom + neededSpace > window.innerHeight) {
+        const scrollDelta = (geo.bottom + neededSpace) - window.innerHeight + 16;
+        view.scrollDOM?.scrollBy({ top: scrollDelta, behavior: 'smooth' });
+      }
+
+      return {
+        x: Math.max(16, x),
+        y: geo.bottom + 10, // 精確出現在段落最後一行下方 10px
+      };
+    } catch (e) {
+      console.warn('[CodeEditor] getParagraphScreenCoords error:', e);
+      return null;
+    }
+  }
+
+  /**
+   * 平滑向下捲動編輯器，確保段落下方有至少 220px 空間，防止浮動框貼到底部
+   */
+  export function scrollToMakeRoom(): void {
+    if (!view) return;
+    try {
+      const sel = view.state.selection.main;
+      const geo = view.coordsAtPos(sel.head, -1) || view.coordsAtPos(sel.head, 1);
+      if (geo && geo.bottom + 220 > window.innerHeight) {
+        const scrollDelta = (geo.bottom + 220) - window.innerHeight + 20;
+        view.scrollDOM?.scrollBy({ top: scrollDelta, behavior: 'smooth' });
+      }
+    } catch (e) {}
+  }
 
   // 監聽外部內容變化（分頁切換時更換 doc）
   $effect(() => {

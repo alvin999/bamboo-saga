@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ReviewChunk, ChunkDecision } from '../lib/editor/chunkReview';
+  import MarkdownViewer from './MarkdownViewer.svelte';
 
   let {
     chunks = [],
@@ -111,7 +112,7 @@
               <span class="pane-tip">語法梳理與規格清單</span>
             </div>
             <div class="pane-content ai-text">
-              <pre>{chunk.aiText.trim()}</pre>
+              <MarkdownViewer content={chunk.aiText.trim()} />
             </div>
           </div>
         </div>
