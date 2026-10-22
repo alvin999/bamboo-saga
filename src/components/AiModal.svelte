@@ -1,6 +1,15 @@
 <script lang="ts">
-  import type { RefineryMode } from '../lib/ai/refinery';
-  import type { TabItem, VimKeyOverrides, OneDriveAccountInfo, BackupResult, OneDriveBackupOverview, AlchemyCardConfig, LayoutConfig, SystemIntegrationInfo } from '../types/tab';
+  import type { RefineryMode } from "../lib/ai/refinery";
+  import type {
+    TabItem,
+    VimKeyOverrides,
+    OneDriveAccountInfo,
+    BackupResult,
+    OneDriveBackupOverview,
+    AlchemyCardConfig,
+    LayoutConfig,
+    SystemIntegrationInfo,
+  } from "../types/tab";
   import {
     detectOneDriveAccounts,
     backupVaultToOneDrive,
@@ -8,58 +17,63 @@
     readOneDriveBackupJson,
     openInSystemExplorer,
     getSystemIntegrationInfo,
-    toggleWindowsContextMenu
-  } from '../lib/storage/fsBridge';
-  import { 
-    DEFAULT_ALCHEMY_CARDS, 
-    DEFAULT_VIM_OVERRIDES, 
+    toggleWindowsContextMenu,
+  } from "../lib/storage/fsBridge";
+  import {
+    DEFAULT_ALCHEMY_CARDS,
+    DEFAULT_VIM_OVERRIDES,
     DEFAULT_LAYOUT_CONFIG,
-    getDefaultAlchemyCards, 
+    getDefaultAlchemyCards,
     getDefaultVimOverrides,
-    getDefaultLayoutConfig
-  } from '../lib/storage/vault';
-  import { DEFAULT_SHORTCUT_GROUPS } from '../lib/constants/shortcuts';
-  import { 
-    Building2, User, Cloud, RefreshCw, Check, ShieldCheck, FolderOpen, Download, 
-    RotateCcw, Key, Keyboard, Eye, EyeOff, LayoutTemplate, Shield, Lock, Sparkles, AlertCircle, CheckCircle2 
-  } from 'lucide-svelte';
-  import { fetchGeminiModels, fetchGroqModels, getCachedModels, type AvailableModelItem } from '../lib/ai/modelFetcher';
-  import { saveSecureKeys, loadSecureKeys, getCurrentSecurityMode, type SecurityMode } from '../lib/security/keyVault';
+    getDefaultLayoutConfig,
+  } from "../lib/storage/vault";
+  import { DEFAULT_SHORTCUT_GROUPS } from "../lib/constants/shortcuts";
+  import {
+    Building2,
+    User,
+    Cloud,
+    RefreshCw,
+    Check,
+    ShieldCheck,
+    FolderOpen,
+    Download,
+    RotateCcw,
+    Key,
+    Keyboard,
+    Eye,
+    EyeOff,
+    LayoutTemplate,
+    Shield,
+    Lock,
+    Sparkles,
+    AlertCircle,
+    CheckCircle2,
+  } from "lucide-svelte";
+  import {
+    fetchGeminiModels,
+    fetchGroqModels,
+    getCachedModels,
+    type AvailableModelItem,
+  } from "../lib/ai/modelFetcher";
+  import {
+    saveSecureKeys,
+    loadSecureKeys,
+    getCurrentSecurityMode,
+    type SecurityMode,
+  } from "../lib/security/keyVault";
 
-  type ModalTab = 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout' | 'system';
+  type ModalTab =
+    | "refine"
+    | "keys"
+    | "keybindings"
+    | "onedrive"
+    | "settings"
+    | "layout"
+    | "system";
 
-  let {
-    isOpen = false,
-    selectedModel = 'gemini' as 'groq' | 'gemini',
-    selectedModelId = 'gemini-1.5-flash',
-    securityMode = 'scheme_3_os_native' as SecurityMode,
-    groqApiKey = '',
-    geminiApiKey = '',
-    vimMode = false,
-    vimOverrides = getDefaultVimOverrides(),
-    alchemyCards = getDefaultAlchemyCards(),
-    layoutConfig = getDefaultLayoutConfig(),
-    backupIntervalMinutes = 30,
-    tabs = [] as TabItem[],
-    selectedOneDrivePath = '',
-    autoOneDriveBackup = false,
-    enablePeriodicBackup = true,
-    activeTab = 'keys' as ModalTab,
-    onTabChange,
-    onClose,
-    onRefine,
-    onSaveSettings,
-    onSaveKeys,
-    onSaveKeybindings,
-    onSaveAlchemyCards,
-    onSaveLayoutConfig,
-    onToggleVim,
-    onSaveOneDrivePreference,
-    onShowToast,
-    onRestoreVault
-  } = $props<{
+  interface AiModalProps {
     isOpen: boolean;
-    selectedModel: 'groq' | 'gemini';
+    selectedModel: "groq" | "gemini";
     selectedModelId?: string;
     securityMode?: SecurityMode;
     groqApiKey: string;
@@ -74,36 +88,86 @@
     backupIntervalMinutes?: number;
     enablePeriodicBackup?: boolean;
     activeTab?: ModalTab;
-    onTabChange?: (tab: 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'layout') => void;
+    onTabChange?: (
+      tab: "refine" | "keys" | "keybindings" | "onedrive" | "layout",
+    ) => void;
     onClose: () => void;
-    onRefine: (mode: RefineryMode, customPrompt: string, cardPrompt?: string) => Promise<void>;
+    onRefine: (
+      mode: RefineryMode,
+      customPrompt: string,
+      cardPrompt?: string,
+    ) => Promise<void>;
     onSaveSettings?: (
       groq: string,
       gemini: string,
-      model: 'groq' | 'gemini',
-      vimOverrides: VimKeyOverrides
+      model: "groq" | "gemini",
+      vimOverrides: VimKeyOverrides,
     ) => void;
-    onSaveKeys?: (groq: string, gemini: string, model: 'groq' | 'gemini', modelId?: string, securityMode?: SecurityMode) => void;
+    onSaveKeys?: (
+      groq: string,
+      gemini: string,
+      model: "groq" | "gemini",
+      modelId?: string,
+      securityMode?: SecurityMode,
+    ) => void;
     onSaveKeybindings?: (overrides: VimKeyOverrides, mode?: boolean) => void;
     onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
     onSaveLayoutConfig?: (config: LayoutConfig) => void;
     onToggleVim?: (mode: boolean) => void;
-    onSaveOneDrivePreference?: (path: string, auto: boolean, intervalMinutes?: number, enablePeriodic?: boolean) => void;
+    onSaveOneDrivePreference?: (
+      path: string,
+      auto: boolean,
+      intervalMinutes?: number,
+      enablePeriodic?: boolean,
+    ) => void;
     onShowToast?: (msg: string) => void;
     onRestoreVault?: (restoredTabs: TabItem[]) => void;
-  }>();
+  }
 
-  let selectedMode = $state<string>('organize');
-  let customPrompt = $state('');
+  let {
+    isOpen = false,
+    selectedModel = "gemini" as "groq" | "gemini",
+    selectedModelId = "gemini-1.5-flash",
+    securityMode = "scheme_3_os_native" as SecurityMode,
+    groqApiKey = "",
+    geminiApiKey = "",
+    vimMode = false,
+    vimOverrides = getDefaultVimOverrides(),
+    alchemyCards = getDefaultAlchemyCards(),
+    layoutConfig = getDefaultLayoutConfig(),
+    backupIntervalMinutes = 30,
+    tabs = [] as TabItem[],
+    selectedOneDrivePath = "",
+    autoOneDriveBackup = false,
+    enablePeriodicBackup = true,
+    activeTab = "keys" as ModalTab,
+    onTabChange,
+    onClose,
+    onRefine,
+    onSaveSettings,
+    onSaveKeys,
+    onSaveKeybindings,
+    onSaveAlchemyCards,
+    onSaveLayoutConfig,
+    onToggleVim,
+    onSaveOneDrivePreference,
+    onShowToast,
+    onRestoreVault,
+  }: AiModalProps = $props();
+
+  let selectedMode = $state<string>("organize");
+  let customPrompt = $state("");
   let isRefining = $state(false);
-  let errorMsg = $state('');
+  let errorMsg = $state("");
 
   // 密碼顯示開關
   let showGeminiKey = $state(false);
   let showGroqKey = $state(false);
 
   // 卡片心法自訂狀態
-  let inputCards = $state<Record<string, AlchemyCardConfig>>(getDefaultAlchemyCards());
+  let inputCards = $state<Record<string, AlchemyCardConfig>>(
+    getDefaultAlchemyCards(),
+  );
 
   // 版面配置偏好狀態
   let inputLayoutConfig = $state<LayoutConfig>(getDefaultLayoutConfig());
@@ -113,18 +177,18 @@
   let inputVimOverrides = $state<VimKeyOverrides>(getDefaultVimOverrides());
 
   // 金鑰與推論核心狀態
-  let inputGroqKey = $state('');
-  let inputGeminiKey = $state('');
-  let inputModel = $state<'groq' | 'gemini'>('gemini');
-  let inputModelId = $state('gemini-1.5-flash');
-  let inputSecurityMode = $state<SecurityMode>('scheme_3_os_native');
+  let inputGroqKey = $state("");
+  let inputGeminiKey = $state("");
+  let inputModel = $state<"groq" | "gemini">("gemini");
+  let inputModelId = $state("gemini-1.5-flash");
+  let inputSecurityMode = $state<SecurityMode>("scheme_3_os_native");
 
   // 模型熱重載動態探勘狀態
   let availableModels = $state<AvailableModelItem[]>([]);
   let isFetchingModels = $state(false);
   let fetchModelsError = $state<string | null>(null);
   let fetchModelsSuccess = $state(false);
-  let fetchModelsSource = $state<'remote' | 'cache' | null>(null);
+  let fetchModelsSource = $state<"remote" | "cache" | null>(null);
   let modelFetchTimer: number | null = null;
 
   async function triggerModelFetch(immediate = false) {
@@ -132,7 +196,10 @@
 
     const execute = async () => {
       const currentProvider = inputModel;
-      const key = currentProvider === 'gemini' ? inputGeminiKey.trim() : inputGroqKey.trim();
+      const key =
+        currentProvider === "gemini"
+          ? inputGeminiKey.trim()
+          : inputGroqKey.trim();
 
       if (!key) {
         availableModels = [];
@@ -147,25 +214,26 @@
       fetchModelsSuccess = false;
 
       try {
-        const res = currentProvider === 'gemini' 
-          ? await fetchGeminiModels(key)
-          : await fetchGroqModels(key);
+        const res =
+          currentProvider === "gemini"
+            ? await fetchGeminiModels(key)
+            : await fetchGroqModels(key);
 
         if (res.success && res.models.length > 0) {
           availableModels = res.models;
           fetchModelsSuccess = true;
           fetchModelsSource = res.source;
           // 若目前所選的 modelId 不在清單中，自動選取第一個 (推薦款)
-          if (!res.models.some(m => m.id === inputModelId)) {
+          if (!res.models.some((m) => m.id === inputModelId)) {
             inputModelId = res.models[0].id;
           }
         } else {
           availableModels = [];
-          fetchModelsError = res.error || '探勘模型失敗';
+          fetchModelsError = res.error || "探勘模型失敗";
         }
       } catch (err: any) {
         availableModels = [];
-        fetchModelsError = err.message || '連線異常';
+        fetchModelsError = err.message || "連線異常";
       } finally {
         isFetchingModels = false;
       }
@@ -178,13 +246,13 @@
     }
   }
 
-  function handleProviderChange(newProvider: 'groq' | 'gemini') {
+  function handleProviderChange(newProvider: "groq" | "gemini") {
     inputModel = newProvider;
     // 優先讀取本地快取的模型
     const cached = getCachedModels(newProvider);
     if (cached && cached.length > 0) {
       availableModels = cached;
-      if (!cached.some(m => m.id === inputModelId)) {
+      if (!cached.some((m) => m.id === inputModelId)) {
         inputModelId = cached[0].id;
       }
     } else {
@@ -195,20 +263,22 @@
 
   // OneDrive 備份與讀取狀態
   let oneDriveAccounts = $state<OneDriveAccountInfo[]>([]);
-  let currentOneDrivePath = $state('');
+  let currentOneDrivePath = $state("");
   let isAutoBackup = $state(false);
   let inputBackupInterval = $state(30);
   let isEnablePeriodic = $state(true);
   let isScanningOneDrive = $state(false);
   let isBackingUp = $state(false);
   let lastBackupResult = $state<BackupResult | null>(null);
-  let backupOverview = $state<import('../types/tab').OneDriveBackupOverview | null>(null);
+  let backupOverview = $state<
+    import("../types/tab").OneDriveBackupOverview | null
+  >(null);
   let isCheckingBackup = $state(false);
   let prevIsOpen = false;
 
   // 跨平台系統整合資訊
   let sysInfo = $state<SystemIntegrationInfo>({
-    os: 'web',
+    os: "web",
     supports_context_menu: false,
     is_context_menu_enabled: false,
   });
@@ -218,7 +288,7 @@
     try {
       sysInfo = await getSystemIntegrationInfo();
     } catch (e) {
-      console.warn('無法載入系統整合資訊:', e);
+      console.warn("無法載入系統整合資訊:", e);
     }
   }
 
@@ -230,9 +300,9 @@
       const res = await toggleWindowsContextMenu(nextState);
       sysInfo.is_context_menu_enabled = res;
       if (res) {
-        onShowToast?.('✨ 已成功新增 Windows 右鍵「用 廣零散 收入藥帖」選單！');
+        onShowToast?.("✨ 已成功新增 Windows 右鍵「用 廣零散 收入藥帖」選單！");
       } else {
-        onShowToast?.('🗑️ 已成功移除 Windows 右鍵選單項目');
+        onShowToast?.("🗑️ 已成功移除 Windows 右鍵選單項目");
       }
     } catch (err: any) {
       onShowToast?.(`⚠️ 設定失敗: ${err.message || err}`);
@@ -241,12 +311,14 @@
     }
   }
 
-  function setTab(tab: 'refine' | 'keys' | 'keybindings' | 'onedrive' | 'layout' | 'system') {
+  function setTab(
+    tab: "refine" | "keys" | "keybindings" | "onedrive" | "layout" | "system",
+  ) {
     onTabChange?.(tab as any);
-    if (tab === 'onedrive') {
+    if (tab === "onedrive") {
       scanOneDrive();
     }
-    if (tab === 'keys' || tab === 'system') {
+    if (tab === "keys" || tab === "system") {
       loadSystemIntegration();
     }
   }
@@ -257,9 +329,12 @@
       inputGroqKey = groqApiKey;
       inputGeminiKey = geminiApiKey;
       inputModel = selectedModel;
-      const currentOrFallback = (!selectedModelId || selectedModelId === 'gemini-2.5-flash')
-        ? (selectedModel === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-1.5-flash')
-        : selectedModelId;
+      const currentOrFallback =
+        !selectedModelId || selectedModelId === "gemini-2.5-flash"
+          ? selectedModel === "groq"
+            ? "llama-3.3-70b-versatile"
+            : "gemini-1.5-flash"
+          : selectedModelId;
       inputModelId = currentOrFallback;
       inputSecurityMode = securityMode || getCurrentSecurityMode();
 
@@ -268,7 +343,10 @@
       if (cached && cached.length > 0) {
         availableModels = cached;
       }
-      if ((inputModel === 'gemini' && inputGeminiKey) || (inputModel === 'groq' && inputGroqKey)) {
+      if (
+        (inputModel === "gemini" && inputGeminiKey) ||
+        (inputModel === "groq" && inputGroqKey)
+      ) {
         triggerModelFetch(true);
       }
 
@@ -303,13 +381,17 @@
       oneDriveAccounts = list;
       if (!currentOneDrivePath && list.length > 0) {
         currentOneDrivePath = list[0].folder_path;
-        onSaveOneDrivePreference?.(currentOneDrivePath, isAutoBackup, inputBackupInterval);
+        onSaveOneDrivePreference?.(
+          currentOneDrivePath,
+          isAutoBackup,
+          inputBackupInterval,
+        );
       }
       if (currentOneDrivePath) {
         checkBackupStatus(currentOneDrivePath);
       }
     } catch (err) {
-      console.error('[AiModal] OneDrive scan failed:', err);
+      console.error("[AiModal] OneDrive scan failed:", err);
     } finally {
       isScanningOneDrive = false;
     }
@@ -321,7 +403,7 @@
     try {
       backupOverview = await checkOneDriveBackup(folderPath);
     } catch (e) {
-      console.warn('檢查備份失敗:', e);
+      console.warn("檢查備份失敗:", e);
     } finally {
       isCheckingBackup = false;
     }
@@ -329,47 +411,81 @@
 
   function handleSelectOneDrive(path: string) {
     currentOneDrivePath = path;
-    onSaveOneDrivePreference?.(currentOneDrivePath, isAutoBackup, inputBackupInterval, isEnablePeriodic);
+    onSaveOneDrivePreference?.(
+      currentOneDrivePath,
+      isAutoBackup,
+      inputBackupInterval,
+      isEnablePeriodic,
+    );
     checkBackupStatus(path);
   }
 
   function handleToggleAutoBackup() {
     isAutoBackup = !isAutoBackup;
-    onSaveOneDrivePreference?.(currentOneDrivePath, isAutoBackup, inputBackupInterval, isEnablePeriodic);
-    onShowToast?.(isAutoBackup ? `🛡️ 已啟用 OneDrive 背景自動備份（每 ${inputBackupInterval} 分鐘）` : '已關閉 OneDrive 自動備份');
+    onSaveOneDrivePreference?.(
+      currentOneDrivePath,
+      isAutoBackup,
+      inputBackupInterval,
+      isEnablePeriodic,
+    );
+    onShowToast?.(
+      isAutoBackup
+        ? `🛡️ 已啟用 OneDrive 背景自動備份（每 ${inputBackupInterval} 分鐘）`
+        : "已關閉 OneDrive 自動備份",
+    );
   }
 
   function handleChangeInterval(minutes: number) {
     inputBackupInterval = minutes;
-    onSaveOneDrivePreference?.(currentOneDrivePath, isAutoBackup, inputBackupInterval, isEnablePeriodic);
+    onSaveOneDrivePreference?.(
+      currentOneDrivePath,
+      isAutoBackup,
+      inputBackupInterval,
+      isEnablePeriodic,
+    );
     onShowToast?.(`⏱️ 背景備份間隔已調整為：每 ${minutes} 分鐘`);
   }
 
   function handleTogglePeriodicBackup() {
     isEnablePeriodic = !isEnablePeriodic;
-    onSaveOneDrivePreference?.(currentOneDrivePath, isAutoBackup, inputBackupInterval, isEnablePeriodic);
-    onShowToast?.(isEnablePeriodic ? '📦 已啟用多週期分類備份（日・週・月階層存檔）' : '已關閉多週期備份（僅保留最新鏡像）');
+    onSaveOneDrivePreference?.(
+      currentOneDrivePath,
+      isAutoBackup,
+      inputBackupInterval,
+      isEnablePeriodic,
+    );
+    onShowToast?.(
+      isEnablePeriodic
+        ? "📦 已啟用多週期分類備份（日・週・月階層存檔）"
+        : "已關閉多週期備份（僅保留最新鏡像）",
+    );
   }
 
-  async function handleRestoreFromOneDrive(customFilePath?: string, label?: string) {
+  async function handleRestoreFromOneDrive(
+    customFilePath?: string,
+    label?: string,
+  ) {
     if (!currentOneDrivePath) return;
-    const targetDesc = label ? `「${label}」` : '最新備份存檔';
+    const targetDesc = label ? `「${label}」` : "最新備份存檔";
     const ok = window.confirm(
       `⚠️ 確定要從 OneDrive 還原 ${targetDesc} 的所有藥帖嗎？\n\n` +
-      '還原將會以該備份存檔取代當前工作台中的藥帖分頁。\n' +
-      '（放心：還原前會於本機歷史自動建立快照留底）'
+        "還原將會以該備份存檔取代當前工作台中的藥帖分頁。\n" +
+        "（放心：還原前會於本機歷史自動建立快照留底）",
     );
     if (!ok) return;
 
     try {
-      const raw = await readOneDriveBackupJson(currentOneDrivePath, customFilePath);
+      const raw = await readOneDriveBackupJson(
+        currentOneDrivePath,
+        customFilePath,
+      );
       const parsed = JSON.parse(raw);
       if (parsed.tabs && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
         onRestoreVault?.(parsed.tabs);
         onShowToast?.(`📥 成功從 OneDrive 還原 ${parsed.tabs.length} 篇藥帖！`);
         onClose();
       } else {
-        onShowToast?.('⚠️ 備份檔案中未包含有效的藥帖資料');
+        onShowToast?.("⚠️ 備份檔案中未包含有效的藥帖資料");
       }
     } catch (err: any) {
       onShowToast?.(`⚠️ 還原失敗: ${err.message || err}`);
@@ -379,13 +495,17 @@
   async function handleOpenExplorer() {
     if (!currentOneDrivePath) return;
     try {
-      await openInSystemExplorer(`${currentOneDrivePath}\\BambooSaga_VaultBackup`);
+      await openInSystemExplorer(
+        `${currentOneDrivePath}\\BambooSaga_VaultBackup`,
+      );
     } catch (e: any) {
       onShowToast?.(`無法開啟目錄: ${e.message || e}`);
     }
   }
 
-  let selectedPeriodicCategory = $state<'daily' | 'weekly' | 'monthly'>('daily');
+  let selectedPeriodicCategory = $state<"daily" | "weekly" | "monthly">(
+    "daily",
+  );
 
   function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -393,18 +513,24 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  function formatBackupLabel(category: 'daily' | 'weekly' | 'monthly', fileName: string): string {
+  function formatBackupLabel(
+    category: "daily" | "weekly" | "monthly",
+    fileName: string,
+  ): string {
     // 檔名格式例如 backup_daily_2026-10-14.json, backup_weekly_2026-W42.json, backup_monthly_2026-10.json
-    const cleaned = fileName.replace(/^backup_(daily|weekly|monthly)_/, '').replace(/\.json$/, '');
-    if (category === 'daily') return `📅 日記存檔：${cleaned}`;
-    if (category === 'weekly') return `🗓️ 第 ${cleaned.replace(/^.*-W/, '')} 週存檔 (${cleaned.split('-W')[0]} 年)`;
-    if (category === 'monthly') return `🌙 月份存檔：${cleaned}`;
+    const cleaned = fileName
+      .replace(/^backup_(daily|weekly|monthly)_/, "")
+      .replace(/\.json$/, "");
+    if (category === "daily") return `📅 日記存檔：${cleaned}`;
+    if (category === "weekly")
+      return `🗓️ 第 ${cleaned.replace(/^.*-W/, "")} 週存檔 (${cleaned.split("-W")[0]} 年)`;
+    if (category === "monthly") return `🌙 月份存檔：${cleaned}`;
     return cleaned;
   }
 
   async function handleBackupNow() {
     if (!currentOneDrivePath) {
-      onShowToast?.('⚠️ 請先選擇要備份的 OneDrive 帳號');
+      onShowToast?.("⚠️ 請先選擇要備份的 OneDrive 帳號");
       return;
     }
     isBackingUp = true;
@@ -414,11 +540,15 @@
         file_name: t.title || `藥帖_${idx + 1}`,
         content: t.content,
       }));
-      const vaultJson = JSON.stringify({
-        exportedAt: new Date().toISOString(),
-        tabCount: safeTabs.length,
-        tabs: safeTabs,
-      }, null, 2);
+      const vaultJson = JSON.stringify(
+        {
+          exportedAt: new Date().toISOString(),
+          tabCount: safeTabs.length,
+          tabs: safeTabs,
+        },
+        null,
+        2,
+      );
 
       const res = await backupVaultToOneDrive({
         onedriveFolderPath: currentOneDrivePath,
@@ -442,13 +572,17 @@
 
   async function handleExecuteRefine() {
     isRefining = true;
-    errorMsg = '';
+    errorMsg = "";
     try {
       const currentCardPrompt = inputCards[selectedMode]?.systemPrompt;
-      await onRefine(selectedMode as RefineryMode, customPrompt, currentCardPrompt);
+      await onRefine(
+        selectedMode as RefineryMode,
+        customPrompt,
+        currentCardPrompt,
+      );
       onClose();
     } catch (e: any) {
-      errorMsg = e.message || '煉丹失敗，請檢查網路連線或 API 金鑰';
+      errorMsg = e.message || "煉丹失敗，請檢查網路連線或 API 金鑰";
     } finally {
       isRefining = false;
     }
@@ -456,31 +590,45 @@
 
   function handleResetCurrentCard() {
     if (DEFAULT_ALCHEMY_CARDS[selectedMode]) {
-      inputCards[selectedMode].systemPrompt = DEFAULT_ALCHEMY_CARDS[selectedMode].systemPrompt;
-      inputCards[selectedMode].title = DEFAULT_ALCHEMY_CARDS[selectedMode].title;
+      inputCards[selectedMode].systemPrompt =
+        DEFAULT_ALCHEMY_CARDS[selectedMode].systemPrompt;
+      inputCards[selectedMode].title =
+        DEFAULT_ALCHEMY_CARDS[selectedMode].title;
       inputCards[selectedMode].desc = DEFAULT_ALCHEMY_CARDS[selectedMode].desc;
-      onShowToast?.(`🔄 已將【${inputCards[selectedMode].title}】恢復為原廠預設心法`);
+      onShowToast?.(
+        `🔄 已將【${inputCards[selectedMode].title}】恢復為原廠預設心法`,
+      );
     }
   }
 
   function handleSaveCards() {
     onSaveAlchemyCards?.($state.snapshot(inputCards));
-    onShowToast?.(`💾 【${inputCards[selectedMode]?.title || '煉丹卡片'}】心法設定已成功儲存入櫃！`);
+    onShowToast?.(
+      `💾 【${inputCards[selectedMode]?.title || "煉丹卡片"}】心法設定已成功儲存入櫃！`,
+    );
   }
 
   function handleSaveKeysOnly() {
     if (onSaveKeys) {
       onSaveKeys(
-        inputGroqKey.trim(), 
-        inputGeminiKey.trim(), 
-        inputModel, 
-        inputModelId, 
-        inputSecurityMode
+        inputGroqKey.trim(),
+        inputGeminiKey.trim(),
+        inputModel,
+        inputModelId,
+        inputSecurityMode,
       );
     } else if (onSaveSettings) {
-      onSaveSettings(inputGroqKey.trim(), inputGeminiKey.trim(), inputModel, $state.snapshot(inputVimOverrides));
+      onSaveSettings(
+        inputGroqKey.trim(),
+        inputGeminiKey.trim(),
+        inputModel,
+        $state.snapshot(inputVimOverrides),
+      );
     }
-    const modeName = inputSecurityMode === 'scheme_3_os_native' ? 'OS 原生保險庫' : 'Web Crypto 本機加密';
+    const modeName =
+      inputSecurityMode === "scheme_3_os_native"
+        ? "OS 原生保險庫"
+        : "Web Crypto 本機加密";
     onShowToast?.(`🔑 AI 金鑰已透過【${modeName}】安全保存入櫃！`);
   }
 
@@ -488,45 +636,59 @@
     if (onSaveKeybindings) {
       onSaveKeybindings($state.snapshot(inputVimOverrides), inputVimMode);
     } else if (onSaveSettings) {
-      onSaveSettings(inputGroqKey.trim(), inputGeminiKey.trim(), inputModel, $state.snapshot(inputVimOverrides));
+      onSaveSettings(
+        inputGroqKey.trim(),
+        inputGeminiKey.trim(),
+        inputModel,
+        $state.snapshot(inputVimOverrides),
+      );
     }
     onToggleVim?.(inputVimMode);
-    onShowToast?.('⌨️ 按鍵與編輯模式偏好已成功保存！');
+    onShowToast?.("⌨️ 按鍵與編輯模式偏好已成功保存！");
   }
 
   function handleResetVimOverrides() {
     inputVimOverrides = getDefaultVimOverrides();
-    onShowToast?.('🔄 已恢復 Vim 快捷鍵衝突攔截的推薦預設值！');
+    onShowToast?.("🔄 已恢復 Vim 快捷鍵衝突攔截的推薦預設值！");
   }
 
   function handleToggleVimModeInSettings(mode: boolean) {
     inputVimMode = mode;
     onToggleVim?.(mode);
-    onShowToast?.(mode ? '⌨️ 已切換為 VIM 模態 (VIM-HYBRID)' : '📝 已切換為 STD 標準編輯模式');
+    onShowToast?.(
+      mode
+        ? "⌨️ 已切換為 VIM 模態 (VIM-HYBRID)"
+        : "📝 已切換為 STD 標準編輯模式",
+    );
   }
 
   function handleSaveLayoutOnly() {
     onSaveLayoutConfig?.($state.snapshot(inputLayoutConfig));
-    onShowToast?.('📐 工作台版面配置已成功保存！');
+    onShowToast?.("📐 工作台版面配置已成功保存！");
   }
 
   function handleResetLayout() {
     inputLayoutConfig = getDefaultLayoutConfig();
-    onShowToast?.('🔄 已恢復版面配置推薦預設值！');
+    onShowToast?.("🔄 已恢復版面配置推薦預設值！");
   }
 </script>
 
 {#if isOpen}
   <div class="modal-backdrop" onclick={onClose} role="presentation">
-    <div 
-      class="modal-box" 
-      onclick={(e) => e.stopPropagation()} 
-      role="dialog" 
-      aria-modal="true" 
+    <div
+      class="modal-box"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
       tabindex="-1"
       onkeydown={(e) => {
-        if (e.key === 'Escape') onClose();
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && activeTab === 'refine' && !isRefining) {
+        if (e.key === "Escape") onClose();
+        if (
+          (e.ctrlKey || e.metaKey) &&
+          e.key === "Enter" &&
+          activeTab === "refine" &&
+          !isRefining
+        ) {
           handleExecuteRefine();
         }
       }}
@@ -536,51 +698,53 @@
         <div class="header-left">
           <span class="pulse-cinnabar"></span>
           <span class="engine-title">
-            {activeTab === 'onedrive' 
-              ? '雲端備份 // ONEDRIVE MIRROR' 
-              : activeTab === 'keybindings'
-              ? '按鍵偏好 // VIM & KEYMAP'
-              : activeTab === 'layout'
-              ? '版面配置 // WORKBENCH LAYOUT'
-              : activeTab === 'system'
-              ? '系統整合 // NATIVE INTEGRATION'
-              : '金鑰配置 // API CREDENTIALS'}
+            {activeTab === "onedrive"
+              ? "雲端備份 // ONEDRIVE MIRROR"
+              : activeTab === "keybindings"
+                ? "按鍵偏好 // VIM & KEYMAP"
+                : activeTab === "layout"
+                  ? "版面配置 // WORKBENCH LAYOUT"
+                  : activeTab === "system"
+                    ? "系統整合 // NATIVE INTEGRATION"
+                    : "金鑰配置 // API CREDENTIALS"}
           </span>
           <span class="engine-badge">DOT-SYS v2.5</span>
         </div>
 
         <div class="header-nav">
-          <button 
-            class="tab-btn {activeTab === 'keys' || activeTab === 'settings' ? 'active' : ''}" 
-            onclick={() => setTab('keys')}
+          <button
+            class="tab-btn {activeTab === 'keys' || activeTab === 'settings'
+              ? 'active'
+              : ''}"
+            onclick={() => setTab("keys")}
             title="配置 Gemini / Groq API 金鑰與推論核心"
           >
             🔑 API 金鑰
           </button>
-          <button 
-            class="tab-btn {activeTab === 'keybindings' ? 'active' : ''}" 
-            onclick={() => setTab('keybindings')}
+          <button
+            class="tab-btn {activeTab === 'keybindings' ? 'active' : ''}"
+            onclick={() => setTab("keybindings")}
             title="設定 VIM / STD 模式與快捷鍵覆蓋"
           >
             ⌨️ 按鍵偏好
           </button>
-          <button 
-            class="tab-btn {activeTab === 'layout' ? 'active' : ''}" 
-            onclick={() => setTab('layout')}
+          <button
+            class="tab-btn {activeTab === 'layout' ? 'active' : ''}"
+            onclick={() => setTab("layout")}
             title="設定工作台寬度、字級與 AI 審查對照偏好"
           >
             📐 版面配置
           </button>
-          <button 
-            class="tab-btn {activeTab === 'onedrive' ? 'active' : ''}" 
-            onclick={() => setTab('onedrive')}
+          <button
+            class="tab-btn {activeTab === 'onedrive' ? 'active' : ''}"
+            onclick={() => setTab("onedrive")}
             title="OneDrive 自動雲端鏡像備份"
           >
             ☁️ 雲端備份
           </button>
-          <button 
-            class="tab-btn {activeTab === 'system' ? 'active' : ''}" 
-            onclick={() => setTab('system')}
+          <button
+            class="tab-btn {activeTab === 'system' ? 'active' : ''}"
+            onclick={() => setTab("system")}
             title="Windows 右鍵選單、單一實例與原生整合"
           >
             🖥️ 原生整合
@@ -597,14 +761,16 @@
         </div>
       {/if}
 
-      {#if activeTab === 'keys' || activeTab === 'settings'}
+      {#if activeTab === "keys" || activeTab === "settings"}
         <!-- 獨立分頁一：API 金鑰與推論核心配置 (支援熱重載與純本機安全加密) -->
         <div class="modal-body settings-body">
           <div class="section-banner">
             <Key size={16} class="section-icon" />
             <div class="section-title-group">
               <span class="section-main-title">AI 推論金鑰與熱重載核心</span>
-              <span class="section-sub-title">輸入金鑰即時向官方端點探勘可用模型；純本機持久化，絕對不上雲端</span>
+              <span class="section-sub-title"
+                >輸入金鑰即時向官方端點探勘可用模型；純本機持久化，絕對不上雲端</span
+              >
             </div>
           </div>
 
@@ -612,65 +778,92 @@
           <div class="security-scheme-card">
             <div class="scheme-header">
               <Shield size={14} class="scheme-icon" />
-              <span class="scheme-title">金鑰本機安全持久化機制 (純本地保護)</span>
+              <span class="scheme-title"
+                >金鑰本機安全持久化機制 (純本地保護)</span
+              >
             </div>
             <div class="scheme-options-grid">
-              <label class="scheme-option-item {inputSecurityMode === 'scheme_3_os_native' ? 'selected' : ''}">
-                <input 
-                  type="radio" 
-                  name="sec_scheme" 
-                  value="scheme_3_os_native" 
-                  checked={inputSecurityMode === 'scheme_3_os_native'}
-                  onchange={() => (inputSecurityMode = 'scheme_3_os_native')} 
+              <label
+                class="scheme-option-item {inputSecurityMode ===
+                'scheme_3_os_native'
+                  ? 'selected'
+                  : ''}"
+              >
+                <input
+                  type="radio"
+                  name="sec_scheme"
+                  value="scheme_3_os_native"
+                  checked={inputSecurityMode === "scheme_3_os_native"}
+                  onchange={() => (inputSecurityMode = "scheme_3_os_native")}
                 />
                 <div class="scheme-item-content">
                   <div class="scheme-item-header">
                     <span class="scheme-item-name">作業系統原生認證保險庫</span>
                     <span class="scheme-tag-rec">推薦</span>
                   </div>
-                  <span class="scheme-item-desc">透過 OS 原生憑證安全庫 (Windows DPAPI) 綁定電腦登入帳號，不落地純文字。</span>
+                  <span class="scheme-item-desc"
+                    >透過 OS 原生憑證安全庫 (Windows DPAPI)
+                    綁定電腦登入帳號，不落地純文字。</span
+                  >
                 </div>
               </label>
 
-              <label class="scheme-option-item {inputSecurityMode === 'scheme_2_web_crypto' ? 'selected' : ''}">
-                <input 
-                  type="radio" 
-                  name="sec_scheme" 
-                  value="scheme_2_web_crypto" 
-                  checked={inputSecurityMode === 'scheme_2_web_crypto'}
-                  onchange={() => (inputSecurityMode = 'scheme_2_web_crypto')} 
+              <label
+                class="scheme-option-item {inputSecurityMode ===
+                'scheme_2_web_crypto'
+                  ? 'selected'
+                  : ''}"
+              >
+                <input
+                  type="radio"
+                  name="sec_scheme"
+                  value="scheme_2_web_crypto"
+                  checked={inputSecurityMode === "scheme_2_web_crypto"}
+                  onchange={() => (inputSecurityMode = "scheme_2_web_crypto")}
                 />
                 <div class="scheme-item-content">
                   <div class="scheme-item-header">
-                    <span class="scheme-item-name">本機沙盒 + Web Crypto (AES-256)</span>
+                    <span class="scheme-item-name"
+                      >本機沙盒 + Web Crypto (AES-256)</span
+                    >
                   </div>
-                  <span class="scheme-item-desc">本機硬體加速 AES-GCM-256 加密密文隔離，即使開啟本地儲存檔案亦為密文。</span>
+                  <span class="scheme-item-desc"
+                    >本機硬體加速 AES-GCM-256
+                    加密密文隔離，即使開啟本地儲存檔案亦為密文。</span
+                  >
                 </div>
               </label>
             </div>
 
             <div class="onedrive-isolation-notice">
               <CheckCircle2 size={13} class="notice-icon" />
-              <span>🛡️ <strong>雲端隔離保證</strong>：所有 API 金鑰已從 OneDrive 同步備份中徹底脫敏剔除，零雲端外洩風險。</span>
+              <span
+                >🛡️ <strong>雲端隔離保證</strong>：所有 API 金鑰已從 OneDrive
+                同步備份中徹底脫敏剔除，零雲端外洩風險。</span
+              >
             </div>
           </div>
 
           <!-- 核心推論引擎選擇 -->
           <div class="form-group">
-            <label class="form-label" for="model-provider-select">核心推論引擎供應商</label>
+            <label class="form-label" for="model-provider-select"
+              >核心推論引擎供應商</label
+            >
             <div class="provider-capsule-row">
-              <button 
-                type="button" 
-                class="provider-capsule {inputModel === 'gemini' ? 'active' : ''}"
-                onclick={() => handleProviderChange('gemini')}
+              <button
+                type="button"
+                class="provider-capsule {inputModel === 'gemini'
+                  ? 'active'
+                  : ''}"
+                onclick={() => handleProviderChange("gemini")}
               >
                 <span>Google Gemini</span>
                 <span class="capsule-sub">長文分析 / 多模態</span>
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 class="provider-capsule {inputModel === 'groq' ? 'active' : ''}"
-                onclick={() => handleProviderChange('groq')}
+                onclick={() => handleProviderChange("groq")}
               >
                 <span>Groq Llama</span>
                 <span class="capsule-sub">超極速毫秒級推論</span>
@@ -679,14 +872,16 @@
           </div>
 
           <!-- 對應供應商之 API Key 輸入框 -->
-          {#if inputModel === 'gemini'}
+          {#if inputModel === "gemini"}
             <div class="form-group">
               <div class="label-with-tool">
-                <label class="form-label" for="gemini-key">Google Gemini API Key</label>
+                <label class="form-label" for="gemini-key"
+                  >Google Gemini API Key</label
+                >
                 <div class="tool-btn-group">
-                  <button 
-                    type="button" 
-                    class="text-link-btn" 
+                  <button
+                    type="button"
+                    class="text-link-btn"
                     onclick={() => (showGeminiKey = !showGeminiKey)}
                   >
                     {#if showGeminiKey}
@@ -695,36 +890,42 @@
                       <Eye size={13} /> <span>顯示</span>
                     {/if}
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     class="refresh-models-btn"
                     disabled={isFetchingModels || !inputGeminiKey.trim()}
                     onclick={() => triggerModelFetch(true)}
                     title="立即向 Google 端點探勘模型清單"
                   >
-                    <RefreshCw size={12} class={isFetchingModels ? 'spin' : ''} />
+                    <RefreshCw
+                      size={12}
+                      class={isFetchingModels ? "spin" : ""}
+                    />
                     <span>測試連線與重載模型</span>
                   </button>
                 </div>
               </div>
-              <input 
+              <input
                 id="gemini-key"
-                type={showGeminiKey ? 'text' : 'password'} 
-                class="form-input" 
-                placeholder="貼上 AIzaSy 開頭之 Gemini API Key..." 
-                bind:value={inputGeminiKey} 
+                type={showGeminiKey ? "text" : "password"}
+                class="form-input"
+                placeholder="貼上 AIzaSy 開頭之 Gemini API Key..."
+                bind:value={inputGeminiKey}
                 oninput={() => triggerModelFetch(false)}
               />
-              <span class="field-hint">推薦使用 Google AI Studio 免費金鑰，長文提煉效果極佳。輸入後自動熱重載官方可用模型。</span>
+              <span class="field-hint"
+                >推薦使用 Google AI Studio
+                免費金鑰，長文提煉效果極佳。輸入後自動熱重載官方可用模型。</span
+              >
             </div>
           {:else}
             <div class="form-group">
               <div class="label-with-tool">
                 <label class="form-label" for="groq-key">Groq API Key</label>
                 <div class="tool-btn-group">
-                  <button 
-                    type="button" 
-                    class="text-link-btn" 
+                  <button
+                    type="button"
+                    class="text-link-btn"
                     onclick={() => (showGroqKey = !showGroqKey)}
                   >
                     {#if showGroqKey}
@@ -733,27 +934,32 @@
                       <Eye size={13} /> <span>顯示</span>
                     {/if}
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     class="refresh-models-btn"
                     disabled={isFetchingModels || !inputGroqKey.trim()}
                     onclick={() => triggerModelFetch(true)}
                     title="立即向 Groq 端點探勘模型清單"
                   >
-                    <RefreshCw size={12} class={isFetchingModels ? 'spin' : ''} />
+                    <RefreshCw
+                      size={12}
+                      class={isFetchingModels ? "spin" : ""}
+                    />
                     <span>測試連線與重載模型</span>
                   </button>
                 </div>
               </div>
-              <input 
+              <input
                 id="groq-key"
-                type={showGroqKey ? 'text' : 'password'} 
-                class="form-input" 
-                placeholder="貼上 gsk_ 開頭之 Groq API Key..." 
-                bind:value={inputGroqKey} 
+                type={showGroqKey ? "text" : "password"}
+                class="form-input"
+                placeholder="貼上 gsk_ 開頭之 Groq API Key..."
+                bind:value={inputGroqKey}
                 oninput={() => triggerModelFetch(false)}
               />
-              <span class="field-hint">極速毫秒級響應，適合靈感速記與即時整理。輸入後自動熱重載官方可用模型。</span>
+              <span class="field-hint"
+                >極速毫秒級響應，適合靈感速記與即時整理。輸入後自動熱重載官方可用模型。</span
+              >
             </div>
           {/if}
 
@@ -762,22 +968,33 @@
             {#if isFetchingModels}
               <div class="status-indicator loading">
                 <span class="spinner-small">⏳</span>
-                <span>正在向 {inputModel === 'gemini' ? 'Google' : 'Groq'} 官方端點探勘支援之模型清單...</span>
+                <span
+                  >正在向 {inputModel === "gemini" ? "Google" : "Groq"} 官方端點探勘支援之模型清單...</span
+                >
               </div>
             {:else if fetchModelsSuccess && availableModels.length > 0}
               <div class="status-indicator success">
                 <Sparkles size={13} />
-                <span>✨ 驗證成功！已探勘到 {availableModels.length} 款可用推論模型{fetchModelsSource === 'cache' ? ' (自本機快取載入)' : ' (即時熱重載)'}</span>
+                <span
+                  >✨ 驗證成功！已探勘到 {availableModels.length} 款可用推論模型{fetchModelsSource ===
+                  "cache"
+                    ? " (自本機快取載入)"
+                    : " (即時熱重載)"}</span
+                >
               </div>
             {:else if fetchModelsError}
               <div class="status-indicator error">
                 <AlertCircle size={13} />
-                <span>⚠️ 驗證失敗：{fetchModelsError}（請檢查金鑰有效性或網路）</span>
+                <span
+                  >⚠️ 驗證失敗：{fetchModelsError}（請檢查金鑰有效性或網路）</span
+                >
               </div>
-            {:else if !(inputModel === 'gemini' ? inputGeminiKey.trim() : inputGroqKey.trim())}
+            {:else if !(inputModel === "gemini" ? inputGeminiKey.trim() : inputGroqKey.trim())}
               <div class="status-indicator idle">
                 <Lock size={13} />
-                <span>🔒 尚未配置金鑰。請在上方輸入金鑰以探勘官方模型清單。</span>
+                <span
+                  >🔒 尚未配置金鑰。請在上方輸入金鑰以探勘官方模型清單。</span
+                >
               </div>
             {/if}
           </div>
@@ -787,15 +1004,17 @@
             <label class="form-label" for="dynamic-model-select">
               推論模型選擇 (依金鑰權限動態生成)
             </label>
-            <select 
-              id="dynamic-model-select" 
-              class="form-select dynamic-select" 
+            <select
+              id="dynamic-model-select"
+              class="form-select dynamic-select"
               bind:value={inputModelId}
               disabled={availableModels.length === 0}
             >
               {#if availableModels.length === 0}
                 <option value="" disabled selected>
-                  {isFetchingModels ? '⏳ 正在熱重載模型中...' : '🔒 請先在上方輸入有效 API Key 以載入模型清單'}
+                  {isFetchingModels
+                    ? "⏳ 正在熱重載模型中..."
+                    : "🔒 請先在上方輸入有效 API Key 以載入模型清單"}
                 </option>
               {:else}
                 {#each availableModels as model (model.id)}
@@ -806,9 +1025,13 @@
               {/if}
             </select>
             {#if availableModels.length > 0}
-              {@const currentModelObj = availableModels.find(m => m.id === inputModelId)}
+              {@const currentModelObj = availableModels.find(
+                (m) => m.id === inputModelId,
+              )}
               {#if currentModelObj?.description}
-                <span class="field-hint model-desc-hint">💡 {currentModelObj.description}</span>
+                <span class="field-hint model-desc-hint"
+                  >💡 {currentModelObj.description}</span
+                >
               {/if}
             {/if}
           </div>
@@ -817,7 +1040,9 @@
             <div class="telemetry">
               <span class="telemetry-dot"></span>
               <span class="telemetry-text">
-                VAULT: {inputSecurityMode === 'scheme_3_os_native' ? 'OS-NATIVE-DPAPI' : 'WEB-CRYPTO-AES256'} (CLOUD ISOLATED)
+                VAULT: {inputSecurityMode === "scheme_3_os_native"
+                  ? "OS-NATIVE-DPAPI"
+                  : "WEB-CRYPTO-AES256"} (CLOUD ISOLATED)
               </span>
             </div>
             <button class="save-settings-btn" onclick={handleSaveKeysOnly}>
@@ -825,15 +1050,16 @@
             </button>
           </footer>
         </div>
-
-      {:else if activeTab === 'keybindings'}
+      {:else if activeTab === "keybindings"}
         <!-- 獨立分頁二：按鍵偏好與 VIM 模式 -->
         <div class="modal-body settings-body">
           <div class="section-banner">
             <Keyboard size={16} class="section-icon" />
             <div class="section-title-group">
               <span class="section-main-title">按鍵偏好與編輯器模式</span>
-              <span class="section-sub-title">自訂 VIM 模態、快捷鍵衝突覆蓋與中文防呆機制</span>
+              <span class="section-sub-title"
+                >自訂 VIM 模態、快捷鍵衝突覆蓋與中文防呆機制</span
+              >
             </div>
           </div>
 
@@ -841,7 +1067,7 @@
           <div class="form-group">
             <span class="form-label">預設編輯器模式 (Default Editor Mode)</span>
             <div class="mode-selector-grid">
-              <button 
+              <button
                 type="button"
                 class="mode-choice-card {!inputVimMode ? 'selected' : ''}"
                 onclick={() => handleToggleVimModeInSettings(false)}
@@ -852,10 +1078,12 @@
                     <span class="choice-badge">作用中</span>
                   {/if}
                 </div>
-                <p class="choice-desc">標準現代無阻編輯體驗，直覺打字、游標選取與智慧染色。</p>
+                <p class="choice-desc">
+                  標準現代無阻編輯體驗，直覺打字、游標選取與智慧染色。
+                </p>
               </button>
 
-              <button 
+              <button
                 type="button"
                 class="mode-choice-card {inputVimMode ? 'selected' : ''}"
                 onclick={() => handleToggleVimModeInSettings(true)}
@@ -866,7 +1094,9 @@
                     <span class="choice-badge">作用中</span>
                   {/if}
                 </div>
-                <p class="choice-desc">經典 Normal/Insert/Visual 模態，結合物理殘影與系統剪貼簿相容。</p>
+                <p class="choice-desc">
+                  經典 Normal/Insert/Visual 模態，結合物理殘影與系統剪貼簿相容。
+                </p>
               </button>
             </div>
           </div>
@@ -874,10 +1104,12 @@
           <!-- Vim 快捷鍵衝突攔截覆蓋 -->
           <div class="form-group">
             <div class="label-with-tool">
-              <span class="form-label">Vim 模式快捷鍵攔截覆蓋 (避免與常用系統習慣衝突)</span>
-              <button 
-                type="button" 
-                class="text-link-btn reset-link" 
+              <span class="form-label"
+                >Vim 模式快捷鍵攔截覆蓋 (避免與常用系統習慣衝突)</span
+              >
+              <button
+                type="button"
+                class="text-link-btn reset-link"
                 onclick={handleResetVimOverrides}
               >
                 <RotateCcw size={12} />
@@ -907,7 +1139,10 @@
                 <span>Ctrl+F 搜尋</span>
               </label>
               <label class="override-item">
-                <input type="checkbox" bind:checked={inputVimOverrides.imeWarning} />
+                <input
+                  type="checkbox"
+                  bind:checked={inputVimOverrides.imeWarning}
+                />
                 <span>中文注音防呆告警</span>
               </label>
             </div>
@@ -916,8 +1151,11 @@
           <!-- 全域系統快捷鍵映射與未來自訂宣告 (Single Source of Truth) -->
           <div class="form-group">
             <div class="label-with-tool">
-              <span class="form-label">全域系統快捷鍵映射 (Global Shortcuts Mapping)</span>
-              <span class="badge-hint">已綁定 Ctrl 控制 · 未來開放自訂鍵位</span>
+              <span class="form-label"
+                >全域系統快捷鍵映射 (Global Shortcuts Mapping)</span
+              >
+              <span class="badge-hint">已綁定 Ctrl 控制 · 未來開放自訂鍵位</span
+              >
             </div>
 
             <div class="system-shortcuts-container">
@@ -938,34 +1176,42 @@
           </div>
 
           <footer class="modal-footer">
-            <button 
-              type="button" 
-              class="reset-secondary-btn" 
+            <button
+              type="button"
+              class="reset-secondary-btn"
               onclick={handleResetVimOverrides}
             >
               <RotateCcw size={13} />
               <span>恢復預設快捷鍵</span>
             </button>
-            <button class="save-settings-btn" onclick={handleSaveKeybindingsOnly}>
+            <button
+              class="save-settings-btn"
+              onclick={handleSaveKeybindingsOnly}
+            >
               💾 保存按鍵偏好
             </button>
           </footer>
         </div>
-      {:else if activeTab === 'onedrive'}
+      {:else if activeTab === "onedrive"}
         <!-- 雲端備份與 OneDrive 整合面板 -->
         <div class="modal-body settings-body onedrive-body">
           <div class="onedrive-header-desc">
             <span class="desc-title">☁️ OneDrive 自動雲端鏡像備份</span>
             <span class="desc-subtitle">
-              純本機寫入，由微軟 OneDrive 客戶端原生安全上傳。零授權風險、自動辨識個人版與企業/學校版。
+              純本機寫入，由微軟 OneDrive
+              客戶端原生安全上傳。零授權風險、自動辨識個人版與企業/學校版。
             </span>
           </div>
 
           <div class="form-group">
             <div class="onedrive-account-header">
               <span class="form-label">選擇備份目的地帳號</span>
-              <button class="rescan-btn" onclick={scanOneDrive} disabled={isScanningOneDrive}>
-                <RefreshCw size={12} class={isScanningOneDrive ? 'spin' : ''} />
+              <button
+                class="rescan-btn"
+                onclick={scanOneDrive}
+                disabled={isScanningOneDrive}
+              >
+                <RefreshCw size={12} class={isScanningOneDrive ? "spin" : ""} />
                 <span>重新探測</span>
               </button>
             </div>
@@ -977,21 +1223,26 @@
               </div>
             {:else if oneDriveAccounts.length === 0}
               <div class="onedrive-empty">
-                <span>⚠️ 尚未探測到已登入的 OneDrive 資料夾，請確認電腦已啟動 OneDrive 客戶端。</span>
+                <span
+                  >⚠️ 尚未探測到已登入的 OneDrive 資料夾，請確認電腦已啟動
+                  OneDrive 客戶端。</span
+                >
               </div>
             {:else}
               <div class="onedrive-accounts-grid">
                 {#each oneDriveAccounts as acc (acc.folder_path)}
                   {@const isSelected = currentOneDrivePath === acc.folder_path}
-                  <div 
+                  <div
                     class="onedrive-acc-card {isSelected ? 'selected' : ''}"
                     onclick={() => handleSelectOneDrive(acc.folder_path)}
                     role="button"
                     tabindex="0"
-                    onkeydown={(e) => e.key === 'Enter' && handleSelectOneDrive(acc.folder_path)}
+                    onkeydown={(e) =>
+                      e.key === "Enter" &&
+                      handleSelectOneDrive(acc.folder_path)}
                   >
                     <div class="acc-badge-icon">
-                      {#if acc.account_type === 'business'}
+                      {#if acc.account_type === "business"}
                         <Building2 size={16} class="text-business" />
                       {:else}
                         <User size={16} class="text-personal" />
@@ -1001,10 +1252,13 @@
                       <div class="acc-title-row">
                         <span class="acc-title">{acc.display_name}</span>
                         <span class="acc-tag {acc.account_type}">
-                          {acc.account_type === 'business' ? '商業/學校版' : '個人版'}
+                          {acc.account_type === "business"
+                            ? "商業/學校版"
+                            : "個人版"}
                         </span>
                       </div>
-                      <span class="acc-folder font-mono">{acc.folder_path}</span>
+                      <span class="acc-folder font-mono">{acc.folder_path}</span
+                      >
                     </div>
                     <div class="acc-check">
                       {#if isSelected}
@@ -1019,10 +1273,18 @@
 
           <div class="form-group">
             <label class="override-item auto-backup-toggle">
-              <input type="checkbox" checked={isAutoBackup} onchange={handleToggleAutoBackup} />
+              <input
+                type="checkbox"
+                checked={isAutoBackup}
+                onchange={handleToggleAutoBackup}
+              />
               <div class="toggle-text">
-                <span class="toggle-title">啟用背景定時與關閉前自動鏡像備份</span>
-                <span class="toggle-sub">有變更時於背景排程備份，並在視窗關閉前立即鏡像儲存。</span>
+                <span class="toggle-title"
+                  >啟用背景定時與關閉前自動鏡像備份</span
+                >
+                <span class="toggle-sub"
+                  >有變更時於背景排程備份，並在視窗關閉前立即鏡像儲存。</span
+                >
               </div>
             </label>
 
@@ -1031,12 +1293,16 @@
                 <span class="interval-label">⏱️ 背景備份循環頻率：</span>
                 <div class="interval-capsules">
                   {#each [15, 30, 60, 120, 240] as minutes}
-                    <button 
+                    <button
                       type="button"
-                      class="interval-capsule {inputBackupInterval === minutes ? 'active' : ''}"
+                      class="interval-capsule {inputBackupInterval === minutes
+                        ? 'active'
+                        : ''}"
                       onclick={() => handleChangeInterval(minutes)}
                     >
-                      {minutes < 60 ? `${minutes} 分鐘` : `${minutes / 60} 小時`}
+                      {minutes < 60
+                        ? `${minutes} 分鐘`
+                        : `${minutes / 60} 小時`}
                       {#if minutes === 30}
                         <span class="recommend-tag">推薦</span>
                       {/if}
@@ -1049,10 +1315,19 @@
 
           <div class="form-group">
             <label class="override-item auto-backup-toggle">
-              <input type="checkbox" checked={isEnablePeriodic} onchange={handleTogglePeriodicBackup} />
+              <input
+                type="checkbox"
+                checked={isEnablePeriodic}
+                onchange={handleTogglePeriodicBackup}
+              />
               <div class="toggle-text">
-                <span class="toggle-title">啟用多週期備份庫（日・週・月階層分類輪轉存檔）</span>
-                <span class="toggle-sub">開啟後每次備份將自動保留最近 7 天、4 週與 12 個月的歷史版本；關閉則僅維持最新存檔。</span>
+                <span class="toggle-title"
+                  >啟用多週期備份庫（日・週・月階層分類輪轉存檔）</span
+                >
+                <span class="toggle-sub"
+                  >開啟後每次備份將自動保留最近 7 天、4 週與 12
+                  個月的歷史版本；關閉則僅維持最新存檔。</span
+                >
               </div>
             </label>
           </div>
@@ -1061,65 +1336,99 @@
             <div class="summary-line">
               <span>備份儲存資料匣：</span>
               <span class="font-mono text-accent">
-                {currentOneDrivePath ? `${currentOneDrivePath}\\BambooSaga_VaultBackup` : '未選取'}
+                {currentOneDrivePath
+                  ? `${currentOneDrivePath}\\BambooSaga_VaultBackup`
+                  : "未選取"}
               </span>
             </div>
             <div class="summary-line">
               <span>包含項目：</span>
-              <span>全域藥帖 JSON 鏡像 + {(tabs || []).length} 份純 Markdown 文件 (手機 App 可直接閱讀)</span>
+              <span
+                >全域藥帖 JSON 鏡像 + {(tabs || []).length} 份純 Markdown 文件 (手機
+                App 可直接閱讀)</span
+              >
             </div>
             {#if lastBackupResult}
               <div class="summary-line text-green">
                 <span>最後備份時間：</span>
-                <span>{new Date(lastBackupResult.timestamp * 1000).toLocaleTimeString()} ({lastBackupResult.exported_files_count} 份檔案已封裝)</span>
+                <span
+                  >{new Date(
+                    lastBackupResult.timestamp * 1000,
+                  ).toLocaleTimeString()} ({lastBackupResult.exported_files_count}
+                  份檔案已封裝)</span
+                >
               </div>
             {/if}
           </div>
 
           <!-- 多週期性備份讀取與還原區塊 -->
           {#if backupOverview?.has_backup}
-            {@const dailyList = backupOverview.periodic_backups?.filter(b => b.category === 'daily') || []}
-            {@const weeklyList = backupOverview.periodic_backups?.filter(b => b.category === 'weekly') || []}
-            {@const monthlyList = backupOverview.periodic_backups?.filter(b => b.category === 'monthly') || []}
-            {@const currentCategoryList = selectedPeriodicCategory === 'daily' 
-              ? dailyList 
-              : selectedPeriodicCategory === 'weekly' 
-              ? weeklyList 
-              : monthlyList}
+            {@const dailyList =
+              backupOverview.periodic_backups?.filter(
+                (b) => b.category === "daily",
+              ) || []}
+            {@const weeklyList =
+              backupOverview.periodic_backups?.filter(
+                (b) => b.category === "weekly",
+              ) || []}
+            {@const monthlyList =
+              backupOverview.periodic_backups?.filter(
+                (b) => b.category === "monthly",
+              ) || []}
+            {@const currentCategoryList =
+              selectedPeriodicCategory === "daily"
+                ? dailyList
+                : selectedPeriodicCategory === "weekly"
+                  ? weeklyList
+                  : monthlyList}
 
             <div class="onedrive-restore-panel">
               <div class="restore-title-row">
                 <div class="restore-title-group">
-                  <span class="restore-title">📦 多週期備份庫 (Vault Archive)</span>
-                  <span class="restore-sub">日・週・月階層分類輪轉，自動清理過期存檔</span>
+                  <span class="restore-title"
+                    >📦 多週期備份庫 (Vault Archive)</span
+                  >
+                  <span class="restore-sub"
+                    >日・週・月階層分類輪轉，自動清理過期存檔</span
+                  >
                 </div>
                 {#if backupOverview.latest_timestamp}
                   <span class="restore-time-badge">
-                    最新存檔：{new Date(backupOverview.latest_timestamp * 1000).toLocaleTimeString()}
+                    最新存檔：{new Date(
+                      backupOverview.latest_timestamp * 1000,
+                    ).toLocaleTimeString()}
                   </span>
                 {/if}
               </div>
 
               <!-- 日/週/月 分類頁籤切換器 -->
               <div class="periodic-tabs-bar">
-                <button 
+                <button
                   type="button"
-                  class="periodic-tab-pill {selectedPeriodicCategory === 'daily' ? 'active' : ''}"
-                  onclick={() => (selectedPeriodicCategory = 'daily')}
+                  class="periodic-tab-pill {selectedPeriodicCategory === 'daily'
+                    ? 'active'
+                    : ''}"
+                  onclick={() => (selectedPeriodicCategory = "daily")}
                 >
                   📅 每日備份 ({dailyList.length})
                 </button>
-                <button 
+                <button
                   type="button"
-                  class="periodic-tab-pill {selectedPeriodicCategory === 'weekly' ? 'active' : ''}"
-                  onclick={() => (selectedPeriodicCategory = 'weekly')}
+                  class="periodic-tab-pill {selectedPeriodicCategory ===
+                  'weekly'
+                    ? 'active'
+                    : ''}"
+                  onclick={() => (selectedPeriodicCategory = "weekly")}
                 >
                   🗓️ 每週備份 ({weeklyList.length})
                 </button>
-                <button 
+                <button
                   type="button"
-                  class="periodic-tab-pill {selectedPeriodicCategory === 'monthly' ? 'active' : ''}"
-                  onclick={() => (selectedPeriodicCategory = 'monthly')}
+                  class="periodic-tab-pill {selectedPeriodicCategory ===
+                  'monthly'
+                    ? 'active'
+                    : ''}"
+                  onclick={() => (selectedPeriodicCategory = "monthly")}
                 >
                   🌙 每月備份 ({monthlyList.length})
                 </button>
@@ -1129,23 +1438,38 @@
               <div class="periodic-snapshots-list">
                 {#if currentCategoryList.length === 0}
                   <div class="snapshots-empty">
-                    <span>此週期分類暫無存檔（下次執行備份時自動分類生成）</span>
+                    <span>此週期分類暫無存檔（下次執行備份時自動分類生成）</span
+                    >
                   </div>
                 {:else}
                   {#each currentCategoryList as item (item.file_path)}
                     <div class="snapshot-card">
                       <div class="snapshot-info">
-                        <span class="snapshot-label">{formatBackupLabel(item.category, item.file_name)}</span>
+                        <span class="snapshot-label"
+                          >{formatBackupLabel(
+                            item.category,
+                            item.file_name,
+                          )}</span
+                        >
                         <div class="snapshot-meta">
-                          <span>{new Date(item.timestamp * 1000).toLocaleString()}</span>
+                          <span
+                            >{new Date(
+                              item.timestamp * 1000,
+                            ).toLocaleString()}</span
+                          >
                           <span>•</span>
-                          <span class="font-mono">{formatBytes(item.size)}</span>
+                          <span class="font-mono">{formatBytes(item.size)}</span
+                          >
                         </div>
                       </div>
-                      <button 
+                      <button
                         type="button"
                         class="snapshot-restore-btn"
-                        onclick={() => handleRestoreFromOneDrive(item.file_path, item.file_name)}
+                        onclick={() =>
+                          handleRestoreFromOneDrive(
+                            item.file_path,
+                            item.file_name,
+                          )}
                         title="將百子櫃還原至此歷史備份點"
                       >
                         <Download size={12} />
@@ -1157,19 +1481,20 @@
               </div>
 
               <div class="restore-actions-row">
-                <button 
+                <button
                   type="button"
-                  class="restore-btn" 
-                  onclick={() => handleRestoreFromOneDrive(undefined, '最新鏡像存檔')} 
+                  class="restore-btn"
+                  onclick={() =>
+                    handleRestoreFromOneDrive(undefined, "最新鏡像存檔")}
                   title="將 OneDrive 最新鏡像還原至當前百子櫃"
                 >
                   <Download size={14} />
                   <span>📥 還原最新鏡像 (Latest)</span>
                 </button>
-                <button 
+                <button
                   type="button"
-                  class="open-explorer-btn" 
-                  onclick={handleOpenExplorer} 
+                  class="open-explorer-btn"
+                  onclick={handleOpenExplorer}
                   title="在 Windows 檔案總管中直接開啟此目錄"
                 >
                   <FolderOpen size={14} />
@@ -1179,13 +1504,18 @@
 
               {#if backupOverview.markdown_files.length > 0}
                 <div class="restore-files-preview">
-                  <span class="preview-label">手機可直接閱讀之 Markdown 匯出檔 ({backupOverview.markdown_files.length})：</span>
+                  <span class="preview-label"
+                    >手機可直接閱讀之 Markdown 匯出檔 ({backupOverview
+                      .markdown_files.length})：</span
+                  >
                   <div class="files-tags-wrap">
                     {#each backupOverview.markdown_files.slice(0, 8) as f}
                       <span class="file-tag">{f}</span>
                     {/each}
                     {#if backupOverview.markdown_files.length > 8}
-                      <span class="file-tag more">+{backupOverview.markdown_files.length - 8} 篇...</span>
+                      <span class="file-tag more"
+                        >+{backupOverview.markdown_files.length - 8} 篇...</span
+                      >
                     {/if}
                   </div>
                 </div>
@@ -1194,8 +1524,8 @@
           {/if}
 
           <footer class="modal-footer onedrive-footer">
-            <button 
-              class="backup-now-btn" 
+            <button
+              class="backup-now-btn"
               disabled={!currentOneDrivePath || isBackingUp}
               onclick={handleBackupNow}
             >
@@ -1209,15 +1539,16 @@
             </button>
           </footer>
         </div>
-
-      {:else if activeTab === 'layout'}
+      {:else if activeTab === "layout"}
         <!-- 獨立分頁四：版面配置與視圖偏好 -->
         <div class="modal-body settings-body">
           <div class="section-banner">
             <LayoutTemplate size={16} class="section-icon" />
             <div class="section-title-group">
               <span class="section-main-title">工作台版面與檢視偏好</span>
-              <span class="section-sub-title">自訂畫布排版寬度、字級大小與 AI 審查對照體驗</span>
+              <span class="section-sub-title"
+                >自訂畫布排版寬度、字級大小與 AI 審查對照體驗</span
+              >
             </div>
           </div>
 
@@ -1225,64 +1556,88 @@
           <div class="form-group">
             <span class="form-label">工作台畫布寬度 (Canvas Layout Mode)</span>
             <div class="mode-selector-grid">
-              <button 
+              <button
                 type="button"
-                class="mode-choice-card {inputLayoutConfig.workbenchWidth === 'zen' ? 'selected' : ''}"
-                onclick={() => inputLayoutConfig.workbenchWidth = 'zen'}
+                class="mode-choice-card {inputLayoutConfig.workbenchWidth ===
+                'zen'
+                  ? 'selected'
+                  : ''}"
+                onclick={() => (inputLayoutConfig.workbenchWidth = "zen")}
               >
                 <div class="choice-head">
                   <span class="choice-title">📜 禪風居中 // ZEN (960px)</span>
-                  {#if inputLayoutConfig.workbenchWidth === 'zen'}
+                  {#if inputLayoutConfig.workbenchWidth === "zen"}
                     <span class="choice-badge">作用中</span>
                   {/if}
                 </div>
-                <p class="choice-desc">包浩斯黃金閱讀寬度，沉浸專注，文字視線集中不散亂。</p>
+                <p class="choice-desc">
+                  黃金閱讀寬度，沉浸專注，文字視線集中不散亂。
+                </p>
               </button>
 
-              <button 
+              <button
                 type="button"
-                class="mode-choice-card {inputLayoutConfig.workbenchWidth === 'full' ? 'selected' : ''}"
-                onclick={() => inputLayoutConfig.workbenchWidth = 'full'}
+                class="mode-choice-card {inputLayoutConfig.workbenchWidth ===
+                'full'
+                  ? 'selected'
+                  : ''}"
+                onclick={() => (inputLayoutConfig.workbenchWidth = "full")}
               >
                 <div class="choice-head">
                   <span class="choice-title">🖥️ 全螢幕滿版 // FULL WIDTH</span>
-                  {#if inputLayoutConfig.workbenchWidth === 'full'}
+                  {#if inputLayoutConfig.workbenchWidth === "full"}
                     <span class="choice-badge">作用中</span>
                   {/if}
                 </div>
-                <p class="choice-desc">完全填滿左右兩側視窗，提供極限寬廣的視野與橫向空間。</p>
+                <p class="choice-desc">
+                  完全填滿左右兩側視窗，提供極限寬廣的視野與橫向空間。
+                </p>
               </button>
             </div>
           </div>
 
           <!-- 二、AI 變更與審查對照 -->
           <div class="form-group">
-            <span class="form-label">AI 提煉審查偏好 (AI Review Preferences)</span>
+            <span class="form-label"
+              >AI 提煉審查偏好 (AI Review Preferences)</span
+            >
             <div class="overrides-grid">
               <label class="override-item">
-                <input type="checkbox" bind:checked={inputLayoutConfig.autoDiffOnAi} />
+                <input
+                  type="checkbox"
+                  bind:checked={inputLayoutConfig.autoDiffOnAi}
+                />
                 <span>AI 提煉完成後自動展開雙欄對照</span>
               </label>
               <label class="override-item">
-                <input type="checkbox" bind:checked={inputLayoutConfig.scrollSync} />
+                <input
+                  type="checkbox"
+                  bind:checked={inputLayoutConfig.scrollSync}
+                />
                 <span>雙欄對照左右捲動同步 (Scroll Sync)</span>
               </label>
             </div>
-            <span class="field-hint">一般筆記時常駐單欄沉浸；僅在 AI 整理產出後，依此設定在審查列提供無縫比對。</span>
+            <span class="field-hint"
+              >一般筆記時常駐單欄沉浸；僅在 AI
+              整理產出後，依此設定在審查列提供無縫比對。</span
+            >
           </div>
 
           <!-- 三、編輯器字級縮放 -->
           <div class="form-group">
             <span class="form-label">編輯器字級大小 (Editor Font Size)</span>
             <div class="font-size-grid">
-              {#each ['13px', '14px', '16px', '18px'] as size}
+              {#each ["13px", "14px", "16px", "18px"] as size}
                 <button
                   type="button"
-                  class="font-size-pill {inputLayoutConfig.fontSize === size ? 'selected' : ''}"
-                  onclick={() => inputLayoutConfig.fontSize = size as any}
+                  class="font-size-pill {inputLayoutConfig.fontSize === size
+                    ? 'selected'
+                    : ''}"
+                  onclick={() => (inputLayoutConfig.fontSize = size as any)}
                 >
                   <span class="size-text">{size}</span>
-                  {#if size === '14px'}<span class="size-hint">(預設)</span>{/if}
+                  {#if size === "14px"}<span class="size-hint">(預設)</span
+                    >{/if}
                 </button>
               {/each}
             </div>
@@ -1293,16 +1648,19 @@
             <span class="form-label">物理動態反饋 (Visual Effects)</span>
             <div class="overrides-grid">
               <label class="override-item">
-                <input type="checkbox" bind:checked={inputLayoutConfig.smearCursor} />
+                <input
+                  type="checkbox"
+                  bind:checked={inputLayoutConfig.smearCursor}
+                />
                 <span>流光游標物理拖尾殘影 (Smear Cursor)</span>
               </label>
             </div>
           </div>
 
           <footer class="modal-footer">
-            <button 
-              type="button" 
-              class="reset-secondary-btn" 
+            <button
+              type="button"
+              class="reset-secondary-btn"
               onclick={handleResetLayout}
             >
               <RotateCcw size={13} />
@@ -1313,15 +1671,17 @@
             </button>
           </footer>
         </div>
-
-      {:else if activeTab === 'system'}
+      {:else if activeTab === "system"}
         <!-- 獨立分頁六：系統整合與原生路由 -->
         <div class="modal-body settings-body">
           <div class="section-banner">
             <span style="font-size: 16px;">🖥️</span>
             <div class="section-title-group">
               <span class="section-main-title">跨平台系統整合與原生路由</span>
-              <span class="section-sub-title">偵測作業系統：{sysInfo.os.toUpperCase()} · 單一實例守護運行中 (Single-Instance Router)</span>
+              <span class="section-sub-title"
+                >偵測作業系統：{sysInfo.os.toUpperCase()} · 單一實例守護運行中 (Single-Instance
+                Router)</span
+              >
             </div>
           </div>
 
@@ -1333,7 +1693,9 @@
                 <span class="status-pill active">🟢 守護中</span>
               </div>
               <div class="metric-title">單一視窗熱傳遞</div>
-              <div class="metric-desc">重複點選或自外部開啟檔案時，自動拉回現有視窗聚焦並切換新分頁，避免重複多開。</div>
+              <div class="metric-desc">
+                重複點選或自外部開啟檔案時，自動拉回現有視窗聚焦並切換新分頁，避免重複多開。
+              </div>
             </div>
 
             <div class="sys-metric-card">
@@ -1342,30 +1704,53 @@
                 <span class="status-pill active">🟢 支援就緒</span>
               </div>
               <div class="metric-title">全域 Drag & Drop</div>
-              <div class="metric-desc">可隨時從 Windows 檔案總管、macOS Finder、Linux 將文件拖入編輯區直接收入藥帖。</div>
+              <div class="metric-desc">
+                可隨時從 Windows 檔案總管、macOS Finder、Linux
+                將文件拖入編輯區直接收入藥帖。
+              </div>
             </div>
           </div>
 
           <!-- 二、Windows 右鍵選單操作面板 -->
           {#if sysInfo.supports_context_menu}
             <div class="form-group" style="margin-top: 18px;">
-              <span class="form-label">Windows 檔案總管滑鼠右鍵選單 (Context Menu)</span>
+              <span class="form-label"
+                >Windows 檔案總管滑鼠右鍵選單 (Context Menu)</span
+              >
               <div class="system-integration-card">
                 <div class="integration-row">
                   <div class="integration-info">
-                    <div class="integration-title">「用 廣零散 收入藥帖」捷徑整合</div>
+                    <div class="integration-title">
+                      「用 廣零散 收入藥帖」捷徑整合
+                    </div>
                     <div class="integration-desc">
-                      將操作機碼寫入當前使用者登錄檔（<code>HKCU\Software\Classes</code>），<strong>免 UAC 系統管理員權限</strong>，隨開隨用。
+                      將操作機碼寫入當前使用者登錄檔（<code
+                        >HKCU\Software\Classes</code
+                      >），<strong>免 UAC 系統管理員權限</strong>，隨開隨用。
                     </div>
                     <div class="integration-features-list">
-                      <div class="feat-item">📄 任意文字/Markdown 檔案右鍵：<strong>「🍃 用 廣零散 收入藥帖」</strong></div>
-                      <div class="feat-item">📁 任意資料夾右鍵：<strong>「📜 用 廣零散 開啟藥卷庫」</strong></div>
-                      <div class="feat-item">🗂️ 資料夾空白背景右鍵：<strong>「📜 在此處開啟 廣零散 藥卷庫」</strong></div>
+                      <div class="feat-item">
+                        📄 任意文字/Markdown 檔案右鍵：<strong
+                          >「🍃 用 廣零散 收入藥帖」</strong
+                        >
+                      </div>
+                      <div class="feat-item">
+                        📁 任意資料夾右鍵：<strong
+                          >「📜 用 廣零散 開啟藥卷庫」</strong
+                        >
+                      </div>
+                      <div class="feat-item">
+                        🗂️ 資料夾空白背景右鍵：<strong
+                          >「📜 在此處開啟 廣零散 藥卷庫」</strong
+                        >
+                      </div>
                     </div>
                   </div>
-                  <button 
+                  <button
                     type="button"
-                    class="context-menu-toggle-btn {sysInfo.is_context_menu_enabled ? 'enabled' : ''}"
+                    class="context-menu-toggle-btn {sysInfo.is_context_menu_enabled
+                      ? 'enabled'
+                      : ''}"
                     disabled={isTogglingContextMenu}
                     onclick={handleToggleContextMenu}
                   >
@@ -1385,12 +1770,17 @@
             <div class="cross-platform-full-note">
               <div class="note-title">跨平台原生相容與檔案關聯</div>
               <div class="note-desc">
-                {#if sysInfo.os === 'macos'}
-                  🍎 <strong>macOS 原生關聯相容</strong>：
-                  您可以在 Finder 中對任意文字或 Markdown 檔案按右鍵選擇「打開方式 ➔ 廣零散」，或直接將檔案拖移至 Dock 圖示與開啟中的視窗，廣零散會透過 Cocoa 原生事件自動接收並開啟新藥帖。
-                {:else if sysInfo.os === 'linux'}
-                  🐧 <strong>Linux 桌面標準相容</strong>：
-                  打包時已註冊 XDG 桌面規格與標準 MIME 檔案關聯（<code>text/markdown</code>, <code>text/plain</code>），可直接在檔案管理員中點擊開啟或拖曳。
+                {#if sysInfo.os === "macos"}
+                  🍎 <strong>macOS 原生關聯相容</strong>： 您可以在 Finder
+                  中對任意文字或 Markdown 檔案按右鍵選擇「打開方式 ➔
+                  廣零散」，或直接將檔案拖移至 Dock
+                  圖示與開啟中的視窗，廣零散會透過 Cocoa
+                  原生事件自動接收並開啟新藥帖。
+                {:else if sysInfo.os === "linux"}
+                  🐧 <strong>Linux 桌面標準相容</strong>： 打包時已註冊 XDG
+                  桌面規格與標準 MIME 檔案關聯（<code>text/markdown</code>,
+                  <code>text/plain</code
+                  >），可直接在檔案管理員中點擊開啟或拖曳。
                 {:else}
                   🌐 跨平台預覽環境：支援檔案關聯與拖曳直開。
                 {/if}
@@ -1400,7 +1790,9 @@
 
           <!-- 三、支援檔案格式清單 -->
           <div class="form-group" style="margin-top: 18px;">
-            <span class="form-label">原生支援與關聯之藥帖格式 (Supported File Associations)</span>
+            <span class="form-label"
+              >原生支援與關聯之藥帖格式 (Supported File Associations)</span
+            >
             <div class="file-associations-pills">
               <span class="assoc-pill">.md (Markdown)</span>
               <span class="assoc-pill">.markdown</span>
@@ -1414,7 +1806,9 @@
           <footer class="modal-footer">
             <div class="telemetry">
               <span class="telemetry-dot"></span>
-              <span class="telemetry-text">ROUTER: SINGLE-INSTANCE KERNEL ACTIVE</span>
+              <span class="telemetry-text"
+                >ROUTER: SINGLE-INSTANCE KERNEL ACTIVE</span
+              >
             </div>
             <button class="save-settings-btn" onclick={onClose}>
               ✓ 完成並關閉
@@ -1456,8 +1850,14 @@
   }
 
   @keyframes modal-pop {
-    from { transform: scale(0.96); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    from {
+      transform: scale(0.96);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
 
   .modal-header {
@@ -1490,8 +1890,12 @@
   }
 
   @keyframes pulse {
-    from { opacity: 0.4; }
-    to { opacity: 1; }
+    from {
+      opacity: 0.4;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   .engine-title {
@@ -1629,9 +2033,15 @@
     margin-bottom: 4px;
   }
 
-  .tag-cinnabar { color: #c95847; }
-  .tag-ochre { color: #d49b35; }
-  .tag-olive { color: #869b74; }
+  .tag-cinnabar {
+    color: #c95847;
+  }
+  .tag-ochre {
+    color: #d49b35;
+  }
+  .tag-olive {
+    color: #869b74;
+  }
 
   .card-title {
     margin: 0;
@@ -2061,7 +2471,8 @@
     color: #ece7dc;
   }
 
-  .form-input, .form-select {
+  .form-input,
+  .form-select {
     height: 34px;
     background: #0e0e0e;
     border: 1px solid #504534;
@@ -2073,7 +2484,8 @@
     outline: none;
   }
 
-  .form-input:focus, .form-select:focus {
+  .form-input:focus,
+  .form-select:focus {
     border-color: #d49b35;
   }
 
@@ -2096,7 +2508,7 @@
   .badge-hint {
     font-size: 10px;
     color: #7daea3;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
     background: rgba(125, 174, 163, 0.1);
     padding: 2px 6px;
     border-radius: 3px;
@@ -2153,7 +2565,7 @@
     align-items: center;
     justify-content: center;
     padding: 2px 6px;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
     font-size: 10px;
     font-weight: 600;
     color: #ece7dc;
@@ -2367,7 +2779,7 @@
     cursor: pointer;
   }
 
-  .auto-backup-toggle input[type='checkbox'] {
+  .auto-backup-toggle input[type="checkbox"] {
     accent-color: #d49b35;
     margin-top: 2px;
   }
@@ -2445,8 +2857,12 @@
   }
 
   @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   /* 備份還原面板樣式 */
@@ -2762,7 +3178,7 @@
     font-weight: 600;
     color: #ebdbb2;
     margin-bottom: 4px;
-    font-family: 'JetBrains Mono', sans-serif;
+    font-family: "JetBrains Mono", sans-serif;
   }
 
   .integration-desc {
@@ -2776,7 +3192,7 @@
     border-radius: 4px;
     font-size: 12px;
     font-weight: 600;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
     cursor: pointer;
     background: #282828;
     color: #d49b35;
@@ -2801,7 +3217,6 @@
     color: #fbf1c7;
     border-color: #fb4934;
   }
-
 
   /* 系統整合專屬儀表板樣式 */
   .system-dashboard-grid {
@@ -2908,7 +3323,7 @@
     font-size: 11px;
     padding: 4px 10px;
     border-radius: 12px;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
   }
 
   /* 金鑰安全持久化方案卡片 */
@@ -3092,8 +3507,12 @@
   }
 
   @keyframes rotate-spinner {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   /* 連線與熱重載狀態列 */
