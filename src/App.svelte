@@ -1105,6 +1105,32 @@
     saveVaultState(state);
   }
 
+  // 執筆模式：一鍵採納並精準置換手稿目標段落（自動建立快照保險）
+  function handleChatReplaceParagraph(originalText: string, newText: string) {
+    if (!activeTab || !originalText) return;
+
+    // 1. 建立執筆採納前快照
+    activeTab.preAiSnapshot = {
+      content: activeTab.content,
+      timestamp: Date.now(),
+      reason: `參謀執筆採納前快照`,
+    };
+    triggerAutoSnapshot(activeTab, 'pre-ai', undefined, `參謀執筆採納前`);
+
+    // 2. 原地精準置換該段落
+    if (activeTab.content.includes(originalText)) {
+      activeTab.content = activeTab.content.replace(originalText, newText);
+    } else {
+      // 容錯備援：若原文已被微幅改動，追加至末端
+      activeTab.content = activeTab.content + '\n\n' + newText;
+    }
+
+    activeTab.lastModified = Date.now();
+    saveVaultState(state, true);
+    triggerAutoSnapshot(activeTab, 'post-ai', undefined, `參謀執筆採納`);
+    showToast('✨ 參謀執筆成果已採納並原地替換手稿！');
+  }
+
   // 更新單一段落的決策狀態
   function handleUpdateChunkDecision(chunkId: string, decision: ChunkDecision) {
     const chunk = reviewChunks.find((c) => c.id === chunkId);
@@ -1671,6 +1697,7 @@
     onClose={() => (isAiChatDrawerOpen = false)}
     onSendToReview={handleChatSendToReview}
     onInsertToEditor={handleChatInsertToEditor}
+    onReplaceTargetText={handleChatReplaceParagraph}
     onShowToast={showToast}
   />
 </div>

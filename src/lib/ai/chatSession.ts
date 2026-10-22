@@ -1,11 +1,17 @@
 import { formatIndexedPromptInput } from './refinery';
 
+export type AdvisorMode = 'inquiry' | 'scribe'; // 'inquiry': 💬 問道模式, 'scribe': ✍️ 執筆模式
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   engineUsed?: string;
+  mode?: AdvisorMode;
+  targetOriginalText?: string;   // 執筆模式下鎖定的原始手稿段落
+  targetRefinedText?: string;    // 執筆模式下的修訂成果（供對照）
+  paragraphLabel?: string;       // 段落標籤，如「段落 P1」或「選取焦點」
 }
 
 export interface SendChatOptions {
@@ -15,6 +21,11 @@ export interface SendChatOptions {
   geminiKey: string;
   history: ChatMessage[];
   userMessage: string;
+  advisorMode?: AdvisorMode;      // 模式：問道 (inquiry) 或 執筆 (scribe)
+  targetParagraph?: {            // 執筆模式鎖定的段落文字與標籤
+    text: string;
+    label?: string;
+  };
   contextNote?: {
     title: string;
     content: string;
@@ -30,13 +41,55 @@ export interface ChatCompletionResult {
 
 /**
  * 構建帶有 Bamboo Saga 禪風與台灣繁體中文規範的系統提示詞
+ * 支援「💬 問道模式（論道諮詢）」與「✍️ 執筆模式（段落修煉對照）」
  */
-function buildSystemPrompt(contextNote?: { title: string; content: string; selection?: string }): string {
+function buildSystemPrompt(
+  advisorMode: AdvisorMode = 'inquiry',
+  contextNote?: { title: string; content: string; selection?: string },
+  targetParagraph?: { text: string; label?: string }
+): string {
+  if (advisorMode === 'scribe') {
+    let prompt = `你是一位精通文字淬鍊、修辭潤墨與架構重整的隨身執筆參謀，服務於《廣零散》（Bamboo Saga）沉浸式筆記工作台。
+目前處於【✍️ 執筆模式】：宛如煉丹爐鼎，專注於「段落迭代修訂與精準對照」。
+使用者的指令是針對特定段落進行改寫、優化、重排版或代碼重構。
+
+【執筆準則】：
+1. 一律使用正體/繁體中文（台灣習慣用語與標準技術名詞，如「程式碼」、「專案」、「記憶體」、「演算法」）。
+2. 請直接輸出修訂後的具體文本或程式碼，力求版面優雅、段落層次分明。
+3. 避免過多空泛寒暄，將核心精力放在產出高品質、可直接採納替換手稿的精煉文字。
+4. 當提及程式碼時，必須標明語言代號（如 \`\`\`ts, \`\`\`rust, \`\`\`python, \`\`\`sql 等）。
+5. 若前幾輪對話已有上一版修訂稿，請視為迭代過程，依使用者最新指令在前版成果基礎上持續精進。`;
+
+    if (targetParagraph && targetParagraph.text.trim()) {
+      prompt += `\n\n【當前鎖定修煉之手稿段落 (${targetParagraph.label || '目標段落'})】：
+"""
+${targetParagraph.text}
+"""`;
+    } else if (contextNote?.selection) {
+      prompt += `\n\n【當前反白選取之焦點片段】：
+"""
+${contextNote.selection}
+"""`;
+    }
+
+    if (contextNote && contextNote.content.trim()) {
+      prompt += `\n\n【全篇手稿背景（僅供語意與上下文參考，切勿隨意改動其他未鎖定段落）】：
+篇名：${contextNote.title || '無標題素簡'}
+"""
+${contextNote.content.slice(0, 4000)}${contextNote.content.length > 4000 ? '\n... (節錄)' : ''}
+"""`;
+    }
+
+    return prompt;
+  }
+
+  // 預設：💬 問道模式 (Inquiry)
   let prompt = `你是一位精通技術與修辭的隨身參謀兼知識提煉師，服務於《廣零散》（Bamboo Saga）沉浸式筆記工作台。
+目前處於【💬 問道模式】：著重於思維推演、架構設計、技術釋疑與心法探討。
 請遵循以下守則：
 1. 一律使用正體/繁體中文（台灣習慣用語與技術名詞，如「程式碼」、「專案」、「記憶體」、「演算法」）回答。
 2. 語氣兼具技術精準與文人雅趣，排版需優雅層次分明。
-3. 若提供修改或潤飾文本，請使用清晰 Markdown 格式，適度使用【】標籤包裹重點。若為整篇建議，請盡量保留段落結構以利後續對照審核。
+3. 重在提供觀點、解答疑惑、分析利弊，不強行改動手稿結構。
 4. 當提及代碼時，必須標明語言代號（如 \`\`\`ts, \`\`\`rust, \`\`\`markdown 等）。`;
 
   if (contextNote && contextNote.content.trim()) {
@@ -53,11 +106,11 @@ ${contextNote.content.slice(0, 8000)}${contextNote.content.length > 8000 ? '\n..
 }
 
 /**
- * 發送對話訊息（支援 Groq 與 Gemini，保留多輪上下文）
+ * 發送對話訊息（支援 Groq 與 Gemini，保留多輪上下文，支援問道與執筆雙模式）
  */
 export async function sendChatMessage(options: SendChatOptions): Promise<ChatCompletionResult> {
-  const { model, modelId, groqKey, geminiKey, history, userMessage, contextNote, signal } = options;
-  const systemPrompt = buildSystemPrompt(contextNote);
+  const { model, modelId, groqKey, geminiKey, history, userMessage, advisorMode = 'inquiry', targetParagraph, contextNote, signal } = options;
+  const systemPrompt = buildSystemPrompt(advisorMode, contextNote, targetParagraph);
 
   // 1. 若使用 Groq
   if (model === 'groq' && groqKey) {
@@ -97,6 +150,7 @@ export async function sendChatMessage(options: SendChatOptions): Promise<ChatCom
 
       const data = await resp.json();
       const answer = data.choices?.[0]?.message?.content || '';
+      const origText = targetParagraph?.text || contextNote?.selection || '';
       return {
         message: {
           id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -104,6 +158,10 @@ export async function sendChatMessage(options: SendChatOptions): Promise<ChatCom
           content: answer,
           timestamp: Date.now(),
           engineUsed: `Groq (${groqModel})`,
+          mode: advisorMode,
+          targetOriginalText: advisorMode === 'scribe' ? origText : undefined,
+          targetRefinedText: advisorMode === 'scribe' ? answer : undefined,
+          paragraphLabel: advisorMode === 'scribe' ? (targetParagraph?.label || '當前段落') : undefined,
         },
         engineUsed: `Groq (${groqModel})`,
       };
@@ -162,6 +220,7 @@ export async function sendChatMessage(options: SendChatOptions): Promise<ChatCom
 
       const data = await resp.json();
       const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const origText = targetParagraph?.text || contextNote?.selection || '';
       return {
         message: {
           id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -169,6 +228,10 @@ export async function sendChatMessage(options: SendChatOptions): Promise<ChatCom
           content: answer,
           timestamp: Date.now(),
           engineUsed: `Gemini (${geminiModel})`,
+          mode: advisorMode,
+          targetOriginalText: advisorMode === 'scribe' ? origText : undefined,
+          targetRefinedText: advisorMode === 'scribe' ? answer : undefined,
+          paragraphLabel: advisorMode === 'scribe' ? (targetParagraph?.label || '當前段落') : undefined,
         },
         engineUsed: `Gemini (${geminiModel})`,
       };
@@ -181,13 +244,22 @@ export async function sendChatMessage(options: SendChatOptions): Promise<ChatCom
 
   // 3. 本地模擬智慧對話 (Local Heuristic Fallback)
   await new Promise((r) => setTimeout(r, 600));
+  const fallbackOrig = targetParagraph?.text || contextNote?.selection || '（當前手稿無反白選取段落）';
+  const simulatedAnswer = advisorMode === 'scribe'
+    ? `### ✨ 參謀執筆微調成果\n依據閣下心法指令「${userMessage}」，已重鑄此段落。\n\n\`\`\`markdown\n${fallbackOrig}\n\`\`\`\n\n> 💡 填入 Groq 或 Gemini API Key 可啟動真實雲端大模型深度修煉。`
+    : `【參謀回報】：已收到您的心法指令「${userMessage}」。\n\n若需啟用雲端大模型深度推理，請於設定面板填入 Groq 或 Gemini API Key。\n\n若您希望將此回應送入丹道對照，可點擊下方「📜 送入丹道對照審核」將本段成果與手稿進行逐段比對！`;
+
   return {
     message: {
       id: `msg-sim-${Date.now()}`,
       role: 'assistant',
-      content: `【參謀回報】：已收到您的心法指令「${userMessage}」。\n\n若需啟用雲端大模型深度推理，請於設定面板填入 Groq 或 Gemini API Key。\n\n若您希望將此回應送入丹道對照，可點擊下方「📜 送入丹道對照審核」將本段成果與手稿進行逐段比對！`,
+      content: simulatedAnswer,
       timestamp: Date.now(),
       engineUsed: '本地預覽 (Local Mock)',
+      mode: advisorMode,
+      targetOriginalText: advisorMode === 'scribe' ? fallbackOrig : undefined,
+      targetRefinedText: advisorMode === 'scribe' ? simulatedAnswer : undefined,
+      paragraphLabel: advisorMode === 'scribe' ? (targetParagraph?.label || '當前段落') : undefined,
     },
     engineUsed: '本地預覽',
   };
