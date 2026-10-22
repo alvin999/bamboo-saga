@@ -1,0 +1,368 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 480" width="100%" height="100%" style="background: transparent; font-family: ui-monospace, 'Cascadia Code', 'Fira Code', 'Noto Sans TC', system-ui, sans-serif;">
+  <defs>
+    <!-- 背景漸層 (Gruvbox 深度暗底) -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d2021" />
+      <stop offset="50%" stop-color="#282828" />
+      <stop offset="100%" stop-color="#1d2021" />
+    </linearGradient>
+
+    <!-- 火光與金丹漸層 -->
+    <linearGradient id="fireGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#cc241d" />
+      <stop offset="50%" stop-color="#fe8019" />
+      <stop offset="100%" stop-color="#fabd2f" />
+    </linearGradient>
+
+    <radialGradient id="goldGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fabd2f" stop-opacity="0.8" />
+      <stop offset="60%" stop-color="#fe8019" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#fe8019" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- 視窗懸浮陰影 -->
+    <filter id="winShadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000000" flood-opacity="0.65" />
+    </filter>
+
+    <!-- ==================== 專案正統 Bamboo 圖標庫 ==================== -->
+    <symbol id="bamboo-icon" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="#282828"/>
+      <path d="M26 12 L26 52 M38 12 L38 52" stroke="#b8bb26" stroke-width="4.5" stroke-linecap="round"/>
+      <path d="M22 24 C28 22 34 22 42 24 M22 40 C28 38 34 38 42 40" stroke="#fabd2f" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="26" cy="24" r="3.2" fill="#fe8019"/>
+      <circle cx="38" cy="40" r="3.2" fill="#fe8019"/>
+      <path d="M38 20 Q48 16 46 28 Q40 26 38 20 Z" fill="#b8bb26" opacity="0.9"/>
+      <path d="M26 36 Q16 32 18 44 Q24 42 26 36 Z" fill="#b8bb26" opacity="0.9"/>
+    </symbol>
+
+    <symbol id="bamboo-mark" viewBox="0 0 64 64">
+      <path d="M26 12 L26 52 M38 12 L38 52" stroke="#b8bb26" stroke-width="4.5" stroke-linecap="round"/>
+      <path d="M22 24 C28 22 34 22 42 24 M22 40 C28 38 34 38 42 40" stroke="#fabd2f" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="26" cy="24" r="3.2" fill="#fe8019"/>
+      <circle cx="38" cy="40" r="3.2" fill="#fe8019"/>
+      <path d="M38 20 Q48 16 46 28 Q40 26 38 20 Z" fill="#b8bb26" opacity="0.9"/>
+      <path d="M26 36 Q16 32 18 44 Q24 42 26 36 Z" fill="#b8bb26" opacity="0.9"/>
+    </symbol>
+
+    <style>
+      /* ==================== 8.5 秒極速俐落時序 (純 Opacity，絕不跑位) ==================== */
+      /*
+         0s ~ 1.2s : 階段 1 - 原始速記草稿，游標移至「一鍵收散成丹」按鈕 (X:134, Y:380) 並點擊
+         1.2s ~ 2.0s: 階段 2 - 中央金丹八卦鼎極速火候 (0.8s 快轉切段)
+         2.0s ~ 3.2s: 階段 3A - 展開逐段審核視窗，段落 #2 初始呈現預設 AI 摘要
+         3.2s ~ 4.2s: 階段 3B - 游標移至段落 #2「📝 保留原文」(X:720, Y:224) 並確實點擊！
+         4.2s ~ 5.6s: 階段 3C - 【修改對比生效】段落 #2 瞬間高亮「原文完整保留」！游標移至頂部「收丹入櫃」
+         5.6s ~ 6.2s: 階段 3D - 游標點擊頂部「✅ 依選擇收丹入櫃」(X:710, Y:68)
+         6.2s ~ 7.8s: 階段 4 - 合成最終筆記入櫃
+         7.8s ~ 8.5s: 循環淡出
+      */
+
+      @keyframes rawDraftAnim {
+        0%, 12% { opacity: 1; visibility: visible; }
+        15%, 88% { opacity: 0; visibility: hidden; }
+        92%, 100% { opacity: 1; visibility: visible; }
+      }
+
+      @keyframes refiningAnim {
+        0%, 13% { opacity: 0; visibility: hidden; }
+        15%, 23% { opacity: 1; visibility: visible; }
+        25%, 100% { opacity: 0; visibility: hidden; }
+      }
+
+      @keyframes elixirPulse {
+        0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px #fabd2f); }
+        50% { transform: scale(1.12); filter: drop-shadow(0 0 12px #fe8019); }
+      }
+
+      @keyframes chunkReviewAnim {
+        0%, 23% { opacity: 0; visibility: hidden; }
+        25%, 68% { opacity: 1; visibility: visible; }
+        72%, 100% { opacity: 0; visibility: hidden; }
+      }
+
+      /* 段落 2 在 3.8s 點擊前的「採納 AI」狀態 */
+      @keyframes chunk2AiState {
+        0%, 38% { opacity: 1; }
+        42%, 100% { opacity: 0; }
+      }
+
+      /* 段落 2 在 3.8s 點擊後的「保留原文」修改生效狀態 */
+      @keyframes chunk2OriginalState {
+        0%, 38% { opacity: 0; }
+        42%, 100% { opacity: 1; }
+      }
+
+      @keyframes finalMergedAnim {
+        0%, 70% { opacity: 0; visibility: hidden; }
+        73%, 90% { opacity: 1; visibility: visible; }
+        94%, 100% { opacity: 0; visibility: hidden; }
+      }
+
+      /* 游標軌跡 (精確鎖定按鈕坐標) */
+      @keyframes cursorMovement {
+        0% { transform: translate(450px, 300px); opacity: 0; }
+        4% { transform: translate(450px, 300px); opacity: 1; }
+        /* 1. 移動到「一鍵收散成丹」按鈕 (X: 134, Y: 380) 並點擊 */
+        10%, 12% { transform: translate(134px, 380px) scale(0.88); }
+        14% { transform: translate(134px, 380px) scale(1); }
+        /* 等待 0.8s 審核視窗展開，游標移向段落 #2 */
+        22%, 30% { transform: translate(500px, 200px); opacity: 1; }
+        /* 2. 移向段落 #2 的「📝 保留原文」按鈕 (X: 720, Y: 224) */
+        36%, 38% { transform: translate(720px, 224px) scale(1); }
+        /* 3. 在 3.8s ~ 4.1s 確實點擊按下！ */
+        40%, 42% { transform: translate(720px, 224px) scale(0.86); }
+        44% { transform: translate(720px, 224px) scale(1); }
+        /* 4. 移向頂部「依選擇收丹入櫃」按鈕 (X: 710, Y: 68) */
+        52%, 55% { transform: translate(710px, 68px) scale(1); }
+        /* 5. 點擊收丹按鈕 */
+        57%, 59% { transform: translate(710px, 68px) scale(0.86); }
+        62% { transform: translate(710px, 68px) scale(1); }
+        68%, 100% { transform: translate(750px, 100px); opacity: 0; }
+      }
+
+      .flow-raw { animation: rawDraftAnim 8.5s ease-in-out infinite; }
+      .flow-refining { animation: refiningAnim 8.5s ease-in-out infinite; }
+      .flow-review { animation: chunkReviewAnim 8.5s ease-in-out infinite; }
+      .flow-final { animation: finalMergedAnim 8.5s ease-in-out infinite; }
+      .c2-ai { animation: chunk2AiState 8.5s infinite; }
+      .c2-orig { animation: chunk2OriginalState 8.5s infinite; }
+      .mouse-pointer { animation: cursorMovement 8.5s cubic-bezier(0.25, 1, 0.5, 1) infinite; pointer-events: none; }
+      .elixir-core { animation: elixirPulse 1.6s ease-in-out infinite; transform-origin: 410px 180px; }
+    </style>
+  </defs>
+
+  <!-- 主視窗容器外框 (固定) -->
+  <g filter="url(#winShadow)">
+    <rect x="10" y="10" width="860" height="460" rx="12" fill="url(#bgGrad)" stroke="#3c3836" stroke-width="1.5" />
+  </g>
+
+  <!-- 頂部標題列 (Gruvbox 視窗頂列) -->
+  <path d="M 10 22 C 10 15.37 15.37 10 22 10 L 858 10 C 864.63 10 870 15.37 870 22 L 870 44 L 10 44 Z" fill="#282828" />
+  <line x1="10" y1="44" x2="870" y2="44" stroke="#3c3836" stroke-width="1" />
+
+  <!-- 視窗三色燈 -->
+  <circle cx="32" cy="27" r="5.5" fill="#cc241d" />
+  <circle cx="48" cy="27" r="5.5" fill="#d79921" />
+  <circle cx="64" cy="27" r="5.5" fill="#98971a" />
+
+  <!-- 頂部標籤：全面改用 Bamboo Icon -->
+  <g transform="translate(86, 17)">
+    <rect x="0" y="0" width="330" height="22" rx="4" fill="#1d2021" stroke="#3c3836" stroke-width="1" />
+    <use href="#bamboo-icon" x="6" y="2" width="18" height="18" />
+    <text x="30" y="15" fill="#fabd2f" font-size="11" font-weight="bold">竹語・廣零散 ── 逐段審核與原文保留 (Chunk Review)</text>
+    <circle cx="316" cy="11" r="3" fill="#b8bb26" />
+  </g>
+
+  <!-- 右側指示徽章 -->
+  <g transform="translate(700, 17)">
+    <rect x="0" y="0" width="156" height="22" rx="4" fill="#32302f" stroke="#504945" stroke-width="1" />
+    <use href="#bamboo-mark" x="6" y="2" width="18" height="18" />
+    <text x="28" y="15" fill="#ebdbb2" font-size="10.5">原文零遺失保障</text>
+  </g>
+
+  <!-- ==================== 工作區外層容器 (絕對鎖定在 X:30, Y:56，絕不跑位) ==================== -->
+  <g transform="translate(30, 56)">
+
+    <!-- ========================================================================= -->
+    <!-- 階段 1：原始散帖速記視圖 (Raw Draft) -->
+    <!-- ========================================================================= -->
+    <g class="flow-raw">
+      <rect x="0" y="0" width="820" height="394" rx="8" fill="#1d2021" stroke="#3c3836" stroke-width="1.2" />
+      
+      <!-- 頂部資訊列 -->
+      <rect x="0" y="0" width="820" height="34" rx="8" fill="#282828" />
+      <line x1="0" y1="34" x2="820" y2="34" stroke="#3c3836" stroke-width="1" />
+      <use href="#bamboo-mark" x="12" y="8" width="18" height="18" />
+      <text x="36" y="22" fill="#ebdbb2" font-size="12" font-weight="bold">散帖：2026-10-22 開發架構速記</text>
+      <text x="730" y="22" fill="#a89984" font-size="11">未結構化草稿</text>
+
+      <!-- 凌亂草稿文字與智慧正則染色 -->
+      <g transform="translate(24, 56)">
+        <text x="0" y="0" fill="#a89984" font-size="12.5">// 隨手敲擊記下的雜亂會議紀錄與待辦</text>
+        
+        <g transform="translate(0, 26)">
+          <rect x="0" y="-13" width="46" height="18" rx="3" fill="#d3869b" fill-opacity="0.2" />
+          <text x="4" y="0" fill="#d3869b" font-size="11" font-weight="bold">10:30</text>
+          <text x="54" y="0" fill="#ebdbb2" font-size="13">開會說後端回應不能超過 </text>
+          <text x="210" y="0" fill="#b8bb26" font-weight="bold">300ms</text>
+          <text x="256" y="0" fill="#ebdbb2" font-size="13">，特別是資料庫 query 要快！</text>
+        </g>
+
+        <g transform="translate(0, 60)">
+          <text x="0" y="0" fill="#fe8019" font-size="13" font-weight="bold">「老陳說：換頁不要跳新視窗，用單一視窗分頁攔截，否則螢幕太亂」</text>
+          <text x="440" y="0" fill="#a89984" font-size="12">（這段是原話口語細節，務必保留！）</text>
+        </g>
+
+        <g transform="translate(0, 94)">
+          <rect x="0" y="-13" width="48" height="18" rx="3" fill="#cc241d" fill-opacity="0.2" />
+          <text x="4" y="0" fill="#fb4934" font-size="11" font-weight="bold">TODO</text>
+          <text x="56" y="0" fill="#ebdbb2" font-size="13">加入 Saga 交易補償機制，AI 整理後如果不滿意要能一鍵還原。</text>
+        </g>
+
+        <g transform="translate(0, 128)">
+          <text x="0" y="0" fill="#a89984" font-size="13">- 還有確認 README 的 SVG 動畫排版</text>
+        </g>
+      </g>
+
+      <!-- 底部煉丹按鈕 (觸發點：按鈕中心坐標 X: 30+24+110=164, Y: 56+324+21=401) -->
+      <g transform="translate(24, 324)">
+        <rect x="0" y="0" width="220" height="42" rx="6" fill="#fe8019" />
+        <use href="#bamboo-icon" x="12" y="11" width="20" height="20" />
+        <text x="38" y="26" fill="#1d2021" font-size="13.5" font-weight="bold">一鍵收散成丹 (AI 提煉)</text>
+        <text x="254" y="26" fill="#a89984" font-size="12">點擊後可逐段審核，自由選擇「採納 AI」或「保留原文」</text>
+      </g>
+    </g>
+
+    <!-- ========================================================================= -->
+    <!-- 階段 2：雙引擎提煉火候過場 (極速 0.8s 快閃) -->
+    <!-- ========================================================================= -->
+    <g class="flow-refining">
+      <rect x="0" y="0" width="820" height="394" rx="8" fill="#1d2021" stroke="#fabd2f" stroke-width="1.5" />
+      
+      <g transform="translate(410, 180)">
+        <circle cx="0" cy="0" r="80" fill="url(#goldGlow)" />
+        <circle cx="0" cy="0" r="54" fill="#282828" stroke="#fabd2f" stroke-width="2" stroke-dasharray="8,5" />
+        <circle class="elixir-core" cx="0" cy="0" r="22" fill="url(#fireGrad)" />
+        
+        <use href="#bamboo-mark" x="-14" y="-14" width="28" height="28" />
+
+        <text x="0" y="105" text-anchor="middle" fill="#fabd2f" font-size="16" font-weight="bold">⚡ 雙引擎極速提煉切段中 (0.8s)...</text>
+        <text x="0" y="130" text-anchor="middle" fill="#ebdbb2" font-size="12">Groq LPU 毫秒切段 ➔ 解析完成</text>
+      </g>
+    </g>
+
+    <!-- ========================================================================= -->
+    <!-- 階段 3：【核心重點】逐段審核與原文保留視圖 (Chunk Review View) -->
+    <!-- ========================================================================= -->
+    <g class="flow-review">
+      <rect x="0" y="0" width="820" height="394" rx="8" fill="#1d2021" stroke="#fabd2f" stroke-width="1.5" />
+      
+      <!-- 頂部審核控制列 (AiReviewBar) -->
+      <rect x="0" y="0" width="820" height="46" rx="8" fill="#282828" />
+      <line x1="0" y1="46" x2="820" y2="46" stroke="#3c3836" stroke-width="1" />
+
+      <g transform="translate(16, 14)">
+        <use href="#bamboo-icon" x="2" y="2" width="18" height="18" />
+        <text x="26" y="14" fill="#fbf1c7" font-size="12.5" font-weight="bold">AI 煉丹成果逐段審核中：</text>
+        <text x="180" y="14" fill="#a89984" font-size="11.5">（點選按鈕確認各段要「採納 AI」或「保留原文」）</text>
+      </g>
+
+      <!-- ★ 右上角頂部收丹按鈕：全局中心 X: 30+620+90=740, Y: 56+9+14=79 ★ -->
+      <g transform="translate(620, 9)">
+        <rect x="0" y="0" width="180" height="28" rx="4" fill="#b8bb26" />
+        <use href="#bamboo-mark" x="10" y="5" width="18" height="18" />
+        <text x="32" y="19" fill="#1d2021" font-size="12" font-weight="bold">依選擇收丹入櫃</text>
+      </g>
+
+      <!-- 逐段卡片 1：核心概要 (採納 AI) -->
+      <g transform="translate(16, 58)">
+        <rect x="0" y="0" width="788" height="96" rx="6" fill="#282828" stroke="#b8bb26" stroke-width="1.2" />
+        
+        <path d="M 0 6 C 0 2.68 2.68 0 6 0 L 782 0 C 785.31 0 788 2.68 788 6 L 788 28 L 0 28 Z" fill="#32302f" />
+        <use href="#bamboo-mark" x="10" y="5" width="18" height="18" />
+        <text x="32" y="19" fill="#fabd2f" font-size="11.5" font-weight="bold">#1 【核心概要與效能指標】</text>
+
+        <g transform="translate(560, 4)">
+          <rect x="0" y="0" width="105" height="20" rx="3" fill="#b8bb26" />
+          <text x="10" y="14" fill="#1d2021" font-size="10.5" font-weight="bold">✔ 採納 AI</text>
+
+          <rect x="114" y="0" width="105" height="20" rx="3" fill="#1d2021" stroke="#504945" />
+          <text x="124" y="14" fill="#a89984" font-size="10.5">📝 保留原文</text>
+        </g>
+
+        <text x="16" y="52" fill="#ebdbb2" font-size="12">後端 API 響應時間嚴格限制於 <tspan fill="#b8bb26" font-weight="bold">300ms</tspan> 以內；資料庫查詢與連線池配置需全數進行壓力測試。</text>
+        <text x="16" y="74" fill="#8ec07c" font-size="11.5">⚡ AI 提煉優勢：去除口語雜質，萃取為標準技術規格與驗收標準。</text>
+      </g>
+
+      <!-- ★★★ 逐段卡片 2：關鍵發言 (核心演示：點擊切換為「保留原文」) ★★★ -->
+      <!-- 「保留原文」按鈕中心坐標：X: 30+16+560+114+52 = 772, Y: 56+166+4+10 = 236 -->
+      <g transform="translate(16, 166)">
+        <rect x="0" y="0" width="788" height="116" rx="6" fill="#282828" stroke="#fabd2f" stroke-width="1.5" />
+        
+        <path d="M 0 6 C 0 2.68 2.68 0 6 0 L 782 0 C 785.31 0 788 2.68 788 6 L 788 28 L 0 28 Z" fill="#32302f" />
+        <use href="#bamboo-mark" x="10" y="5" width="18" height="18" />
+        <text x="32" y="19" fill="#fe8019" font-size="11.5" font-weight="bold">#2 【架構討論與原話備忘】</text>
+
+        <!-- 按鈕狀態 A：採納 AI (點擊前) -->
+        <g class="c2-ai" transform="translate(560, 4)">
+          <rect x="0" y="0" width="105" height="20" rx="3" fill="#b8bb26" />
+          <text x="10" y="14" fill="#1d2021" font-size="10.5" font-weight="bold">✔ 採納 AI</text>
+
+          <rect x="114" y="0" width="105" height="20" rx="3" fill="#1d2021" stroke="#504945" />
+          <text x="124" y="14" fill="#a89984" font-size="10.5">📝 保留原文</text>
+        </g>
+
+        <!-- 按鈕狀態 B：點擊切換為「保留原文」Active！ (點擊後) -->
+        <g class="c2-orig" transform="translate(560, 4)">
+          <rect x="0" y="0" width="105" height="20" rx="3" fill="#1d2021" stroke="#504945" />
+          <text x="10" y="14" fill="#a89984" font-size="10.5">✔ 採納 AI</text>
+
+          <rect x="114" y="0" width="105" height="20" rx="3" fill="#fabd2f" />
+          <text x="122" y="14" fill="#1d2021" font-size="10.5" font-weight="bold">📝 保留原文 ✔</text>
+        </g>
+
+        <!-- 內容狀態 A (AI 歸納) -->
+        <g class="c2-ai" transform="translate(16, 54)">
+          <text x="0" y="0" fill="#a89984" font-size="12">AI 摘要版：前端需採用單一實例分頁攔截機制，避免彈出多重視窗。</text>
+        </g>
+
+        <!-- 內容狀態 B (★ 點擊後：修改對比生效！原文原汁原味完全保留！) -->
+        <g class="c2-orig" transform="translate(16, 44)">
+          <rect x="0" y="0" width="118" height="18" rx="3" fill="#fe8019" fill-opacity="0.2" />
+          <use href="#bamboo-mark" x="4" y="1" width="15" height="15" />
+          <text x="24" y="13" fill="#fe8019" font-size="10.5" font-weight="bold">原文完整保留</text>
+          <text x="130" y="13" fill="#fabd2f" font-size="11">（已避開 AI 改寫，完整維持原話語境）</text>
+
+          <text x="0" y="40" fill="#fbf1c7" font-size="13" font-weight="bold">「老陳說：換頁不要跳新視窗，用單一視窗分頁攔截，否則螢幕太亂」</text>
+          <text x="0" y="60" fill="#8ec07c" font-size="11">✅ 原話情境、說話者與語氣 100% 原始留存，絕不被 AI 抹除！</text>
+        </g>
+      </g>
+
+      <!-- 逐段卡片 3：行動待辦 -->
+      <g transform="translate(16, 296)">
+        <rect x="0" y="0" width="788" height="84" rx="6" fill="#282828" stroke="#3c3836" stroke-width="1.2" />
+        <path d="M 0 6 C 0 2.68 2.68 0 6 0 L 782 0 C 785.31 0 788 2.68 788 6 L 788 24 L 0 24 Z" fill="#32302f" />
+        <use href="#bamboo-mark" x="10" y="3" width="18" height="18" />
+        <text x="32" y="17" fill="#8ec07c" font-size="11" font-weight="bold">#3 【行動待辦 Action Items】</text>
+        <text x="16" y="50" fill="#ebdbb2" font-size="12">[ ] 實作 Saga 補償 Rollback 棧  |  [ ] 繪製 README SVG 動態展示</text>
+      </g>
+    </g>
+
+    <!-- ========================================================================= -->
+    <!-- 階段 4：收丹入櫃最終結果 (Final Result) -->
+    <!-- ========================================================================= -->
+    <g class="flow-final">
+      <rect x="0" y="0" width="820" height="394" rx="8" fill="#1d2021" stroke="#b8bb26" stroke-width="1.5" />
+      
+      <rect x="0" y="0" width="820" height="36" rx="8" fill="#282828" />
+      <line x1="0" y1="36" x2="820" y2="36" stroke="#3c3836" stroke-width="1" />
+      <use href="#bamboo-icon" x="12" y="8" width="20" height="20" />
+      <text x="38" y="23" fill="#b8bb26" font-size="12" font-weight="bold">已依決策入櫃！AI 提煉精華 × 原文精確留存</text>
+
+      <g transform="translate(24, 60)">
+        <use href="#bamboo-mark" x="0" y="-12" width="16" height="16" />
+        <text x="22" y="0" fill="#fabd2f" font-size="13" font-weight="bold">【核心概要】 (來自 AI 提煉)</text>
+        <text x="0" y="24" fill="#ebdbb2" font-size="12.5">全面推進資料庫查詢最佳化，保證後端響應時間 &lt; 300ms。</text>
+
+        <g transform="translate(0, 62)">
+          <use href="#bamboo-mark" x="0" y="-12" width="16" height="16" />
+          <text x="22" y="0" fill="#fe8019" font-size="13" font-weight="bold">【團隊原始叮嚀】 (指定保留原話)</text>
+          <rect x="0" y="10" width="760" height="36" rx="4" fill="#282828" stroke="#fe8019" stroke-width="1" />
+          <text x="16" y="33" fill="#fabd2f" font-size="12.5" font-weight="bold">「老陳說：換頁不要跳新視窗，用單一視窗分頁攔截，否則螢幕太亂」</text>
+        </g>
+
+        <g transform="translate(0, 134)">
+          <use href="#bamboo-mark" x="0" y="-12" width="16" height="16" />
+          <text x="22" y="0" fill="#8ec07c" font-size="13" font-weight="bold">【行動清單】 (來自 AI 結構化)</text>
+          <text x="0" y="24" fill="#ebdbb2" font-size="12.5">☑ 完成單一視窗分頁攔截  |  ☐ 部署 Saga 一鍵散丹回退棧</text>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ==================== 模擬游標 (精確鎖定按鈕點擊) ==================== -->
+  <g class="mouse-pointer">
+    <path d="M 0 0 L 0 16 L 4.5 12.5 L 8 19 L 10.5 17.5 L 7 11.5 L 12.5 11.5 Z" fill="#fbf1c7" stroke="#1d2021" stroke-width="1.2" />
+  </g>
+</svg>
