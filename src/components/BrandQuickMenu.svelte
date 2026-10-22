@@ -20,6 +20,7 @@
     onSaveAs?: () => void;
     onOpenHistory?: () => void;
     onOpenBackup?: () => void;
+    onOpenTextTools?: () => void;
     onToggleVim?: () => void;
     onToggleSmear?: () => void;
     onToggleWorkbenchWidth?: () => void;
@@ -40,6 +41,7 @@
     onSaveAs,
     onOpenHistory,
     onOpenBackup,
+    onOpenTextTools,
     onToggleVim,
     onToggleSmear,
     onToggleWorkbenchWidth,
@@ -214,6 +216,22 @@
               </div>
             </div>
             <span class="key-badge">Ctrl+P</span>
+          </button>
+        {/if}
+
+        {#if onOpenTextTools}
+          <button 
+            class="menu-item highlight-subtle" 
+            onclick={() => handleAction(onOpenTextTools)}
+          >
+            <div class="item-left">
+              <span class="item-icon">🧹</span>
+              <div class="item-info">
+                <span class="item-name">行處理解藥包 · 文本排版</span>
+                <span class="item-tip">批次行去重、快速排序與結構排版工具</span>
+              </div>
+            </div>
+            <span class="key-badge">Ctrl+Shift+T</span>
           </button>
         {/if}
       </div>

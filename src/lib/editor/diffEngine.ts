@@ -5,74 +5,139 @@ import type { DiffComparisonResult, DiffLine, SideBySideRow, SideBySideDiffResul
  * 能準確輸出新增 (added)、刪除 (removed)、未變更 (unchanged) 的行陣列
  */
 export function computeLineDiff(oldText: string, newText: string): DiffComparisonResult {
+  if (oldText === newText) {
+    const lines = (oldText ? oldText.split('\n') : []).map((text, idx) => ({
+      type: 'unchanged' as const,
+      oldLineNumber: idx + 1,
+      newLineNumber: idx + 1,
+      text,
+    }));
+    return {
+      lines,
+      additions: 0,
+      deletions: 0,
+      hasChanges: false,
+    };
+  }
+
   const oldLines = oldText ? oldText.split('\n') : [];
   const newLines = newText ? newText.split('\n') : [];
 
-  const m = oldLines.length;
-  const n = newLines.length;
+  let prefixCount = 0;
+  const minLen = Math.min(oldLines.length, newLines.length);
 
-  // 動態規劃矩陣，限制過大矩陣以防百萬字元崩潰
-  if (m * n > 250000) {
-    return computeFastDiff(oldLines, newLines);
+  // 1. Common Prefix Trimming（頭部相同行秒跳過）
+  while (prefixCount < minLen && oldLines[prefixCount] === newLines[prefixCount]) {
+    prefixCount++;
   }
 
-  // 建立 DP 矩陣
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (oldLines[i - 1] === newLines[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-      }
-    }
+  // 2. Common Suffix Trimming（尾部相同行秒跳過）
+  let suffixCount = 0;
+  while (
+    suffixCount < minLen - prefixCount &&
+    oldLines[oldLines.length - 1 - suffixCount] === newLines[newLines.length - 1 - suffixCount]
+  ) {
+    suffixCount++;
   }
 
-  // 回溯構造 Diff 序列
-  let i = m;
-  let j = n;
-  const reversedDiff: DiffLine[] = [];
+  const trimmedOld = oldLines.slice(prefixCount, oldLines.length - suffixCount);
+  const trimmedNew = newLines.slice(prefixCount, newLines.length - suffixCount);
+
+  const m = trimmedOld.length;
+  const n = trimmedNew.length;
+
+  let middleDiff: DiffLine[] = [];
   let additions = 0;
   let deletions = 0;
 
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      reversedDiff.push({
-        type: 'unchanged',
-        oldLineNumber: i,
-        newLineNumber: j,
-        text: oldLines[i - 1],
-      });
-      i--;
-      j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      reversedDiff.push({
-        type: 'added',
-        newLineNumber: j,
-        text: newLines[j - 1],
-      });
-      additions++;
-      j--;
-    } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
-      reversedDiff.push({
-        type: 'removed',
-        oldLineNumber: i,
-        text: oldLines[i - 1],
-      });
-      deletions++;
-      i--;
+  // 門檻防護：若中間差異仍過大 (m * n > 40000)，直接走快速線性比對，保護 UI 不凍結
+  if (m * n > 40000) {
+    const fast = computeFastDiff(trimmedOld, trimmedNew);
+    middleDiff = fast.lines.map((l) => ({
+      ...l,
+      oldLineNumber: l.oldLineNumber !== undefined ? l.oldLineNumber + prefixCount : undefined,
+      newLineNumber: l.newLineNumber !== undefined ? l.newLineNumber + prefixCount : undefined,
+    }));
+    additions = fast.additions;
+    deletions = fast.deletions;
+  } else {
+    // 建立輕量 DP 矩陣
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (trimmedOld[i - 1] === trimmedNew[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1] + 1;
+        } else {
+          dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        }
+      }
     }
+
+    let i = m;
+    let j = n;
+    const reversedMiddle: DiffLine[] = [];
+
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && trimmedOld[i - 1] === trimmedNew[j - 1]) {
+        reversedMiddle.push({
+          type: 'unchanged',
+          oldLineNumber: prefixCount + i,
+          newLineNumber: prefixCount + j,
+          text: trimmedOld[i - 1],
+        });
+        i--;
+        j--;
+      } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+        reversedMiddle.push({
+          type: 'added',
+          newLineNumber: prefixCount + j,
+          text: trimmedNew[j - 1],
+        });
+        additions++;
+        j--;
+      } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
+        reversedMiddle.push({
+          type: 'removed',
+          oldLineNumber: prefixCount + i,
+          text: trimmedOld[i - 1],
+        });
+        deletions++;
+        i--;
+      }
+    }
+    middleDiff = reversedMiddle.reverse();
   }
 
-  const lines = reversedDiff.reverse();
-  const hasChanges = additions > 0 || deletions > 0;
+  // 組合結果：前綴相同 + 中間差異 + 後綴相同
+  const prefixLines: DiffLine[] = [];
+  for (let k = 0; k < prefixCount; k++) {
+    prefixLines.push({
+      type: 'unchanged',
+      oldLineNumber: k + 1,
+      newLineNumber: k + 1,
+      text: oldLines[k],
+    });
+  }
 
+  const suffixLines: DiffLine[] = [];
+  const oldSuffixStart = oldLines.length - suffixCount;
+  const newSuffixStart = newLines.length - suffixCount;
+  for (let k = 0; k < suffixCount; k++) {
+    suffixLines.push({
+      type: 'unchanged',
+      oldLineNumber: oldSuffixStart + k + 1,
+      newLineNumber: newSuffixStart + k + 1,
+      text: oldLines[oldSuffixStart + k],
+    });
+  }
+
+  const lines = [...prefixLines, ...middleDiff, ...suffixLines];
   return {
     lines,
     additions,
     deletions,
-    hasChanges,
+    hasChanges: additions > 0 || deletions > 0,
   };
 }
 

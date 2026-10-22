@@ -22,6 +22,7 @@
   import SaveWithAiModal from './components/SaveWithAiModal.svelte';
   import AiInlinePrompt from './components/AiInlinePrompt.svelte';
   import AiChatDrawer from './components/AiChatDrawer.svelte';
+  import TextToolsModal from './components/TextToolsModal.svelte';
   import { executeInlinePromptRefine } from './lib/ai/chatSession';
 
   import type { VaultFileEntry, RecentFileRecord, RecentFolderRecord } from './types/tab';
@@ -68,6 +69,7 @@
   let isLocalHistoryOpen = $state(false);
   let isPutLabelOpen = $state(false);
   let isSaveModalOpen = $state(false);
+  let isTextToolsOpen = $state(false);
   let fuzzyInitialMode = $state<'fuzzy' | 'ai'>('fuzzy');
   let showDiffView = $state(false);
   let smearEnabled = $state(true);
@@ -400,6 +402,11 @@
         // Ctrl+J: 常用抽屜面板快捷鍵
         e.preventDefault();
         isAiChatDrawerOpen = !isAiChatDrawerOpen;
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 't') {
+        // Ctrl+Shift+T: 喚起行處理解藥包
+        e.preventDefault();
+        e.stopPropagation();
+        isTextToolsOpen = !isTextToolsOpen;
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
         e.preventDefault();
         e.stopPropagation();
@@ -845,6 +852,21 @@
   function handleSaveAs() {
     if (activeTab) {
       isSaveModalOpen = true;
+    }
+  }
+
+  // 行處理解藥包套用
+  function handleApplyTextTools(newContent: string, reasonDesc: string) {
+    if (activeTab) {
+      activeTab.content = newContent;
+      activeTab.lastModified = Date.now();
+      if (activeTab.filePath) {
+        activeTab.isDirty = true;
+        syncToDisk(activeTab);
+      }
+      saveVaultState(state, true);
+      triggerAutoSnapshot(activeTab, 'typing');
+      showToast(`✅ ${reasonDesc || '已成功套用文字處理'}`);
     }
   }
 
@@ -1432,6 +1454,7 @@
       aiModalTab = 'onedrive';
       isAiModalOpen = true;
     }}
+    onOpenTextTools={() => (isTextToolsOpen = true)}
     onToggleVim={handleToggleVimMode}
     onToggleSmear={handleToggleSmear}
     onToggleWorkbenchWidth={handleToggleWorkbenchWidth}
@@ -1700,6 +1723,18 @@
     onReplaceTargetText={handleChatReplaceParagraph}
     onShowToast={showToast}
   />
+
+  <!-- 功能 C：行處理解藥包彈窗 (Ctrl+Shift+T) -->
+  {#if isTextToolsOpen && activeTab}
+    <TextToolsModal
+      isOpen={isTextToolsOpen}
+      content={activeTab.content}
+      selectedText={currentSelectionText}
+      onApply={handleApplyTextTools}
+      onClose={() => (isTextToolsOpen = false)}
+      onShowToast={showToast}
+    />
+  {/if}
 </div>
 
 <style>

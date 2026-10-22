@@ -27,6 +27,7 @@
     onSaveAs?: () => void;
     onOpenHistory?: () => void;
     onOpenBackup?: () => void;
+    onOpenTextTools?: () => void;
     onToggleVim?: () => void;
     onToggleSmear?: () => void;
     onToggleWorkbenchWidth?: () => void;
@@ -63,6 +64,7 @@
     onSaveAs,
     onOpenHistory,
     onOpenBackup,
+    onOpenTextTools,
     onToggleVim,
     onToggleSmear,
     onToggleWorkbenchWidth,
@@ -190,6 +192,7 @@
         {onSaveAs}
         {onOpenHistory}
         {onOpenBackup}
+        {onOpenTextTools}
         {onToggleVim}
         {onToggleSmear}
         {onToggleWorkbenchWidth}
