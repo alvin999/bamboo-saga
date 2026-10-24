@@ -1,0 +1,77 @@
+name: 'Release'
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: ''
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build Tauri App & Publish Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: '🎋 廣零散 (bamboo-saga) ${{ github.ref_name }}'
+          releaseBody: |
+            ## 🎋 廣零散 (bamboo-saga) ${{ github.ref_name }}
+            
+            > **「廣納零散思緒，一帖 AI 成丹。」**
+            > *Scatter thoughts on bamboo slips; forge an immortal saga with AI.*
+            
+            ### ✨ 本次更新亮點 (Highlights)
+            * 🛡️ **跨平台秒級持久化 (Local Vault)**：開機自啟、毫秒秒存、零檔案負擔，遇當機重啟原地 100% 還原所有分頁與游標。
+            * ☁️ **跨平台 OneDrive 鏡像備份**：原生通用支援 Windows、macOS (現代 CloudStorage) 與 Linux (XDG / abraunegg) 雲端硬碟自動偵測。
+            * 🎨 **純正 Gruvbox Dark 美學**：中藥百子櫃復古配色、琥珀金御劍流體殘影游標 (Smear Cursor)。
+            * ⚡ **智慧雙引擎煉丹爐 (AI Refinery)**：整合 Groq 與 Gemini，支援結構化結論提煉、待辦析理與無損回溯 (Saga Rollback)。
+            * ⌨️ **Vim 心流體驗**：原生相容中英輸入法，精準防範注音字元誤觸，修復全域快捷鍵冒泡衝突。
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
