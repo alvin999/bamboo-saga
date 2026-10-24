@@ -61,6 +61,27 @@
     getCurrentSecurityMode,
     type SecurityMode,
   } from "../lib/security/keyVault";
+  import {
+    checkForAppUpdates,
+    CURRENT_VERSION,
+    type VersionCheckResult,
+  } from "../lib/updater";
+
+  let isCheckingUpdates = $state(false);
+  let updateResult = $state<VersionCheckResult | null>(null);
+  let updateError = $state<string | null>(null);
+
+  async function handleCheckUpdates() {
+    isCheckingUpdates = true;
+    updateError = null;
+    try {
+      updateResult = await checkForAppUpdates();
+    } catch (err: any) {
+      updateError = err?.message || "檢查更新失敗，請確認網路連線。";
+    } finally {
+      isCheckingUpdates = false;
+    }
+  }
 
   type ModalTab =
     | "refine"
@@ -1800,6 +1821,71 @@
               <span class="assoc-pill">.json</span>
               <span class="assoc-pill">.csv</span>
               <span class="assoc-pill">.log</span>
+            </div>
+          </div>
+
+          <!-- 四、版本資訊與線上升級檢查 (Release Radar) -->
+          <div class="form-group" style="margin-top: 22px;">
+            <span class="form-label">
+              軟體版本與線上升級檢查 (Version & Updates)
+            </span>
+            <div class="system-integration-card">
+              <div class="integration-row">
+                <div class="integration-info">
+                  <div class="integration-title" style="display: flex; align-items: center; gap: 8px;">
+                    <span>廣零散 當前版本：<code>{CURRENT_VERSION}</code></span>
+                    {#if updateResult?.hasUpdate}
+                      <span style="background: #b8bb26; color: #1d2021; font-size: 10px; font-weight: bold; padding: 1px 6px; border-radius: 4px;">NEW</span>
+                    {/if}
+                  </div>
+                  <div class="integration-desc">
+                    {#if isCheckingUpdates}
+                      <span style="color: #d79921;">⏳ 連線至 GitHub API 檢索最新發佈版本中...</span>
+                    {:else if updateResult}
+                      {#if updateResult.hasUpdate}
+                        <span style="color: #b8bb26;">
+                          🎉 發現新版本 <strong>{updateResult.latestVersion}</strong>！建議前往 GitHub 下載更新檔體驗最新功能。
+                        </span>
+                      {:else}
+                        <span style="color: #b8bb26;">
+                          ✓ 目前已是最新版本 ({CURRENT_VERSION})，萬象齊全。
+                        </span>
+                      {/if}
+                    {:else if updateError}
+                      <span style="color: #fb4934;">
+                        ⚠️ {updateError}
+                      </span>
+                    {:else}
+                      直連 GitHub Releases 公開端點，無感檢索最新跨平台安裝檔與版本更迭說明。
+                    {/if}
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  {#if updateResult?.hasUpdate}
+                    <a
+                      href={updateResult.releaseUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="context-menu-toggle-btn enabled"
+                      style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; height: 32px;"
+                    >
+                      🚀 前往下載 ↗
+                    </a>
+                  {/if}
+                  <button
+                    type="button"
+                    class="context-menu-toggle-btn"
+                    disabled={isCheckingUpdates}
+                    onclick={handleCheckUpdates}
+                  >
+                    {#if isCheckingUpdates}
+                      檢查中...
+                    {:else}
+                      🔄 檢查最新版本
+                    {/if}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
