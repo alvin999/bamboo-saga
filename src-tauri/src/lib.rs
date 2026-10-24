@@ -460,97 +460,117 @@ pub struct BackupResult {
 fn detect_onedrive_accounts() -> Result<Vec<OneDriveAccountInfo>, String> {
     let mut accounts = Vec::new();
 
-    // 1. 探測原生企業版環境變數: %OneDriveCommercial%
-    if let Ok(commercial_path) = std::env::var("OneDriveCommercial") {
-        let p = PathBuf::from(&commercial_path);
-        if p.exists() {
-            let dir_name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "OneDrive - 企業版".to_string());
-            let tenant_name = if let Some(idx) = dir_name.find(" - ") {
-                Some(dir_name[idx + 3..].trim().to_string())
-            } else {
-                Some("企業組織".to_string())
-            };
-
-            accounts.push(OneDriveAccountInfo {
-                account_type: "business".to_string(),
-                display_name: format!("OneDrive (企業/組織版) · {}", tenant_name.as_deref().unwrap_or("商業版")),
-                folder_path: commercial_path,
-                tenant_name,
-                is_available: true,
-            });
-        }
-    }
-
-    // 2. 探測原生個人版環境變數: %OneDriveConsumer%
-    if let Ok(consumer_path) = std::env::var("OneDriveConsumer") {
-        let p = PathBuf::from(&consumer_path);
-        if p.exists() && !accounts.iter().any(|a| a.folder_path == consumer_path) {
-            accounts.push(OneDriveAccountInfo {
-                account_type: "personal".to_string(),
-                display_name: "OneDrive (個人版)".to_string(),
-                folder_path: consumer_path,
-                tenant_name: None,
-                is_available: true,
-            });
-        }
-    }
-
-    // 3. 探測通用預設環境變數: %OneDrive%
-    if let Ok(onedrive_path) = std::env::var("OneDrive") {
-        let p = PathBuf::from(&onedrive_path);
-        if p.exists() && !accounts.iter().any(|a| a.folder_path == onedrive_path) {
-            let dir_name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-            let is_commercial = dir_name.contains(" - ");
-
-            let tenant_name = if is_commercial {
-                dir_name.split(" - ").nth(1).map(|s| s.trim().to_string())
-            } else {
-                None
-            };
-
-            accounts.push(OneDriveAccountInfo {
-                account_type: if is_commercial { "business".to_string() } else { "personal".to_string() },
-                display_name: if is_commercial {
-                    format!("OneDrive (企業/組織版) · {}", tenant_name.as_deref().unwrap_or("商業版"))
+    // 1. 探測原生環境變數 (Windows 原生變數與通用 Unix 變數)
+    for env_key in &["OneDriveCommercial", "OneDriveConsumer", "OneDrive", "ONEDRIVE_PATH", "ONEDRIVE"] {
+        if let Ok(onedrive_path) = std::env::var(env_key) {
+            let p = PathBuf::from(&onedrive_path);
+            if p.exists() && !accounts.iter().any(|a: &OneDriveAccountInfo| a.folder_path == onedrive_path) {
+                let dir_name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                let is_commercial = dir_name.contains(" - ") || env_key == &"OneDriveCommercial";
+                let tenant_name = if is_commercial {
+                    dir_name.split(" - ").nth(1).map(|s| s.trim().to_string())
                 } else {
-                    "OneDrive (個人版)".to_string()
-                },
-                folder_path: onedrive_path,
-                tenant_name,
-                is_available: true,
-            });
+                    None
+                };
+
+                accounts.push(OneDriveAccountInfo {
+                    account_type: if is_commercial { "business".to_string() } else { "personal".to_string() },
+                    display_name: if is_commercial {
+                        format!("OneDrive (企業/組織版) · {}", tenant_name.as_deref().unwrap_or("商業版"))
+                    } else {
+                        "OneDrive (個人版)".to_string()
+                    },
+                    folder_path: onedrive_path,
+                    tenant_name,
+                    is_available: true,
+                });
+            }
         }
     }
 
-    // 4. 家目錄探測 Fallback: 尋找 %USERPROFILE%/OneDrive*
-    if let Ok(user_profile) = std::env::var("USERPROFILE") {
-        let profile_path = PathBuf::from(&user_profile);
-        if let Ok(entries) = fs::read_dir(&profile_path) {
+    // 2. 跨平台家目錄探測 (Linux / macOS / Windows 通用)
+    if let Some(home_path) = std::env::var("HOME").ok().or_else(|| std::env::var("USERPROFILE").ok()).map(PathBuf::from) {
+        let mut candidate_dirs: Vec<(PathBuf, bool, Option<String>)> = Vec::new();
+
+        // 2.1 macOS 現代 File Provider 目錄: ~/Library/CloudStorage/OneDrive*
+        let cloud_storage = home_path.join("Library/CloudStorage");
+        if cloud_storage.exists() {
+            if let Ok(entries) = fs::read_dir(&cloud_storage) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if name.starts_with("OneDrive") {
+                            let is_comm = name.contains('-') && !name.ends_with("-Personal");
+                            let tenant = if is_comm {
+                                name.split('-').nth(1).map(|s| s.trim().to_string())
+                            } else {
+                                None
+                            };
+                            candidate_dirs.push((path, is_comm, tenant));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2.2 Linux / macOS / Windows 家目錄直轄: ~/OneDrive*
+        if let Ok(entries) = fs::read_dir(&home_path) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
                     let name = entry.file_name().to_string_lossy().to_string();
-                    let path_str = path.to_string_lossy().to_string();
-
-                    if name == "OneDrive" && !accounts.iter().any(|a| a.folder_path == path_str) {
-                        accounts.push(OneDriveAccountInfo {
-                            account_type: "personal".to_string(),
-                            display_name: "OneDrive (個人版)".to_string(),
-                            folder_path: path_str,
-                            tenant_name: None,
-                            is_available: true,
-                        });
-                    } else if name.starts_with("OneDrive - ") && !accounts.iter().any(|a| a.folder_path == path_str) {
+                    if name == "OneDrive" {
+                        candidate_dirs.push((path, false, None));
+                    } else if name.starts_with("OneDrive - ") {
                         let tenant = name.strip_prefix("OneDrive - ").map(|s| s.trim().to_string());
-                        accounts.push(OneDriveAccountInfo {
-                            account_type: "business".to_string(),
-                            display_name: format!("OneDrive (企業/組織版) · {}", tenant.as_deref().unwrap_or("商業版")),
-                            folder_path: path_str,
-                            tenant_name: tenant,
-                            is_available: true,
-                        });
+                        candidate_dirs.push((path, true, tenant));
+                    } else if name.starts_with("OneDrive-") {
+                        let tenant = name.strip_prefix("OneDrive-").map(|s| s.trim().to_string());
+                        candidate_dirs.push((path, true, tenant));
                     }
                 }
+            }
+        }
+
+        // 2.3 Linux XDG 設定檔解析 (~/.config/onedrive/config - 如 abraunegg client)
+        let linux_cfg = home_path.join(".config/onedrive/config");
+        if linux_cfg.exists() {
+            if let Ok(content) = fs::read_to_string(&linux_cfg) {
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("sync_dir") && trimmed.contains('=') {
+                        if let Some(val) = trimmed.split('=').nth(1) {
+                            let raw = val.trim().trim_matches('"').trim_matches('\'');
+                            let resolved = if raw.starts_with("~/") {
+                                home_path.join(&raw[2..])
+                            } else {
+                                PathBuf::from(raw)
+                            };
+                            if resolved.exists() {
+                                candidate_dirs.push((resolved, false, None));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 整理 candidate_dirs 並去重加入 accounts
+        for (p, is_commercial, tenant_name) in candidate_dirs {
+            let path_str = p.to_string_lossy().to_string();
+            if !accounts.iter().any(|a| a.folder_path == path_str) {
+                accounts.push(OneDriveAccountInfo {
+                    account_type: if is_commercial { "business".to_string() } else { "personal".to_string() },
+                    display_name: if is_commercial {
+                        format!("OneDrive (企業/組織版) · {}", tenant_name.as_deref().unwrap_or("商業版"))
+                    } else {
+                        "OneDrive (個人版)".to_string()
+                    },
+                    folder_path: path_str,
+                    tenant_name,
+                    is_available: true,
+                });
             }
         }
     }
