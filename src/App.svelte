@@ -1369,6 +1369,9 @@
 
   // 全域鍵盤快捷鍵攔截（優先於瀏覽器預設行為）
   function handleWindowKeyDown(e: KeyboardEvent) {
+    // 核心防禦：若內部編輯器 (如 CodeMirror / Vim 插件) 已經處理過此快捷鍵，嚴禁重複執行
+    if (e.defaultPrevented) return;
+
     const isMod = e.ctrlKey || e.metaKey;
 
     // 1. 添新簡 (Ctrl + T / Cmd + T)
