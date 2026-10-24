@@ -72,6 +72,13 @@ jobs:
             * 🎨 **純正 Gruvbox Dark 美學**：中藥百子櫃復古配色、琥珀金御劍流體殘影游標 (Smear Cursor)。
             * ⚡ **智慧雙引擎煉丹爐 (AI Refinery)**：整合 Groq 與 Gemini，支援結構化結論提煉、待辦析理與無損回溯 (Saga Rollback)。
             * ⌨️ **Vim 心流體驗**：原生相容中英輸入法，精準防範注音字元誤觸，修復全域快捷鍵冒泡衝突。
+
+            ### 📥 各平台安裝說明 (Installation Guide)
+            * **🪟 Windows (10 / 11)**：下載 `bamboo-saga_0.1.0_x64-setup.exe` 雙擊安裝。若遇 SmartScreen 提示，點擊「其他資訊」➔「仍要執行」即可。
+            * **🍎 macOS (Apple Silicon)**：下載 `.dmg` 拖入 Applications。首次開啟若被擋下，請至「系統設定 ➔ 隱私權與安全性」點擊「強制打開」，或執行 `xattr -cr /Applications/bamboo-saga.app`。
+            * **🐧 Linux (所有發行版)**：
+              * **AppImage (免安裝最推薦)**：`chmod +x *.AppImage && ./*.AppImage`
+              * **Debian / Ubuntu**：`sudo dpkg -i *.deb`
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

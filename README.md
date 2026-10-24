@@ -8,6 +8,47 @@
 
 ---
 
+## 📥 下載與安裝指引 (Download & Installation)
+
+最新正式發佈版請前往 [GitHub Releases 頁面](https://github.com/alvin999/bamboo-saga/releases/latest) 直接取得安裝包：
+
+| 作業系統 | 推薦下載檔案 | 說明 |
+| :--- | :--- | :--- |
+| **🪟 Windows (10 / 11)** | [`bamboo-saga_0.1.0_x64-setup.exe`](https://github.com/alvin999/bamboo-saga/releases/latest) | NSIS 獨立安裝檔（免 UAC 權限，隨開隨用） |
+| **🍎 macOS (Apple Silicon)** | [`bamboo-saga_0.1.0_aarch64.dmg`](https://github.com/alvin999/bamboo-saga/releases/latest) | 支援 M1 / M2 / M3 / M4 系列晶片 |
+| **🐧 Linux (通用免安裝)** | [`bamboo-saga_0.1.0_amd64.AppImage`](https://github.com/alvin999/bamboo-saga/releases/latest) | Arch / Ubuntu / Fedora 等所有發行版直接執行 |
+| **🐧 Linux (Debian / Ubuntu)** | [`bamboo-saga_0.1.0_amd64.deb`](https://github.com/alvin999/bamboo-saga/releases/latest) | 自動註冊桌面圖示與標準 MIME 關聯 |
+
+### 平台安裝與首次開啟說明 (Platform Notes)
+
+#### 🪟 Windows
+1. 雙擊執行 `bamboo-saga_0.1.0_x64-setup.exe`，依照精靈指示完成安裝。
+2. *若彈出 Windows Defender SmartScreen「已保護您的電腦」提示*：請點擊 **「其他資訊」➔「仍要執行」** 即可。
+
+#### 🍎 macOS
+1. 下載並開啟 `.dmg` 檔案，將 **bamboo-saga** 圖示拖入 **Applications (應用程式)** 資料夾。
+2. *首次開啟若提示「無法打開，因為無法驗證開發者」*：
+   * 前往「系統設定」➔「隱私權與安全性」➔ 點擊 **「強制打開」**。
+   * 或在終端機中執行一次解鎖指令：
+     ```bash
+     xattr -cr /Applications/bamboo-saga.app
+     ```
+
+#### 🐧 Linux
+* **AppImage（免安裝最推薦）**：
+  ```bash
+  chmod +x bamboo-saga_0.1.0_amd64.AppImage
+  ./bamboo-saga_0.1.0_amd64.AppImage
+  ```
+* **Debian / Ubuntu 套件**：
+  ```bash
+  sudo dpkg -i bamboo-saga_0.1.0_amd64.deb
+  ```
+* **Arch Linux**：
+  推薦直接執行 AppImage，或於本機源碼執行 `npm run tauri build` 產出原生二進位檔。
+
+---
+
 ## 📖 命名典故與設計哲學
 
 * **廣零散 (Guang-Ling-San)**：
