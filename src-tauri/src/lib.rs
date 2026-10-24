@@ -924,17 +924,15 @@ fn get_initial_route_target(state: tauri::State<InitialRouteState>) -> Result<Op
 fn get_system_integration_info() -> Result<SystemIntegrationInfo, String> {
     let os = std::env::consts::OS.to_string();
     let supports_context_menu = cfg!(target_os = "windows");
-    let mut is_context_menu_enabled = false;
-
     #[cfg(target_os = "windows")]
-    {
-        if let Ok(output) = std::process::Command::new("reg")
-            .args(["query", r"HKCU\Software\Classes\*\shell\BambooSaga"])
-            .output()
-        {
-            is_context_menu_enabled = output.status.success();
-        }
-    }
+    let is_context_menu_enabled = std::process::Command::new("reg")
+        .args(["query", r"HKCU\Software\Classes\*\shell\BambooSaga"])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+
+    #[cfg(not(target_os = "windows"))]
+    let is_context_menu_enabled = false;
 
     Ok(SystemIntegrationInfo {
         os,
