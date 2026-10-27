@@ -96,6 +96,14 @@ export const DEFAULT_SHORTCUT_GROUPS: ShortcutGroup[] = [
         badge: '編輯器',
       },
       {
+        id: 'export_tab',
+        category: 'editor',
+        label: '藥帖快速匯出 (.md / .txt)',
+        description: '快速下載當前藥帖為 Markdown 或純文字檔，或一鍵複製內容',
+        keys: ['Ctrl', 'Shift', 'E'],
+        badge: '匯出',
+      },
+      {
         id: 'search_editor',
         category: 'editor',
         label: '內容搜尋',

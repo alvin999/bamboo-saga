@@ -70,6 +70,7 @@
   let isPutLabelOpen = $state(false);
   let isSaveModalOpen = $state(false);
   let isTextToolsOpen = $state(false);
+  let isExportOpen = $state(false);
   let fuzzyInitialMode = $state<'fuzzy' | 'ai'>('fuzzy');
   let showDiffView = $state(false);
   let smearEnabled = $state(true);
@@ -523,6 +524,11 @@
         e.preventDefault();
         e.stopPropagation();
         isTextToolsOpen = !isTextToolsOpen;
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e') {
+        // Ctrl+Shift+E: 快速開啟單一藥帖匯出選單
+        e.preventDefault();
+        e.stopPropagation();
+        isExportOpen = !isExportOpen;
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
         e.preventDefault();
         e.stopPropagation();
@@ -1597,6 +1603,7 @@
     alchemyCards={state.alchemyCards}
     isRefining={isRefining}
     bind:isAlchemyOpen={isAlchemyOpen}
+    bind:isExportOpen={isExportOpen}
     onSelectTab={selectTab}
     onAddTab={addTab}
     onCloseTab={closeTab}

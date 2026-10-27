@@ -21,6 +21,7 @@
     onOpenHistory?: () => void;
     onOpenBackup?: () => void;
     onOpenTextTools?: () => void;
+    onOpenExport?: () => void;
     onToggleVim?: () => void;
     onToggleSmear?: () => void;
     onToggleWorkbenchWidth?: () => void;
@@ -48,6 +49,7 @@
     onOpenHistory,
     onOpenBackup,
     onOpenTextTools,
+    onOpenExport,
     onToggleVim,
     onToggleSmear,
     onToggleWorkbenchWidth,
@@ -240,6 +242,22 @@
               </div>
             </div>
             <span class="key-badge">Ctrl+Shift+T</span>
+          </button>
+        {/if}
+
+        {#if onOpenExport}
+          <button 
+            class="menu-item highlight-subtle" 
+            onclick={() => handleAction(onOpenExport)}
+          >
+            <div class="item-left">
+              <span class="item-icon">📥</span>
+              <div class="item-info">
+                <span class="item-name">藥帖匯出 · 下載與複製</span>
+                <span class="item-tip">匯出當前手稿為 .md / .txt 或複製乾淨內容</span>
+              </div>
+            </div>
+            <span class="key-badge">Ctrl+Shift+E</span>
           </button>
         {/if}
       </div>

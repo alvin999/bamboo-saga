@@ -2,6 +2,7 @@
   import type { TabItem, AlchemyCardConfig } from '../types/tab';
   import ShortcutCheatSheet from './ShortcutCheatSheet.svelte';
   import AlchemyPopover from './AlchemyPopover.svelte';
+  import ExportNotePopover from './ExportNotePopover.svelte';
   import BrandQuickMenu from './BrandQuickMenu.svelte';
 
   interface PrimaryTopBarProps {
@@ -41,6 +42,7 @@
     onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
     onToggleAiChat?: () => void;
     isAiChatOpen?: boolean;
+    isExportOpen?: boolean;
     onShowToast?: (msg: string) => void;
     isSaved: boolean;
   }
@@ -56,6 +58,7 @@
     alchemyCards = {},
     isRefining = false,
     isAlchemyOpen = $bindable(false),
+    isExportOpen = $bindable(false),
     onSelectTab,
     onAddTab,
     onCloseTab,
@@ -201,6 +204,7 @@
         {onOpenHistory}
         {onOpenBackup}
         {onOpenTextTools}
+        onOpenExport={() => (isExportOpen = true)}
         {onToggleVim}
         {onToggleSmear}
         {onToggleWorkbenchWidth}
@@ -305,6 +309,13 @@
         <span class="sync-dot {isSaved ? 'synced' : 'saving'}"></span>
         <span class="sync-readout">{isSaved ? 'SYNC // 0.01MS' : 'FLUSH // VAULT'}</span>
       </div>
+
+      <!-- 單一藥帖快速匯出與複製 (.md / .txt / 複製 Markdown) -->
+      <ExportNotePopover 
+        {activeTab}
+        {onShowToast}
+        bind:isOpen={isExportOpen}
+      />
 
       <!-- 意圖煉丹爐：Hover 展開配置、整合核心提煉與自訂新增 -->
       {#if onExecuteRefine}
