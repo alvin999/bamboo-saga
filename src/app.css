@@ -1,33 +1,36 @@
 :root {
-  --gb-bg-hard: #1d2021;
-  --gb-bg: #282828;
-  --gb-bg-soft: #32302f;
-  --gb-bg1: #3c3836;
-  --gb-bg2: #504945;
-  --gb-bg3: #665c54;
-  --gb-bg4: #7c6f64;
+  /* 暖炭暗房底層 (消除生硬純黑洞感，提供自然沉靜包覆) */
+  --gb-bg-hard: #18191a;
+  --gb-bg: #1f2022;
+  --gb-bg-soft: #252628;
+  --gb-bg1: #2e3033;
+  --gb-bg2: #3d4044;
+  --gb-bg3: #52565b;
+  --gb-bg4: #686c72;
 
-  --gb-fg0: #fbf1c7;
-  --gb-fg: #ebdbb2;
-  --gb-fg2: #d5c4a1;
-  --gb-fg3: #bdae93;
-  --gb-fg4: #a89984;
-  --gb-gray: #928374;
+  /* 低眩光燕麥暖字 (舒緩長時間閱讀的視覺疲勞) */
+  --gb-fg0: #ede7dc;
+  --gb-fg: #d4cebe;
+  --gb-fg2: #bfb8a8;
+  --gb-fg3: #a69f90;
+  --gb-fg4: #8f897c;
+  --gb-gray: #7a756b;
 
-  --gb-red: #fb4934;
-  --gb-red-dim: #cc241d;
-  --gb-green: #b8bb26;
-  --gb-green-dim: #98971a;
-  --gb-yellow: #fabd2f;
-  --gb-yellow-dim: #d79921;
-  --gb-blue: #83a598;
-  --gb-blue-dim: #458588;
-  --gb-purple: #d3869b;
-  --gb-purple-dim: #b16286;
-  --gb-aqua: #8ec07c;
-  --gb-aqua-dim: #689d6a;
-  --gb-orange: #fe8019;
-  --gb-orange-dim: #d65d0e;
+  /* 沉香與暗房微光色彩 (降彩度、去銳利化) */
+  --gb-red: #bf584d;
+  --gb-red-dim: #993f36;
+  --gb-green: #8a9a6e;
+  --gb-green-dim: #6e7d54;
+  --gb-yellow: #cf984a;
+  --gb-yellow-dim: #a67732;
+  --gb-blue: #71908d;
+  --gb-blue-dim: #526e6c;
+  --gb-purple: #b07c91;
+  --gb-purple-dim: #8c5c70;
+  --gb-aqua: #7ba185;
+  --gb-aqua-dim: #5d8066;
+  --gb-orange: #c77840;
+  --gb-orange-dim: #9e5929;
 
   --font-mono: 'Fira Code', 'JetBrains Mono', Consolas, monospace;
   --font-sans: 'Outfit', 'Noto Sans TC', system-ui, -apple-system, sans-serif;

@@ -178,10 +178,10 @@
   /* 懸浮島嶼式頂欄 (Unified Floating Island) + 玻璃擬態 */
   .unified-header {
     height: 46px;
-    background: rgba(29, 32, 33, 0.78);
+    background: rgba(24, 25, 26, 0.85);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid rgba(235, 219, 178, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -226,7 +226,7 @@
   .brand-sub {
     font-size: 0.65rem;
     font-family: var(--font-mono, monospace);
-    color: #928374;
+    color: #7a756b;
     padding: 1px 5px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 4px;
@@ -241,10 +241,10 @@
     gap: 6px;
     padding: 3px 8px;
     background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(235, 219, 178, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 6px;
     font-size: 0.68rem;
-    color: #a89984;
+    color: #8f897c;
   }
 
   .hud-code {
@@ -260,13 +260,13 @@
   }
 
   .status-dot.synced {
-    background: #b8bb26;
-    box-shadow: 0 0 8px rgba(184, 187, 38, 0.8);
+    background: #8a9a6e;
+    box-shadow: 0 0 6px rgba(138, 154, 110, 0.6);
   }
 
   .status-dot.saving {
-    background: #fabd2f;
-    box-shadow: 0 0 8px rgba(250, 189, 47, 0.8);
+    background: #cf984a;
+    box-shadow: 0 0 6px rgba(207, 152, 74, 0.6);
     animation: pulse-glow 0.8s infinite alternate;
   }
 
@@ -303,10 +303,10 @@
     gap: 6px;
     height: 30px;
     padding: 0 12px;
-    background: rgba(40, 40, 40, 0.45);
-    border: 1px solid rgba(235, 219, 178, 0.08);
+    background: rgba(35, 36, 38, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 15px;
-    color: #a89984;
+    color: #8f897c;
     font-size: 0.8rem;
     font-weight: 500;
     cursor: pointer;
@@ -315,16 +315,16 @@
   }
 
   .tab-pill:hover {
-    color: #ebdbb2;
-    background: rgba(50, 48, 47, 0.65);
-    border-color: rgba(235, 219, 178, 0.15);
+    color: #d4cebe;
+    background: rgba(45, 47, 50, 0.65);
+    border-color: rgba(255, 255, 255, 0.1);
   }
 
   /* 作用中膠囊 (Active Pill) */
   .tab-pill.active {
-    background: rgba(29, 32, 33, 0.95);
-    color: #fabd2f;
-    border-color: rgba(254, 128, 25, 0.3);
+    background: rgba(24, 25, 26, 0.95);
+    color: #cf984a;
+    border-color: rgba(207, 152, 74, 0.35);
     box-shadow: 
       0 2px 8px rgba(0, 0, 0, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -337,27 +337,27 @@
     left: 14px;
     right: 14px;
     height: 2px;
-    background: #fe8019;
+    background: #cf984a;
     border-radius: 2px;
-    box-shadow: 0 0 8px #fe8019, 0 0 2px #fabd2f;
+    box-shadow: 0 0 6px rgba(207, 152, 74, 0.6);
     animation: neon-glow 1.5s ease-in-out infinite alternate;
   }
 
   @keyframes neon-glow {
     from { opacity: 0.8; }
-    to { opacity: 1; filter: drop-shadow(0 0 6px #fe8019); }
+    to { opacity: 1; filter: drop-shadow(0 0 5px rgba(207, 152, 74, 0.5)); }
   }
 
   .pill-dot {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #504945;
+    background: #52565b;
   }
 
   .tab-pill.active .pill-dot {
-    background: #fe8019;
-    box-shadow: 0 0 6px #fe8019;
+    background: #cf984a;
+    box-shadow: 0 0 5px rgba(207, 152, 74, 0.5);
   }
 
   .tab-title {
@@ -370,16 +370,16 @@
     font-size: 9px;
     padding: 1px 5px;
     border-radius: 4px;
-    background: rgba(254, 128, 25, 0.25);
-    color: #fe8019;
+    background: rgba(207, 152, 74, 0.18);
+    color: #cf984a;
     font-weight: 700;
-    border: 1px solid rgba(254, 128, 25, 0.4);
+    border: 1px solid rgba(207, 152, 74, 0.35);
   }
 
   .pill-close-btn {
     background: transparent;
     border: none;
-    color: #7c6f64;
+    color: #7a756b;
     font-size: 14px;
     line-height: 1;
     cursor: pointer;
@@ -392,14 +392,14 @@
   }
 
   .pill-close-btn:hover {
-    color: #fb4934;
-    background: rgba(251, 73, 52, 0.15);
+    color: #bf584d;
+    background: rgba(191, 88, 77, 0.15);
   }
 
   .rename-input {
-    background: #141617;
-    border: 1px solid #fe8019;
-    color: #fabd2f;
+    background: #18191a;
+    border: 1px solid #cf984a;
+    color: #cf984a;
     font-size: 0.78rem;
     padding: 1px 6px;
     border-radius: 4px;
@@ -415,18 +415,18 @@
     height: 28px;
     padding: 0 10px;
     background: transparent;
-    border: 1px dashed rgba(235, 219, 178, 0.18);
+    border: 1px dashed rgba(255, 255, 255, 0.12);
     border-radius: 14px;
-    color: #928374;
+    color: #7a756b;
     font-size: 0.75rem;
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
   .add-pill-btn:hover {
-    color: #fabd2f;
-    border-color: #fabd2f;
-    background: rgba(250, 189, 47, 0.08);
+    color: #cf984a;
+    border-color: #cf984a;
+    background: rgba(207, 152, 74, 0.08);
   }
 
   /* 右側控制項與 1px 漸層高光邊框 (Specular Border) */
@@ -442,50 +442,50 @@
     height: 30px;
     padding: 0 11px;
     border-radius: 8px;
-    background: rgba(40, 40, 40, 0.7);
-    border: 1px solid rgba(235, 219, 178, 0.1);
-    color: #d5c4a1;
+    background: rgba(35, 36, 38, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #bfb8a8;
     font-size: 0.75rem;
     font-family: var(--font-mono, monospace);
     font-weight: 600;
     cursor: pointer;
     box-shadow: 
       0 2px 6px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.12); /* 頂部漸層微反光 */
+      inset 0 1px 0 rgba(255, 255, 255, 0.08); /* 頂部漸層微反光 */
     transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .specular-btn:hover {
-    background: rgba(50, 48, 47, 0.85);
-    color: #fabd2f;
-    border-color: rgba(235, 219, 178, 0.2);
+    background: rgba(45, 47, 50, 0.85);
+    color: #cf984a;
+    border-color: rgba(255, 255, 255, 0.15);
     transform: translateY(-1px);
   }
 
   .mode-btn.active {
-    background: linear-gradient(135deg, rgba(254, 128, 25, 0.25) 0%, rgba(214, 93, 14, 0.35) 100%);
-    color: #fe8019;
-    border-color: rgba(254, 128, 25, 0.4);
+    background: linear-gradient(135deg, rgba(207, 152, 74, 0.2) 0%, rgba(199, 120, 64, 0.28) 100%);
+    color: #cf984a;
+    border-color: rgba(207, 152, 74, 0.35);
     box-shadow: 
-      0 2px 8px rgba(254, 128, 25, 0.25),
-      inset 0 1px 0 rgba(254, 128, 25, 0.3);
+      0 2px 8px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(207, 152, 74, 0.25);
   }
 
   .ai-btn {
-    background: linear-gradient(135deg, rgba(254, 128, 25, 0.18) 0%, rgba(250, 189, 47, 0.1) 100%);
-    color: #fe8019;
-    border-color: rgba(254, 128, 25, 0.3);
+    background: linear-gradient(135deg, rgba(207, 152, 74, 0.15) 0%, rgba(199, 120, 64, 0.1) 100%);
+    color: #cf984a;
+    border-color: rgba(207, 152, 74, 0.25);
   }
 
   .ai-btn:hover {
-    background: linear-gradient(135deg, #fe8019 0%, #d65d0e 100%);
-    color: #1d2021;
-    box-shadow: 0 0 14px rgba(254, 128, 25, 0.5);
+    background: linear-gradient(135deg, #cf984a 0%, #b87e35 100%);
+    color: #18191a;
+    box-shadow: 0 0 12px rgba(207, 152, 74, 0.4);
   }
 
   .ai-btn:hover .hud-kbd {
     background: rgba(0, 0, 0, 0.3);
-    color: #fbf1c7;
+    color: #ede7dc;
     border-color: transparent;
   }
 
