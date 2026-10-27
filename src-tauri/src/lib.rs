@@ -399,7 +399,8 @@ fn write_vault_file(
     fs::write(&path, content).map_err(|e| format!("無法寫入檔案 {}: {}", file_path, e))
 }
 
-/// 3.6 軟刪除：將檔案安全移至系統資源回收桶 (Recycle Bin / Trash)
+/// 3.6 跨平台原生軟刪除：將檔案安全移至系統資源回收桶 (Recycle Bin / Trash)
+/// 支援 Windows (IFileOperation)、macOS (NSFileManager)、Linux (FreeDesktop Trash)
 #[tauri::command]
 fn trash_vault_file(file_path: String) -> Result<(), String> {
     let path = PathBuf::from(&file_path);
@@ -407,57 +408,26 @@ fn trash_vault_file(file_path: String) -> Result<(), String> {
         return Err(format!("檔案不存在: {}", file_path));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let escaped_path = file_path.replace('\'', "''");
-        let script = format!(
-            "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('{}', 'OnlyErrorDialogs', 'SendToRecycleBin')",
-            escaped_path
-        );
-        let output = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
-
-        match output {
-            Ok(out) if out.status.success() => return Ok(()),
-            _ => {
-                // 若 PowerShell 資源回收桶受限，執行安全軟刪除 Fallback：移動至 .bamboo_trash
-                if let Some(parent) = path.parent() {
-                    let trash_dir = parent.join(".bamboo_trash");
-                    let _ = fs::create_dir_all(&trash_dir);
-                    let now_ms = std::time::SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis();
-                    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
-                    let target = trash_dir.join(format!("{}.{}.trashed", file_name, now_ms));
-                    fs::rename(&path, target).map_err(|e| format!("移動至安全回收庫失敗: {}", e))?;
-                    return Ok(());
-                }
-            }
-        }
+    // 1. 第一優先：調用跨平台原生 OS 資源回收桶 (Windows / macOS / Linux 原生相容)
+    if let Ok(()) = trash::delete(&path) {
+        return Ok(());
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        if let Some(parent) = path.parent() {
-            let trash_dir = parent.join(".bamboo_trash");
-            let _ = fs::create_dir_all(&trash_dir);
-            let now_ms = std::time::SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis();
-            let file_name = path.file_name().unwrap_or_default().to_string_lossy();
-            let target = trash_dir.join(format!("{}.{}.trashed", file_name, now_ms));
-            fs::rename(&path, target).map_err(|e| format!("移動至安全回收庫失敗: {}", e))?;
-            return Ok(());
-        }
+    // 2. 備援保險 (Fallback)：若原生 API 受限（如受限沙盒或無回收桶檔案系統），移動至同目錄的 .bamboo_trash，絕不強制抹除
+    if let Some(parent) = path.parent() {
+        let trash_dir = parent.join(".bamboo_trash");
+        let _ = fs::create_dir_all(&trash_dir);
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+        let target = trash_dir.join(format!("{}.{}.trashed", file_name, now_ms));
+        fs::rename(&path, target).map_err(|e| format!("移動至安全回收庫失敗: {}", e))?;
+        return Ok(());
     }
 
-    Ok(())
+    Err("無法移動檔案至資源回收桶".to_string())
 }
 
 #[tauri::command]
