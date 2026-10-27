@@ -193,6 +193,83 @@
     return extractDirectorySkeleton(sourceFiles, loadVaultCaves(state.vaultFolderPath));
   });
 
+  // 5.4 WikiLinks 雙向連結候選清單（聚合所有開啟中分頁與洞天實體檔案）
+  const wikiLinkCandidates = $derived.by(() => {
+    const list: Array<{ title: string; filePath?: string }> = [];
+    const seen = new Set<string>();
+
+    for (const tab of state.tabs) {
+      if (tab.title && !seen.has(tab.title)) {
+        seen.add(tab.title);
+        list.push({ title: tab.title, filePath: tab.filePath });
+      }
+    }
+
+    const allScanned = Object.values(cavesFileCache).flat();
+    const sourceFiles = allScanned.length > 0 ? allScanned : vaultFiles;
+    for (const f of sourceFiles) {
+      if (f.name && !seen.has(f.name)) {
+        seen.add(f.name);
+        list.push({ title: f.name, filePath: f.path });
+      }
+    }
+
+    return list;
+  });
+
+  // 5.4 雙向連結開卷跳轉 (WikiLink Navigation)
+  async function handleOpenWikiLink(targetName: string) {
+    if (!targetName.trim()) return;
+    const cleanTarget = targetName.trim();
+    const cleanTargetNoExt = cleanTarget.replace(/\.(md|txt)$/i, '');
+
+    // 1. 先在現有分頁中比對
+    const matchedTab = state.tabs.find((t) => {
+      const tabTitle = t.title.trim();
+      const tabTitleNoExt = tabTitle.replace(/\.(md|txt)$/i, '');
+      return tabTitle === cleanTarget || tabTitleNoExt === cleanTargetNoExt;
+    });
+
+    if (matchedTab) {
+      selectTab(matchedTab.id);
+      showToast(`📑 已跳轉至藥帖：${matchedTab.title}`);
+      return;
+    }
+
+    // 2. 在洞天檔案庫中比對實體檔案
+    const allScanned = Object.values(cavesFileCache).flat();
+    const sourceFiles = allScanned.length > 0 ? allScanned : vaultFiles;
+    const matchedFile = sourceFiles.find((f) => {
+      const fileName = f.name.trim();
+      const fileNameNoExt = fileName.replace(/\.(md|txt)$/i, '');
+      return fileName === cleanTarget || fileNameNoExt === cleanTargetNoExt;
+    });
+
+    if (matchedFile && matchedFile.path) {
+      await handleDirectOpenFile(matchedFile.path);
+      return;
+    }
+
+    // 3. 若均不存在，靈感即時延展：自動建立新藥帖並開卷
+    const newTitle = cleanTarget.endsWith('.md') ? cleanTarget : `${cleanTarget}.md`;
+    const newTab: TabItem = {
+      id: `tab-wiki-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      title: newTitle,
+      content: `# ${cleanTargetNoExt}\n\n> 來自 [[${activeTab?.title || '藥帖'}]] 的雙向靈感衍生...\n\n`,
+      language: 'markdown',
+      cursor: { line: 5, ch: 0 },
+      lastModified: Date.now(),
+      preAiSnapshot: null,
+      isAiDraft: false,
+      deck: 'primary',
+      isDirty: true,
+    };
+    state.tabs.push(newTab);
+    state.activeTabId = newTab.id;
+    saveVaultState(state, true);
+    showToast(`🎋 雙向開卷：已納入新藥帖「${newTitle}」`);
+  }
+
   // 當狀態有任何細微變更時（包含 VIM 模式切換、分頁內容等），建立快照並觸發毫秒級持久化
   $effect(() => {
     const snapshot = $state.snapshot(state);
@@ -1617,6 +1694,8 @@
             cursor={activeTab.cursor}
             smearEnabled={smearEnabled}
             typewriterMode={state.layoutConfig?.typewriterMode || isZenFocusMode}
+            wikiLinkCandidates={wikiLinkCandidates}
+            onOpenWikiLink={handleOpenWikiLink}
             onChange={handleContentChange}
             onCursorChange={handleCursorChange}
             onSelectionChange={(sel) => (currentSelectionText = sel)}

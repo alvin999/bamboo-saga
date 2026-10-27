@@ -11,6 +11,8 @@
   import { getLanguageExtension } from '../lib/editor/languageSupport';
   import { SmearCursorRenderer } from '../lib/canvas/smearCursor';
   import { buildVimOverrideKeymap } from '../lib/editor/vimOverrides';
+  import { createWikiLinkPlugin, createWikiLinkCompletionSource, type WikiLinkCandidate } from '../lib/editor/wikiLinks';
+  import { autocompletion } from '@codemirror/autocomplete';
 
   let {
     content = '',
@@ -27,6 +29,7 @@
     cursor = { line: 1, ch: 0 },
     smearEnabled = true,
     typewriterMode = false,
+    wikiLinkCandidates = [] as WikiLinkCandidate[],
     onChange,
     onCursorChange,
     onManualSave,
@@ -36,6 +39,7 @@
     onCloseTab,
     onSelectionChange,
     onOpenInlinePrompt,
+    onOpenWikiLink,
     onRegisterApi
   } = $props<{
     content: string;
@@ -45,6 +49,7 @@
     cursor: CursorPosition;
     smearEnabled?: boolean;
     typewriterMode?: boolean;
+    wikiLinkCandidates?: WikiLinkCandidate[];
     onChange: (val: string) => void;
     onCursorChange: (cur: CursorPosition) => void;
     onManualSave?: () => void;
@@ -54,6 +59,7 @@
     onCloseTab?: () => void;
     onSelectionChange?: (selectedText: string) => void;
     onOpenInlinePrompt?: (coords?: { x: number; y: number } | null) => void;
+    onOpenWikiLink?: (target: string) => void;
     onRegisterApi?: (handle: { getParagraphScreenCoords: () => { x: number; y: number } | null; scrollToMakeRoom: () => void }) => void;
   }>();
 
@@ -200,6 +206,10 @@
           vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt }) : []
         ),
         vimCompartment.of(vimMode ? vim() : []),
+        createWikiLinkPlugin((target) => onOpenWikiLink?.(target)),
+        autocompletion({
+          override: [createWikiLinkCompletionSource(() => wikiLinkCandidates)],
+        }),
         updateListener,
         EditorView.lineWrapping,
       ],
@@ -372,5 +382,21 @@
     height: 100%;
     pointer-events: none;
     z-index: 99;
+  }
+
+  /* 5.4 輕量 WikiLinks 雙向連結高亮與 Hover 特效 (Gruvbox 青碧靈泉水色) */
+  :global(.cm-content .gb-wikilink) {
+    color: #8ec07c !important;
+    text-decoration: underline dashed rgba(142, 192, 124, 0.45);
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  :global(.cm-content .gb-wikilink:hover) {
+    color: #b8bb26 !important;
+    background: rgba(142, 192, 124, 0.12);
+    text-decoration: underline solid #b8bb26;
+    border-radius: 2px;
   }
 </style>
