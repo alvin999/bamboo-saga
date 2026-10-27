@@ -1840,6 +1840,23 @@
             </div>
           </div>
 
+          <!-- 五、沉浸專注與捲動模式 -->
+          <div class="form-group">
+            <span class="form-label">沉浸專注與打字機模式 (Focus & Scrolling)</span>
+            <div class="overrides-grid">
+              <label class="override-item">
+                <input
+                  type="checkbox"
+                  bind:checked={inputLayoutConfig.typewriterMode}
+                />
+                <div class="toggle-text">
+                  <span class="toggle-title">打字機垂直置中捲動 (Typewriter Scrolling)</span>
+                  <span class="toggle-sub">編輯與移動游標時，始終將正在輸入的行平滑保持於畫面垂直居中視線位置</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <footer class="modal-footer">
             <button
               type="button"

@@ -84,6 +84,32 @@
   let codeEditorRef = $state<any>(null); // 編輯器實例引用（供計算段落座標）
   let editorApi = $state<{ getParagraphScreenCoords: () => { x: number; y: number } | null; scrollToMakeRoom: () => void } | null>(null); // 編輯器 API Handle
 
+  // 4.2 / 5.3 竹林靜心 (True Zen Mode) 專注模式與打字機模式狀態
+  let isZenFocusMode = $state(false);
+
+  function toggleZenFocusMode(explicit?: boolean) {
+    isZenFocusMode = explicit !== undefined ? explicit : !isZenFocusMode;
+    showToast(isZenFocusMode ? '🎋 已進入竹林靜心（按 Esc 或 F11 退出）' : '🍃 已退出竹林靜心');
+  }
+
+  function toggleTypewriterMode() {
+    if (!state.layoutConfig) {
+      state.layoutConfig = {
+        workbenchWidth: 'zen',
+        autoDiffOnAi: true,
+        scrollSync: true,
+        fontSize: '14px',
+        smearCursor: true,
+        typewriterMode: true,
+        zenFocusMode: false,
+      };
+    } else {
+      state.layoutConfig.typewriterMode = !state.layoutConfig.typewriterMode;
+    }
+    saveVaultState(state, true);
+    showToast(state.layoutConfig.typewriterMode ? '📜 已開啟打字機置中捲動模式' : '📜 已關閉打字機置中捲動模式');
+  }
+
   // 外部檔案衝突協調狀態
   interface FileConflictInfo {
     tabId: string;
@@ -380,6 +406,17 @@
     // Ctrl+B: 檔案總管抽屜
     // Ctrl+P / Cmd+P: 全域 Fuzzy Find 模糊跳轉與 AI 助查
     const handleGlobalKeydown = (e: KeyboardEvent) => {
+      // F11 或 Alt+Z: 切換竹林靜心 (True Zen Mode)；Esc: 退出靜心模式
+      if (e.key === 'F11' || (e.altKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        toggleZenFocusMode();
+        return;
+      } else if (isZenFocusMode && e.key === 'Escape') {
+        e.preventDefault();
+        toggleZenFocusMode(false);
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         fuzzyInitialMode = 'fuzzy';
@@ -1415,7 +1452,7 @@
 <svelte:window onkeydown={handleWindowKeyDown} />
 
 <div 
-  class="app-layout {activeTab?.isAiDraft ? 'ai-draft-active' : ''} {isRefining ? 'is-refining' : ''} {isDraggingOver ? 'drag-over-active' : ''}"
+  class="app-layout {activeTab?.isAiDraft ? 'ai-draft-active' : ''} {isRefining ? 'is-refining' : ''} {isDraggingOver ? 'drag-over-active' : ''} {isZenFocusMode ? 'is-zen-focus' : ''}"
   ondragenter={handleDragEnter}
   ondragover={handleDragOver}
   ondragleave={handleDragLeave}
@@ -1434,6 +1471,19 @@
     </div>
   {/if}
 
+  <!-- 4.2 竹林靜心專注模式：右上角極簡退出浮鈕 (平常半透明，Hover 喚醒) -->
+  {#if isZenFocusMode}
+    <button
+      class="zen-exit-float-btn"
+      onclick={() => toggleZenFocusMode(false)}
+      title="退出竹林靜心 (Esc 或 F11)"
+    >
+      <span class="zen-exit-icon">🎋</span>
+      <span>退出靜心</span>
+      <kbd>ESC</kbd>
+    </button>
+  {/if}
+
   <!-- 包浩斯形上學極簡微點陣 (24px x 24px) -->
   <div class="metaphysical-grid"></div>
 
@@ -1444,6 +1494,10 @@
     workbenchWidth={state.layoutConfig?.workbenchWidth || 'zen'}
     autoOneDriveBackup={state.autoOneDriveBackup}
     selectedOneDrivePath={state.selectedOneDrivePath}
+    isZenFocusMode={isZenFocusMode}
+    typewriterMode={state.layoutConfig?.typewriterMode ?? false}
+    onToggleZenFocus={toggleZenFocusMode}
+    onToggleTypewriter={toggleTypewriterMode}
     tabs={state.tabs}
     activeTabId={state.activeTabId}
     alchemyCards={state.alchemyCards}
@@ -1545,6 +1599,7 @@
             vimOverrides={state.vimOverrides}
             cursor={activeTab.cursor}
             smearEnabled={smearEnabled}
+            typewriterMode={state.layoutConfig?.typewriterMode || isZenFocusMode}
             onChange={handleContentChange}
             onCursorChange={handleCursorChange}
             onSelectionChange={(sel) => (currentSelectionText = sel)}
@@ -1770,6 +1825,60 @@
     overflow: hidden;
     background: #141615; /* 包浩斯形上學深黑大地底色 */
     color: #dcd7cb;
+  }
+
+  /* 4.2 竹林靜心模式 (True Zen Mode) 沉浸專注隱藏介面元素 */
+  .app-layout.is-zen-focus :global(.constructivist-topbar),
+  .app-layout.is-zen-focus :global(.metaphysical-statusbar),
+  .app-layout.is-zen-focus :global(.review-bar-strip),
+  .app-layout.is-zen-focus .review-bar-strip {
+    display: none !important;
+  }
+
+  .app-layout.is-zen-focus .workbench-sanctuary {
+    height: 100vh;
+    padding-top: 16px;
+  }
+
+  /* 右上角極簡退出浮鈕 */
+  .zen-exit-float-btn {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: rgba(20, 22, 21, 0.65);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(212, 155, 53, 0.25);
+    border-radius: 20px;
+    color: #a89984;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    opacity: 0.25;
+    transition: opacity 0.25s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .zen-exit-float-btn:hover {
+    opacity: 1;
+    background: rgba(26, 29, 28, 0.95);
+    border-color: #d49b35;
+    color: #ebdbb2;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  }
+
+  .zen-exit-float-btn kbd {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(212, 155, 53, 0.3);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 10px;
+    font-family: monospace;
+    color: #d49b35;
   }
 
   /* 極簡禪風包浩斯微點陣 (透明度 3.5% 的 24px x 24px 網格) */

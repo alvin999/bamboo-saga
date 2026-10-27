@@ -24,6 +24,10 @@
     onToggleVim?: () => void;
     onToggleSmear?: () => void;
     onToggleWorkbenchWidth?: () => void;
+    isZenFocusMode?: boolean;
+    typewriterMode?: boolean;
+    onToggleZenFocus?: () => void;
+    onToggleTypewriter?: () => void;
     onOpenCheatSheet?: () => void;
     onOpenSettings?: () => void;
   }
@@ -34,6 +38,8 @@
     workbenchWidth = 'zen',
     autoOneDriveBackup = false,
     selectedOneDrivePath = '',
+    isZenFocusMode = false,
+    typewriterMode = false,
     onToggleFileBrowser,
     onAddTab,
     onManualSave,
@@ -45,6 +51,8 @@
     onToggleVim,
     onToggleSmear,
     onToggleWorkbenchWidth,
+    onToggleZenFocus,
+    onToggleTypewriter,
     onOpenCheatSheet,
     onOpenSettings
   }: BrandQuickMenuProps = $props();
@@ -341,6 +349,40 @@
             </div>
             <span class="status-pill neutral">
               {workbenchWidth === 'full' ? '滿版 FULL' : '禪風 ZEN'}
+            </span>
+          </button>
+        {/if}
+
+        {#if onToggleZenFocus}
+          <button 
+            class="menu-item" 
+            onclick={() => handleAction(onToggleZenFocus)}
+          >
+            <div class="item-left">
+              <span class="item-icon">🎋</span>
+              <div class="item-info">
+                <span class="item-name">竹林靜心 · 沉浸專注</span>
+                <span class="item-tip">隱藏全域邊界，只留一卷清幽筆墨</span>
+              </div>
+            </div>
+            <span class="key-badge">F11 / Alt+Z</span>
+          </button>
+        {/if}
+
+        {#if onToggleTypewriter}
+          <button 
+            class="menu-item" 
+            onclick={() => handleAction(onToggleTypewriter)}
+          >
+            <div class="item-left">
+              <span class="item-icon">📜</span>
+              <div class="item-info">
+                <span class="item-name">打字機捲動模式</span>
+                <span class="item-tip">視線垂直居中保持，行走字間自然呼吸</span>
+              </div>
+            </div>
+            <span class="status-pill {typewriterMode ? 'active' : 'idle'}">
+              {typewriterMode ? 'ON' : 'OFF'}
             </span>
           </button>
         {/if}

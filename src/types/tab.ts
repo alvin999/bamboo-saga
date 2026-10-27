@@ -139,6 +139,8 @@ export interface LayoutConfig {
   scrollSync: boolean;            // 雙欄對照同步捲動
   smearCursor: boolean;           // 流光殘影游標動畫開關
   fontSize: '13px' | '14px' | '16px' | '18px'; // 編輯器文字大小
+  typewriterMode?: boolean;       // 打字機捲動模式：游標所在行永遠平滑垂直居中
+  zenFocusMode?: boolean;         // 竹林靜心模式：一鍵極致全螢幕純淨手稿書寫
 }
 
 export type AiProvider = 'groq' | 'gemini' | 'custom';

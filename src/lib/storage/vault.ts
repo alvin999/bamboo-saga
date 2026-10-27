@@ -8,6 +8,8 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   scrollSync: true,
   smearCursor: true,
   fontSize: '14px',
+  typewriterMode: false,
+  zenFocusMode: false,
 };
 
 export function getDefaultLayoutConfig(): LayoutConfig {

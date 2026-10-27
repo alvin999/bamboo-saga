@@ -26,6 +26,7 @@
     } as VimKeyOverrides,
     cursor = { line: 1, ch: 0 },
     smearEnabled = true,
+    typewriterMode = false,
     onChange,
     onCursorChange,
     onManualSave,
@@ -43,6 +44,7 @@
     vimOverrides?: VimKeyOverrides;
     cursor: CursorPosition;
     smearEnabled?: boolean;
+    typewriterMode?: boolean;
     onChange: (val: string) => void;
     onCursorChange: (cur: CursorPosition) => void;
     onManualSave?: () => void;
@@ -104,6 +106,13 @@
               width: 3,
             });
           }
+        }
+
+        // 打字機模式：保持當前游標所在行永遠平滑垂直置中 (y: 'center')
+        if (typewriterMode && (update.selectionSet || update.docChanged) && view) {
+          view.dispatch({
+            effects: EditorView.scrollIntoView(head, { y: 'center' }),
+          });
         }
       }
     });
@@ -321,7 +330,7 @@
   });
 </script>
 
-<div class="editor-container">
+<div class="editor-container" class:is-typewriter={typewriterMode}>
   <div class="editor-surface" bind:this={editorHost}></div>
   <canvas class="smear-canvas" bind:this={canvasHost}></canvas>
 </div>
@@ -334,6 +343,11 @@
     flex: 1;
     overflow: hidden;
     background: #1d2021;
+  }
+
+  /* 打字機捲動模式：保留下方 45vh 留白，確保文末打字依然能置中捲動 */
+  .editor-container.is-typewriter :global(.cm-content) {
+    padding-bottom: 45vh !important;
   }
 
   .editor-surface {

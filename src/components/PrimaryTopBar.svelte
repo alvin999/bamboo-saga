@@ -31,6 +31,10 @@
     onToggleVim?: () => void;
     onToggleSmear?: () => void;
     onToggleWorkbenchWidth?: () => void;
+    isZenFocusMode?: boolean;
+    typewriterMode?: boolean;
+    onToggleZenFocus?: () => void;
+    onToggleTypewriter?: () => void;
     onOpenSettings: () => void;
     onOpenKeybindings?: () => void;
     onExecuteRefine?: (mode: string, customPrompt: string, cardPrompt?: string) => Promise<void>;
@@ -68,6 +72,10 @@
     onToggleVim,
     onToggleSmear,
     onToggleWorkbenchWidth,
+    isZenFocusMode = false,
+    typewriterMode = false,
+    onToggleZenFocus,
+    onToggleTypewriter,
     onOpenSettings,
     onOpenKeybindings,
     onExecuteRefine,
@@ -196,6 +204,10 @@
         {onToggleVim}
         {onToggleSmear}
         {onToggleWorkbenchWidth}
+        {isZenFocusMode}
+        {typewriterMode}
+        {onToggleZenFocus}
+        {onToggleTypewriter}
         onOpenCheatSheet={() => (isCheatSheetOpen = true)}
         {onOpenSettings}
       />
