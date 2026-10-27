@@ -1219,6 +1219,17 @@
             {/if}
           </div>
 
+          <!-- 機敏資訊防護濾網與零信任安全狀態 -->
+          <div class="sanitizer-shield-card">
+            <div class="shield-head">
+              <ShieldCheck size={15} class="shield-icon text-accent" />
+              <span class="shield-title">AI 雲端機敏資訊防護濾網 (Sanitizer Guard) · 常駐啟動</span>
+            </div>
+            <p class="shield-desc">
+              向雲端 AI 傳送前，前端自動掃描並脫敏 API Key、連線字串、Token 與個資為 <code>[REDACTED]</code>。若手稿內含 <code>#private</code> 或 <code>#secret</code> 標籤，將嚴格阻斷外傳，守護 100% 本地隱私。
+            </p>
+          </div>
+
           <footer class="modal-footer">
             <div class="telemetry">
               <span class="telemetry-dot"></span>
@@ -2086,6 +2097,38 @@
 {/if}
 
 <style>
+  .sanitizer-shield-card {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: rgba(212, 155, 53, 0.06);
+    border: 1px solid rgba(212, 155, 53, 0.25);
+    border-radius: 6px;
+  }
+  .sanitizer-shield-card .shield-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .sanitizer-shield-card .shield-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #d49b35;
+  }
+  .sanitizer-shield-card .shield-desc {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #a89984;
+  }
+  .sanitizer-shield-card code {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    color: #ebdbb2;
+  }
+
   .modal-backdrop {
     position: fixed;
     inset: 0;

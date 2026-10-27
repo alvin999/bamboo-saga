@@ -1,5 +1,6 @@
 import type { SupportedLanguage, AiProvider } from '../../types/tab';
 import { normalizeEndpoint } from './modelFetcher';
+import { sanitizeForAi } from '../security/sanitizerGuard';
 
 export interface SaveRecommendationRequest {
   content: string;
@@ -149,6 +150,17 @@ export async function recommendSaveLocation(
 ): Promise<SaveRecommendationResult> {
   const ext = getExtensionForLanguage(req.language);
   const recentFolders = req.recentFolders || [];
+  const isLocal = req.model === 'custom';
+
+  // 5.2 / 3.6 機敏防護：若筆記標註有私密標籤且使用雲端 AI，自動降級為本機啟發式推論，絕不外流
+  const privacyCheck = sanitizeForAi(req.content, isLocal);
+  if (privacyCheck.isBlocked) {
+    const fallback = generateHeuristicRecommendation(req.content, req.language, recentFolders);
+    return {
+      ...fallback,
+      reason: '🛡️ 偵測到私密標籤（#private），廣零散安全防護已啟動本機離線智薦歸檔',
+    };
+  }
 
   // 若無外網金鑰且非本地端點模式，直接降級為本地啟發式推薦
   if (!req.groqKey && !req.geminiKey && req.model !== 'custom') {
@@ -156,7 +168,8 @@ export async function recommendSaveLocation(
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const snippet = req.content.slice(0, 1500);
+  const rawSnippet = req.content.slice(0, 1500);
+  const snippet = sanitizeForAi(rawSnippet, isLocal).sanitizedText;
 
   // 整理精煉之本機洞天目錄骨架（嚴格限制在最多 30 個目錄，不超過 200 Tokens）
   const skeletonList = (req.directorySkeleton && req.directorySkeleton.length > 0)

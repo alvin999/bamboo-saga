@@ -1,6 +1,7 @@
 import type { AiProvider } from '../../types/tab';
 import { normalizeEndpoint } from './modelFetcher';
 import { formatIndexedPromptInput } from './refinery';
+import { sanitizeForAi } from '../security/sanitizerGuard';
 
 export type AdvisorMode = 'inquiry' | 'scribe'; // 'inquiry': 💬 問道模式, 'scribe': ✍️ 執筆模式
 
@@ -114,7 +115,29 @@ ${contextNote.content.slice(0, 8000)}${contextNote.content.length > 8000 ? '\n..
  */
 export async function sendChatMessage(options: SendChatOptions): Promise<ChatCompletionResult> {
   const { model, modelId, groqKey, geminiKey, customKey, customEndpoint, history, userMessage, advisorMode = 'inquiry', targetParagraph, contextNote, signal } = options;
-  const systemPrompt = buildSystemPrompt(advisorMode, contextNote, targetParagraph);
+  const isLocal = model === 'custom';
+
+  // 5.2 / 3.6 機敏防護過濾：若研讀之筆記標記私密標籤，雲端 AI 絕對封鎖
+  if (contextNote?.content) {
+    const noteCheck = sanitizeForAi(contextNote.content, isLocal);
+    if (noteCheck.isBlocked) {
+      throw new Error(noteCheck.blockedReason || '⚠️ 該藥帖標註有私密標籤（#private），廣零散安全防護已攔截，禁止送至雲端 AI！');
+    }
+  }
+
+  // 對使用者提問與段落進行正則安全脫敏
+  const safeUserMessage = sanitizeForAi(userMessage, isLocal).sanitizedText;
+  const safeContextNote = contextNote ? {
+    ...contextNote,
+    content: sanitizeForAi(contextNote.content, isLocal).sanitizedText,
+    selection: contextNote.selection ? sanitizeForAi(contextNote.selection, isLocal).sanitizedText : undefined,
+  } : undefined;
+  const safeTargetParagraph = targetParagraph ? {
+    ...targetParagraph,
+    text: sanitizeForAi(targetParagraph.text, isLocal).sanitizedText,
+  } : undefined;
+
+  const systemPrompt = buildSystemPrompt(advisorMode, safeContextNote, safeTargetParagraph);
 
   // 1. 若使用自訂本地端點 (Ollama / LM Studio)
   if (model === 'custom') {
@@ -124,13 +147,13 @@ export async function sendChatMessage(options: SendChatOptions): Promise<ChatCom
     // 只取最近 10 輪避免超過 context window
     const recentHistory = history.slice(-10).map((m) => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.content,
+      content: sanitizeForAi(m.content, isLocal).sanitizedText,
     }));
 
     const messages = [
       { role: 'system', content: systemPrompt },
       ...recentHistory,
-      { role: 'user', content: userMessage },
+      { role: 'user', content: safeUserMessage },
     ];
 
     const headers: Record<string, string> = {
@@ -350,12 +373,21 @@ export async function executeInlinePromptRefine(options: {
 }): Promise<{ refinedText: string; summary: string; engineUsed: string }> {
   const { instruction, content, selection, model, modelId, groqKey, geminiKey, signal } = options;
   const targetText = selection && selection.trim() ? selection : content;
-  const indexedTargetText = formatIndexedPromptInput(targetText);
+  const isLocal = (model as any) === 'custom';
+
+  // 5.2 / 3.6 機敏資訊防護濾網
+  const sanitizeRes = sanitizeForAi(targetText, isLocal);
+  if (sanitizeRes.isBlocked) {
+    throw new Error(sanitizeRes.blockedReason || '⚠️ 此筆記標註有私密標籤（#private），廣零散安全防護已攔截，禁止送至雲端 AI！');
+  }
+  const safeTargetText = sanitizeRes.sanitizedText;
+  const safeInstruction = sanitizeForAi(instruction, isLocal).sanitizedText;
+  const indexedTargetText = formatIndexedPromptInput(safeTargetText);
 
   const prompt = `你是一位敏銳且擅長知識提煉的結構化筆記師。使用者下達了具體修改指令，請依據指令將以下內容進行改寫、優化或重新組織：
 
 【使用者的修改指令】：
-${instruction}
+${safeInstruction}
 
 【排版與渲染規範】：
 - 請一律以正體/繁體中文（台灣習慣用語）輸出。

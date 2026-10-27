@@ -9,6 +9,7 @@ export type RefineryMode =
 
 import type { AiProvider } from '../../types/tab';
 import { normalizeEndpoint } from './modelFetcher';
+import { sanitizeForAi } from '../security/sanitizerGuard';
 import {
   isChunkingNeeded,
   executeChunkedRefineryPipeline,
@@ -128,10 +129,21 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
   const targetText = req.selection && req.selection.trim() ? req.selection : req.content;
   const promptHeader = req.cardPrompt && req.cardPrompt.trim() ? req.cardPrompt : PROMPT_TEMPLATES[req.mode];
 
+  // 5.2 / 3.6 機敏資訊防護濾網 (Sanitizer Guard)
+  const isLocal = req.model === 'custom';
+  const sanitizeRes = sanitizeForAi(targetText, isLocal);
+  if (sanitizeRes.isBlocked) {
+    throw new Error(sanitizeRes.blockedReason || '⚠️ 此筆記標註有私密標籤（#private），廣零散安全防護已攔截，禁止上傳至雲端 AI！');
+  }
+  const safeTargetText = sanitizeRes.sanitizedText;
+  if (sanitizeRes.redactedCount > 0) {
+    console.info(`[SanitizerGuard] 已安全脫敏 ${sanitizeRes.redactedCount} 處敏感資料 (${sanitizeRes.redactedTypes.join(', ')})`);
+  }
+
   // 若原稿內容龐大（超出門檻，如預設 3,500 字），自動分流進入 Map-Reduce 分段管線處理
-  if (isChunkingNeeded(targetText)) {
+  if (isChunkingNeeded(safeTargetText)) {
     return await executeChunkedRefineryPipeline(
-      req,
+      { ...req, content: safeTargetText, selection: undefined },
       promptHeader,
       undefined,
       req.onProgress,
@@ -139,7 +151,7 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
     );
   }
 
-  const indexedTargetText = formatIndexedPromptInput(targetText);
+  const indexedTargetText = formatIndexedPromptInput(safeTargetText);
   const fullPrompt = `${promptHeader}\n${indexedTargetText}\n\n${req.customPrompt ? `額外補充要求：${req.customPrompt}` : ''}`;
 
   // 1. 如果選用自訂本地端點 (Ollama / LM Studio)
@@ -326,16 +338,29 @@ export interface AiSearchRequest {
  */
 export async function searchVaultWithAi(req: AiSearchRequest): Promise<AiSearchResultItem[]> {
   const { query, candidates, model, groqKey, geminiKey, customKey, customEndpoint } = req;
-  if (!query.trim() || candidates.length === 0) return [];
+  const isLocal = model === 'custom';
+  const cleanQuery = sanitizeForAi(query, isLocal).sanitizedText;
+
+  // 雲端查詢時，自動排除標記有私密標籤之候選檔案；同時對摘要進行脫敏
+  const safeCandidates = candidates.filter((c) => {
+    if (!isLocal) {
+      const check = sanitizeForAi(c.preview, false, { checkPrivateTags: true });
+      if (check.isBlocked) return false;
+    }
+    return true;
+  });
 
   // 取前 35 筆候選檔案摘要
-  const sampleList = candidates.slice(0, 35).map((c, idx) => ({
-    index: idx + 1,
-    id: c.id,
-    title: c.title,
-    path: c.path || '',
-    snippet: c.preview.slice(0, 200).replace(/\s+/g, ' '),
-  }));
+  const sampleList = safeCandidates.slice(0, 35).map((c, idx) => {
+    const sanitizedSnippet = sanitizeForAi(c.preview.slice(0, 200), isLocal).sanitizedText;
+    return {
+      index: idx + 1,
+      id: c.id,
+      title: c.title,
+      path: c.path || '',
+      snippet: sanitizedSnippet.replace(/\s+/g, ' '),
+    };
+  });
 
   const systemPrompt = `你是一位專業的筆記檢索助理。使用者正在筆記庫中尋找資料，請根據使用者的提問意圖，從候選清單中挑選最符合的 1 到 3 個筆記或檔案。
 請只輸出合法的 JSON 陣列，不得包含 Markdown 標籤或其餘非 JSON 內容：
@@ -349,7 +374,7 @@ export async function searchVaultWithAi(req: AiSearchRequest): Promise<AiSearchR
   }
 ]`;
 
-  const userPrompt = `使用者查詢需求：「${query}」\n\n候選筆記與檔案清單：\n${JSON.stringify(sampleList, null, 2)}`;
+  const userPrompt = `使用者查詢需求：「${cleanQuery}」\n\n候選筆記與檔案清單：\n${JSON.stringify(sampleList, null, 2)}`;
 
   // 1. 本地 Ollama / Custom 端點呼叫
   if (model === 'custom') {
