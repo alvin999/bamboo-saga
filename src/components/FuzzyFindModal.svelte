@@ -14,7 +14,7 @@
     geminiApiKey = '',
     customApiKey = '',
     customEndpoint = '',
-    selectedAiModel = 'gemini',
+    selectedAiModel = 'gemini' as AiProvider,
     initialMode,
     onSelectTab,
     onOpenVaultFile,

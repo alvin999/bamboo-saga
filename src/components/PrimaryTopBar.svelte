@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { RefineryMode } from '../lib/ai/refinery';
   import type { TabItem, AlchemyCardConfig } from '../types/tab';
   import ShortcutCheatSheet from './ShortcutCheatSheet.svelte';
   import AlchemyPopover from './AlchemyPopover.svelte';
@@ -38,7 +39,7 @@
     onToggleTypewriter?: () => void;
     onOpenSettings: () => void;
     onOpenKeybindings?: () => void;
-    onExecuteRefine?: (mode: string, customPrompt: string, cardPrompt?: string) => Promise<void>;
+    onExecuteRefine?: (mode: RefineryMode | string, customPrompt: string, cardPrompt?: string) => Promise<void>;
     onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
     onToggleAiChat?: () => void;
     isAiChatOpen?: boolean;
@@ -184,6 +185,25 @@
       editingTabId = null;
     }
   }
+
+  // 滑鼠中鍵關閉分頁處理
+  function handleTabAuxClick(e: MouseEvent, tabId: string) {
+    if (e.button === 1) { // 1 代表滑鼠滾輪中鍵
+      e.preventDefault();
+      e.stopPropagation();
+      if (editingTabId === tabId) return; // 正在重新命名中不動作
+      if (tabs.length > 1) {
+        onCloseTab(tabId);
+      }
+    }
+  }
+
+  function handleTabMouseDown(e: MouseEvent) {
+    if (e.button === 1) {
+      // 阻止 Windows/WebView 原生中鍵自動捲動圓形游標
+      e.preventDefault();
+    }
+  }
 </script>
 
 <header class="constructivist-topbar">
@@ -255,6 +275,8 @@
             ondragend={handleDragEnd}
             onclick={() => onSelectTab(tab.id)}
             ondblclick={() => startRename(tab)}
+            onauxclick={(e) => handleTabAuxClick(e, tab.id)}
+            onmousedown={handleTabMouseDown}
             role="button"
             tabindex="0"
             onkeydown={(e) => e.key === 'Enter' && onSelectTab(tab.id)}

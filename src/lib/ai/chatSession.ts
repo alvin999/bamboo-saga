@@ -365,15 +365,17 @@ export async function executeInlinePromptRefine(options: {
   instruction: string;
   content: string;
   selection?: string;
-  model: 'groq' | 'gemini';
+  model: AiProvider;
   modelId?: string;
   groqKey: string;
   geminiKey: string;
+  customKey?: string;
+  customEndpoint?: string;
   signal?: AbortSignal;
 }): Promise<{ refinedText: string; summary: string; engineUsed: string }> {
-  const { instruction, content, selection, model, modelId, groqKey, geminiKey, signal } = options;
+  const { instruction, content, selection, model, modelId, groqKey, geminiKey, customKey, customEndpoint, signal } = options;
   const targetText = selection && selection.trim() ? selection : content;
-  const isLocal = (model as any) === 'custom';
+  const isLocal = model === 'custom';
 
   // 5.2 / 3.6 機敏資訊防護濾網
   const sanitizeRes = sanitizeForAi(targetText, isLocal);
@@ -398,6 +400,42 @@ ${safeInstruction}
 原始內容如下：
 ${indexedTargetText}
 `;
+
+  // 0. 本機自訂端點 (Custom / Ollama / LM Studio)
+  if (model === 'custom') {
+    const customModel = modelId || 'llama3.2';
+    const endpoint = `${normalizeEndpoint(customEndpoint || 'http://localhost:11434/v1')}/chat/completions`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (customKey) {
+      headers['Authorization'] = `Bearer ${customKey}`;
+    }
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: customModel,
+        messages: [
+          { role: 'system', content: '你是《廣零散》筆記工作台的 AI 提煉師。請輸出繁體中文，注重排版美學與精準度。' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.3,
+      }),
+      signal,
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `本地端點 API 錯誤 (${resp.status})`);
+    }
+
+    const data = await resp.json();
+    return {
+      refinedText: data.choices?.[0]?.message?.content || '',
+      summary: `指令修煉: ${instruction.slice(0, 15)}...`,
+      engineUsed: `Local (${customModel})`,
+    };
+  }
 
   // 1. Groq
   if (model === 'groq' && groqKey) {

@@ -10,7 +10,6 @@
   import { buildReviewChunks, assembleFinalNote, type ReviewChunk, type ChunkDecision } from './lib/editor/chunkReview';
 
   import PrimaryTopBar from './components/PrimaryTopBar.svelte';
-  import SecondaryAlchemyBar from './components/SecondaryAlchemyBar.svelte';
   import FileBrowserDrawer from './components/FileBrowserDrawer.svelte';
   import CodeEditor from './components/CodeEditor.svelte';
   import AiReviewBar from './components/AiReviewBar.svelte';
@@ -60,7 +59,7 @@
   } from './lib/storage/vaultCaves';
 
   // 核心應用狀態
-  let state: AppState = $state(loadVaultState());
+  let appState: AppState = $state(loadVaultState());
   let isAiModalOpen = $state(false);
   let isAlchemyOpen = $state(false);
   let aiModalTab = $state<'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout' | 'system'>('refine');
@@ -94,8 +93,8 @@
   }
 
   function toggleTypewriterMode() {
-    if (!state.layoutConfig) {
-      state.layoutConfig = {
+    if (!appState.layoutConfig) {
+      appState.layoutConfig = {
         workbenchWidth: 'zen',
         autoDiffOnAi: true,
         scrollSync: true,
@@ -105,10 +104,10 @@
         zenFocusMode: false,
       };
     } else {
-      state.layoutConfig.typewriterMode = !state.layoutConfig.typewriterMode;
+      appState.layoutConfig.typewriterMode = !appState.layoutConfig.typewriterMode;
     }
-    saveVaultState(state, true);
-    showToast(state.layoutConfig.typewriterMode ? '📜 已開啟打字機置中捲動模式' : '📜 已關閉打字機置中捲動模式');
+    saveVaultState(appState, true);
+    showToast(appState.layoutConfig.typewriterMode ? '📜 已開啟打字機置中捲動模式' : '📜 已關閉打字機置中捲動模式');
   }
 
   // 外部檔案衝突協調狀態
@@ -128,9 +127,9 @@
   let lastAutoBackupTime = Date.now();
 
   async function performSilentOneDriveBackup() {
-    if (!state.autoOneDriveBackup || !state.selectedOneDrivePath) return;
+    if (!appState.autoOneDriveBackup || !appState.selectedOneDrivePath) return;
     try {
-      const safeTabs = state.tabs || [];
+      const safeTabs = appState.tabs || [];
       const markdownFiles = safeTabs.map((t, idx) => ({
         file_name: t.title || `藥帖_${idx + 1}`,
         content: t.content,
@@ -142,10 +141,10 @@
       }, null, 2);
 
       await backupVaultToOneDrive({
-        onedriveFolderPath: state.selectedOneDrivePath,
+        onedriveFolderPath: appState.selectedOneDrivePath,
         vaultJson,
         markdownFiles,
-        enablePeriodic: state.enablePeriodicBackup ?? true,
+        enablePeriodic: appState.enablePeriodicBackup ?? true,
       });
       lastAutoBackupTime = Date.now();
     } catch (err) {
@@ -161,8 +160,8 @@
 
   // 本機資料夾與最近開啟狀態（優先使用快取保底以防初次開啟白屏閃爍）
   let vaultFiles = $state<VaultFileEntry[]>(
-    state.vaultFolderPath && initialCavesCache[state.vaultFolderPath]
-      ? initialCavesCache[state.vaultFolderPath]
+    appState.vaultFolderPath && initialCavesCache[appState.vaultFolderPath]
+      ? initialCavesCache[appState.vaultFolderPath]
       : []
   );
   let recentFiles = $state<RecentFileRecord[]>(loadRecentFiles());
@@ -176,7 +175,7 @@
 
   // 當前作用中分頁
   const activeTab = $derived(
-    state.tabs.find((t) => t.id === state.activeTabId) || state.tabs[0]
+    appState.tabs.find((t) => t.id === appState.activeTabId) || appState.tabs[0]
   );
 
   // AI 煉丹前 vs 煉丹後的 Git Diff 比對結果
@@ -191,7 +190,7 @@
   const directorySkeleton = $derived.by(() => {
     const allScannedFiles = Object.values(cavesFileCache).flat();
     const sourceFiles = allScannedFiles.length > 0 ? allScannedFiles : vaultFiles;
-    return extractDirectorySkeleton(sourceFiles, loadVaultCaves(state.vaultFolderPath));
+    return extractDirectorySkeleton(sourceFiles, loadVaultCaves(appState.vaultFolderPath));
   });
 
   // 5.4 WikiLinks 雙向連結候選清單（聚合所有開啟中分頁與洞天實體檔案）
@@ -199,7 +198,7 @@
     const list: Array<{ title: string; filePath?: string }> = [];
     const seen = new Set<string>();
 
-    for (const tab of state.tabs) {
+    for (const tab of appState.tabs) {
       if (tab.title && !seen.has(tab.title)) {
         seen.add(tab.title);
         list.push({ title: tab.title, filePath: tab.filePath });
@@ -225,7 +224,7 @@
     const cleanTargetNoExt = cleanTarget.replace(/\.(md|txt)$/i, '');
 
     // 1. 先在現有分頁中比對
-    const matchedTab = state.tabs.find((t) => {
+    const matchedTab = appState.tabs.find((t) => {
       const tabTitle = t.title.trim();
       const tabTitleNoExt = tabTitle.replace(/\.(md|txt)$/i, '');
       return tabTitle === cleanTarget || tabTitleNoExt === cleanTargetNoExt;
@@ -240,7 +239,7 @@
     // 2. 在洞天檔案庫中比對實體檔案
     const allScanned = Object.values(cavesFileCache).flat();
     const sourceFiles = allScanned.length > 0 ? allScanned : vaultFiles;
-    const matchedFile = sourceFiles.find((f) => {
+    const matchedFile = sourceFiles.find((f: VaultFileEntry) => {
       const fileName = f.name.trim();
       const fileNameNoExt = fileName.replace(/\.(md|txt)$/i, '');
       return fileName === cleanTarget || fileNameNoExt === cleanTargetNoExt;
@@ -265,21 +264,21 @@
       deck: 'primary',
       isDirty: true,
     };
-    state.tabs.push(newTab);
-    state.activeTabId = newTab.id;
-    saveVaultState(state, true);
+    appState.tabs.push(newTab);
+    appState.activeTabId = newTab.id;
+    saveVaultState(appState, true);
     showToast(`🎋 雙向開卷：已納入新藥帖「${newTitle}」`);
   }
 
   // 當狀態有任何細微變更時（包含 VIM 模式切換、分頁內容等），建立快照並觸發毫秒級持久化
   $effect(() => {
-    const snapshot = $state.snapshot(state);
+    const snapshot = $state.snapshot(appState);
     saveVaultState(snapshot);
   });
 
   // 即時將所有已連結實體檔案的分頁路徑同步至 Rust Watcher 監聽器
   $effect(() => {
-    const filePaths = state.tabs
+    const filePaths = appState.tabs
       .map((t) => t.filePath)
       .filter(Boolean) as string[];
     setWatchedFiles(filePaths);
@@ -289,7 +288,7 @@
   async function handleDirectOpenFile(filePath: string) {
     if (!filePath) return;
     const normalized = filePath.replace(/\\/g, '/');
-    const existing = state.tabs.find((t) => t.filePath && t.filePath.replace(/\\/g, '/') === normalized);
+    const existing = appState.tabs.find((t) => t.filePath && t.filePath.replace(/\\/g, '/') === normalized);
     if (existing) {
       selectTab(existing.id);
       showToast(`📑 已切換至已開啟的藥帖：${existing.title}`);
@@ -315,8 +314,8 @@
         isDirty: false,
       };
 
-      state.tabs.push(newTab);
-      state.activeTabId = newTab.id;
+      appState.tabs.push(newTab);
+      appState.activeTabId = newTab.id;
       showToast(`🎋 已納入新簡：${fileName}`);
 
       recentFiles = recordFileOpened({
@@ -335,9 +334,9 @@
   async function handleNativeRoute(payload: NativeRoutePayload) {
     if (!payload || !payload.path) return;
     if (payload.is_directory) {
-      state.vaultFolderPath = payload.path;
+      appState.vaultFolderPath = payload.path;
       recentFolders = recordFolderOpened(payload.path);
-      saveVaultState(state, true);
+      saveVaultState(appState, true);
       await refreshVaultFiles(payload.path);
       const folderName = payload.path.replace(/\\/g, '/').split('/').filter(Boolean).pop() || payload.path;
       showToast(`📜 已切換至藥卷庫：${folderName}`);
@@ -397,8 +396,8 @@
           deck: 'primary',
           isDirty: false,
         };
-        state.tabs.push(newTab);
-        state.activeTabId = newTab.id;
+        appState.tabs.push(newTab);
+        appState.activeTabId = newTab.id;
         showToast(`🎋 已納入新簡：${file.name}`);
       }
     }
@@ -407,8 +406,8 @@
   onMount(() => {
     // 監聽視窗關閉或重載，強制立即同步寫入並執行關閉前鏡像備份
     const handleBeforeUnload = () => {
-      saveVaultState(state, true);
-      if (state.autoOneDriveBackup && state.selectedOneDrivePath) {
+      saveVaultState(appState, true);
+      if (appState.autoOneDriveBackup && appState.selectedOneDrivePath) {
         performSilentOneDriveBackup();
       }
     };
@@ -445,34 +444,34 @@
       if (cache && Object.keys(cache).length > 0) {
         cavesFileCache = cache;
         if (timestamp) lastCavesScanTime = timestamp;
-        if (state.vaultFolderPath && cache[state.vaultFolderPath] && vaultFiles.length === 0) {
-          vaultFiles = cache[state.vaultFolderPath];
+        if (appState.vaultFolderPath && cache[appState.vaultFolderPath] && vaultFiles.length === 0) {
+          vaultFiles = cache[appState.vaultFolderPath];
         }
       }
 
       // 若先前已連結過資料夾，自動重新整理檔案清單並記錄到常用資料夾
-      if (state.vaultFolderPath) {
-        recentFolders = recordFolderOpened(state.vaultFolderPath);
-        refreshVaultFiles(state.vaultFolderPath);
+      if (appState.vaultFolderPath) {
+        recentFolders = recordFolderOpened(appState.vaultFolderPath);
+        refreshVaultFiles(appState.vaultFolderPath);
         refreshAllCaves(); // 若快取在 3 分鐘有效期內直接命中，絕不重跑磁碟
       }
     });
 
     // 3. 從本機安全保險庫載入加密金鑰 (支援方案 3 與方案 2+1，100% 本機)
     loadSecureKeys().then((keys) => {
-      if (keys.groqKey) state.groqApiKey = keys.groqKey;
-      if (keys.geminiKey) state.geminiApiKey = keys.geminiKey;
-      if (keys.customKey !== undefined) state.customApiKey = keys.customKey;
-      if (keys.customEndpoint) state.customEndpoint = keys.customEndpoint;
-      if (keys.selectedModel) state.selectedAiModel = keys.selectedModel;
-      if (keys.selectedModelId) state.selectedAiModelId = keys.selectedModelId;
-      if (keys.securityMode) state.securityMode = keys.securityMode;
+      if (keys.groqKey) appState.groqApiKey = keys.groqKey;
+      if (keys.geminiKey) appState.geminiApiKey = keys.geminiKey;
+      if (keys.customKey !== undefined) appState.customApiKey = keys.customKey;
+      if (keys.customEndpoint) appState.customEndpoint = keys.customEndpoint;
+      if (keys.selectedModel) appState.selectedAiModel = keys.selectedModel;
+      if (keys.selectedModelId) appState.selectedAiModelId = keys.selectedModelId;
+      if (keys.securityMode) appState.securityMode = keys.securityMode;
     });
 
     // 背景定時鏡像備份輪詢（每 60 秒檢查一次間隔）
     const backupIntervalTimer = window.setInterval(() => {
-      if (state.autoOneDriveBackup && state.selectedOneDrivePath) {
-        const intervalMs = (state.oneDriveBackupIntervalMinutes || 30) * 60 * 1000;
+      if (appState.autoOneDriveBackup && appState.selectedOneDrivePath) {
+        const intervalMs = (appState.oneDriveBackupIntervalMinutes || 30) * 60 * 1000;
         if (Date.now() - lastAutoBackupTime >= intervalMs) {
           performSilentOneDriveBackup();
         }
@@ -566,7 +565,7 @@
   function handleExternalFileChanged(payload: ExternalFileChangePayload) {
     if (!payload || !payload.path) return;
     const normalized = payload.path.replace(/\\/g, '/').toLowerCase();
-    const targetTab = state.tabs.find(
+    const targetTab = appState.tabs.find(
       (t) => t.filePath && t.filePath.replace(/\\/g, '/').toLowerCase() === normalized
     );
     if (!targetTab) return;
@@ -586,7 +585,7 @@
     if (!targetTab.isDirty) {
       targetTab.content = payload.content;
       targetTab.lastModified = Date.now();
-      saveVaultState(state, true);
+      saveVaultState(appState, true);
       showToast(`⚡ 外部程式已修改，自動熱重載：${targetTab.title}`);
       return;
     }
@@ -602,12 +601,12 @@
 
   function resolveConflictReload() {
     if (!activeConflict) return;
-    const tab = state.tabs.find((t) => t.id === activeConflict!.tabId);
+    const tab = appState.tabs.find((t) => t.id === activeConflict!.tabId);
     if (tab) {
       tab.content = activeConflict.externalContent;
       tab.isDirty = false;
       tab.lastModified = Date.now();
-      saveVaultState(state, true);
+      saveVaultState(appState, true);
       showToast(`🔄 已重新載入外部最新版本：${tab.title}`);
     }
     activeConflict = null;
@@ -615,7 +614,7 @@
 
   function resolveConflictKeep() {
     if (!activeConflict) return;
-    const tab = state.tabs.find((t) => t.id === activeConflict!.tabId);
+    const tab = appState.tabs.find((t) => t.id === activeConflict!.tabId);
     if (tab) {
       syncToDisk(tab, true);
       showToast(`🛡️ 已保留廣零散草稿並覆蓋實體檔案：${tab.title}`);
@@ -648,9 +647,9 @@
     try {
       const folder = await pickVaultFolder();
       if (folder) {
-        state.vaultFolderPath = folder;
+        appState.vaultFolderPath = folder;
         recentFolders = recordFolderOpened(folder);
-        saveVaultState(state, true);
+        saveVaultState(appState, true);
         await refreshVaultFiles(folder);
         refreshAllCaves(undefined, true);
         showToast(`📁 已連接電腦資料夾：${folder.split(/[/|\\]/).pop()}`);
@@ -661,11 +660,11 @@
   }
 
   async function handleSwitchFolder(folderPath: string) {
-    if (!folderPath || folderPath === state.vaultFolderPath) return;
+    if (!folderPath || folderPath === appState.vaultFolderPath) return;
     try {
-      state.vaultFolderPath = folderPath;
+      appState.vaultFolderPath = folderPath;
       recentFolders = recordFolderOpened(folderPath);
-      saveVaultState(state, true);
+      saveVaultState(appState, true);
       await refreshVaultFiles(folderPath);
       refreshAllCaves(undefined, true);
       const folderName = folderPath.split(/[/|\\]/).filter(Boolean).pop() || folderPath;
@@ -715,10 +714,10 @@
     try {
       let paths = targetCavePaths;
       if (!paths || paths.length === 0) {
-        const caves = loadVaultCaves(state.vaultFolderPath);
+        const caves = loadVaultCaves(appState.vaultFolderPath);
         paths = caves.map((c) => c.path);
-        if (state.vaultFolderPath && !paths.includes(state.vaultFolderPath)) {
-          paths.unshift(state.vaultFolderPath);
+        if (appState.vaultFolderPath && !paths.includes(appState.vaultFolderPath)) {
+          paths.unshift(appState.vaultFolderPath);
         }
       }
 
@@ -739,8 +738,8 @@
         lastCavesScanTime = now;
 
         // 若當前工作目錄在快取中，同步保險更新 vaultFiles
-        if (state.vaultFolderPath && cacheMap[state.vaultFolderPath]) {
-          vaultFiles = cacheMap[state.vaultFolderPath];
+        if (appState.vaultFolderPath && cacheMap[appState.vaultFolderPath]) {
+          vaultFiles = cacheMap[appState.vaultFolderPath];
         }
       }
     } catch (err) {
@@ -752,7 +751,7 @@
 
   async function handleOpenVaultFile(file: VaultFileEntry) {
     // 1. 檢查是否已經開啟為 Tab
-    const existing = state.tabs.find((t) => t.filePath === file.path);
+    const existing = appState.tabs.find((t) => t.filePath === file.path);
     if (existing) {
       selectTab(existing.id);
       return;
@@ -775,8 +774,8 @@
         isDirty: false,
       };
 
-      state.tabs.push(newTab);
-      state.activeTabId = newTab.id;
+      appState.tabs.push(newTab);
+      appState.activeTabId = newTab.id;
       showToast(`📄 已載入檔案：${file.name}`);
 
       // 3. 記錄進最近開啟
@@ -800,9 +799,9 @@
 
   // 分頁操作
   function selectTab(id: string) {
-    state.activeTabId = id;
+    appState.activeTabId = id;
     showDiffView = false;
-    const target = state.tabs.find((t) => t.id === id);
+    const target = appState.tabs.find((t) => t.id === id);
     if (target) {
       recentFiles = recordFileOpened({
         path: target.filePath || target.id,
@@ -815,7 +814,7 @@
   }
 
   function addTab() {
-    const newIndex = state.tabs.length + 1;
+    const newIndex = appState.tabs.length + 1;
     const newTab: TabItem = {
       id: `tab-${Date.now()}`,
       title: `素簡${newIndex}`,
@@ -827,8 +826,8 @@
       isAiDraft: false,
       deck: 'primary',
     };
-    state.tabs.push(newTab);
-    state.activeTabId = newTab.id;
+    appState.tabs.push(newTab);
+    appState.activeTabId = newTab.id;
   }
 
   function handleCreateDemoTab() {
@@ -843,24 +842,24 @@
       isAiDraft: false,
       deck: 'primary',
     };
-    state.tabs.push(demoTab);
-    state.activeTabId = demoTab.id;
+    appState.tabs.push(demoTab);
+    appState.activeTabId = demoTab.id;
     showToast('🎋 已建立「藥帖·煉丹渲染展示手稿」');
   }
 
   function closeTab(id: string) {
-    if (state.tabs.length <= 1) return;
-    const idx = state.tabs.findIndex((t) => t.id === id);
+    if (appState.tabs.length <= 1) return;
+    const idx = appState.tabs.findIndex((t) => t.id === id);
     if (idx !== -1) {
-      state.tabs.splice(idx, 1);
-      if (state.activeTabId === id) {
-        state.activeTabId = state.tabs[Math.max(0, idx - 1)].id;
+      appState.tabs.splice(idx, 1);
+      if (appState.activeTabId === id) {
+        appState.activeTabId = appState.tabs[Math.max(0, idx - 1)].id;
       }
     }
   }
 
   function renameTab(id: string, newTitle: string) {
-    const target = state.tabs.find((t) => t.id === id);
+    const target = appState.tabs.find((t) => t.id === id);
     if (target) {
       target.title = newTitle;
     }
@@ -868,37 +867,37 @@
 
   // 分頁在主頂欄與次頂欄之間自由移動
   function handleMoveTabDeck(tabId: string, deck: 'primary' | 'secondary') {
-    const target = state.tabs.find((t) => t.id === tabId);
+    const target = appState.tabs.find((t) => t.id === tabId);
     if (target) {
       const oldDeck = target.deck || 'primary';
       target.deck = deck;
       if (oldDeck !== deck) {
         // 移入不同甲板時，將該分頁置於陣列末端（即該甲板最後一項）
-        const fromIndex = state.tabs.findIndex((t) => t.id === tabId);
+        const fromIndex = appState.tabs.findIndex((t) => t.id === tabId);
         if (fromIndex !== -1) {
-          const updated = [...state.tabs];
+          const updated = [...appState.tabs];
           const [moved] = updated.splice(fromIndex, 1);
           updated.push(moved);
-          state.tabs = updated;
+          appState.tabs = updated;
         }
         showToast(deck === 'secondary' ? '🔥 藥帖已移入「次頂 AI 煉丹欄」' : '📜 藥帖已移回「主頂檔案欄」');
       }
-      saveVaultState(state, true);
+      saveVaultState(appState, true);
     }
   }
 
   // 拖曳重排分頁順序（支援跨甲板拖動定位與 Deck 自動切換）
   function handleReorderTabs(sourceId: string, targetId: string) {
     if (!sourceId || !targetId || sourceId === targetId) return;
-    const fromIndex = state.tabs.findIndex((t) => t.id === sourceId);
-    const toIndex = state.tabs.findIndex((t) => t.id === targetId);
+    const fromIndex = appState.tabs.findIndex((t) => t.id === sourceId);
+    const toIndex = appState.tabs.findIndex((t) => t.id === targetId);
     if (fromIndex !== -1 && toIndex !== -1) {
-      const sourceTab = state.tabs[fromIndex];
-      const targetTab = state.tabs[toIndex];
+      const sourceTab = appState.tabs[fromIndex];
+      const targetTab = appState.tabs[toIndex];
       const targetDeck = targetTab.deck || 'primary';
       const sourceDeck = sourceTab.deck || 'primary';
 
-      const updated = [...state.tabs];
+      const updated = [...appState.tabs];
       const [moved] = updated.splice(fromIndex, 1);
 
       // 若跨甲板拖動至目標分頁，自動承繼目標層級並給予反饋
@@ -914,8 +913,8 @@
       } else {
         updated.splice(toIndex, 0, moved);
       }
-      state.tabs = updated;
-      saveVaultState(state, true);
+      appState.tabs = updated;
+      saveVaultState(appState, true);
     }
   }
 
@@ -1001,7 +1000,7 @@
         activeTab.isDirty = true;
         syncToDisk(activeTab);
       }
-      saveVaultState(state, true);
+      saveVaultState(appState, true);
       triggerAutoSnapshot(activeTab, 'typing');
       showToast(`✅ ${reasonDesc || '已成功套用文字處理'}`);
     }
@@ -1035,7 +1034,7 @@
     recordFolderOpened(targetDir);
     recentFolders = loadRecentFolders();
 
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     triggerAutoSnapshot(activeTab, 'save');
     showToast(`💾 檔案已成功歸檔至「${fileName}」！`);
   }
@@ -1065,7 +1064,7 @@
       activeTab.isDirty = true;
       syncToDisk(activeTab, true);
     }
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     showToast('⏪ 已成功還原至指定歷史版本！');
   }
 
@@ -1097,7 +1096,7 @@
   }
 
   // AI 煉丹操作
-  async function handleExecuteRefine(mode: RefineryMode, customPrompt: string, cardPrompt?: string) {
+  async function handleExecuteRefine(mode: RefineryMode | string, customPrompt: string, cardPrompt?: string) {
     if (!activeTab) return;
     isRefining = true;
 
@@ -1112,13 +1111,13 @@
 
       // 2. 呼叫推論引擎 (使用動態熱重載指定之模型，支援超長文本自動 Map-Reduce 分段)
       const res = await refineNotes({
-        model: state.selectedAiModel,
-        modelId: state.selectedAiModelId,
-        groqKey: state.groqApiKey,
-        geminiKey: state.geminiApiKey,
-        customKey: state.customApiKey,
-        customEndpoint: state.customEndpoint,
-        mode,
+        model: appState.selectedAiModel,
+        modelId: appState.selectedAiModelId,
+        groqKey: appState.groqApiKey,
+        geminiKey: appState.geminiApiKey,
+        customKey: appState.customApiKey,
+        customEndpoint: appState.customEndpoint,
+        mode: mode as RefineryMode,
         content: activeTab.content,
         customPrompt,
         cardPrompt,
@@ -1133,7 +1132,7 @@
       activeTab.aiPromptSummary = `${res.summary} [${res.engineUsed}]`;
       activeTab.lastModified = Date.now();
       showDiffView = false;
-      saveVaultState(state, true);
+      saveVaultState(appState, true);
       triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI煉丹成果 (${res.summary})`);
       showToast(`✨ 煉丹完成：請逐段審核成果與原始手稿`);
     } finally {
@@ -1187,10 +1186,12 @@
         instruction,
         content: activeTab.content,
         selection: targetSegment,
-        model: state.selectedAiModel,
-        modelId: state.selectedAiModelId,
-        groqKey: state.groqApiKey,
-        geminiKey: state.geminiApiKey,
+        model: appState.selectedAiModel,
+        modelId: appState.selectedAiModelId,
+        groqKey: appState.groqApiKey,
+        geminiKey: appState.geminiApiKey,
+        customKey: appState.customApiKey,
+        customEndpoint: appState.customEndpoint,
       });
 
       // 3. 建立逐段對照結構，並切換為草稿審核狀態
@@ -1207,7 +1208,7 @@
       activeTab.aiPromptSummary = `${res.summary} [${res.engineUsed}]`;
       activeTab.lastModified = Date.now();
       showDiffView = false;
-      saveVaultState(state, true);
+      saveVaultState(appState, true);
       triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI行內指令成果 (${res.summary})`);
 
       // 關閉輸入列並提示
@@ -1241,7 +1242,7 @@
     activeTab.aiPromptSummary = summary;
     activeTab.lastModified = Date.now();
     showDiffView = false;
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     triggerAutoSnapshot(activeTab, 'post-ai', undefined, `AI參謀成果 (${summary})`);
 
     showToast('📜 丹道對照已就緒：請於工作台逐段審核參謀成果！');
@@ -1265,7 +1266,7 @@
     const updated = original.slice(0, offset) + '\n' + contentToInsert + '\n' + original.slice(offset);
     activeTab.content = updated;
     activeTab.lastModified = Date.now();
-    saveVaultState(state);
+    saveVaultState(appState);
   }
 
   // 執筆模式：一鍵採納並精準置換手稿目標段落（自動建立快照保險）
@@ -1289,7 +1290,7 @@
     }
 
     activeTab.lastModified = Date.now();
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     triggerAutoSnapshot(activeTab, 'post-ai', undefined, `參謀執筆採納`);
     showToast('✨ 參謀執筆成果已採納並原地替換手稿！');
   }
@@ -1323,7 +1324,7 @@
     activeTab.lastModified = Date.now();
     reviewChunks = [];
     showDiffView = false;
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     triggerAutoSnapshot(activeTab, 'post-ai', undefined, 'AI逐段審核收丹');
     showToast('📜 丹道落成：已依審核決策收丹入櫃！');
   }
@@ -1354,7 +1355,7 @@
     activeTab.partialReplaceTarget = undefined;
     reviewChunks = [];
     showDiffView = false;
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     showToast('⏪ 原稿回滾：時空膠囊完好還原！');
   }
 
@@ -1376,9 +1377,9 @@
 
   // VIM / STD MODE 自動即時持久化切換
   function handleToggleVimMode(explicitMode?: boolean) {
-    state.vimMode = explicitMode !== undefined ? explicitMode : !state.vimMode;
-    saveVaultState(state, true);
-    showToast(state.vimMode ? '⌨️ 編輯模式已切換為：VIM (VIM-HYBRID)' : '📝 編輯模式已切換為：STD (標準編輯)');
+    appState.vimMode = explicitMode !== undefined ? explicitMode : !appState.vimMode;
+    saveVaultState(appState, true);
+    showToast(appState.vimMode ? '⌨️ 編輯模式已切換為：VIM (VIM-HYBRID)' : '📝 編輯模式已切換為：STD (標準編輯)');
   }
 
   // 金鑰配置獨立保存 (純本機持久化，支援方案 3 與方案 2+1)
@@ -1391,13 +1392,13 @@
     customKey?: string,
     customEndpoint?: string
   ) {
-    state.groqApiKey = groq;
-    state.geminiApiKey = gemini;
-    state.customApiKey = customKey || '';
-    state.customEndpoint = customEndpoint || '';
-    state.selectedAiModel = model;
-    if (modelId) state.selectedAiModelId = modelId;
-    if (securityMode) state.securityMode = securityMode;
+    appState.groqApiKey = groq;
+    appState.geminiApiKey = gemini;
+    appState.customApiKey = customKey || '';
+    appState.customEndpoint = customEndpoint || '';
+    appState.selectedAiModel = model;
+    if (modelId) appState.selectedAiModelId = modelId;
+    if (securityMode) appState.securityMode = securityMode;
 
     // 儲存至本機安全保險庫 (OS 原生或 Web Crypto AES-256)
     await saveSecureKeys({
@@ -1406,100 +1407,98 @@
       customKey: customKey || '',
       customEndpoint: customEndpoint || '',
       selectedModel: model,
-      selectedModelId: modelId || state.selectedAiModelId || (model === 'groq' ? 'llama-3.3-70b-versatile' : model === 'custom' ? 'llama3.2' : 'gemini-1.5-flash'),
-      securityMode: securityMode || state.securityMode || 'scheme_3_os_native',
+      selectedModelId: modelId || appState.selectedAiModelId || (model === 'groq' ? 'llama-3.3-70b-versatile' : model === 'custom' ? 'llama3.2' : 'gemini-1.5-flash'),
+      securityMode: securityMode || appState.securityMode || 'scheme_3_os_native',
     });
 
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     const modeName = securityMode === 'scheme_3_os_native' ? '方案 3 (OS 原生保險庫)' : '方案 2+1 (Web Crypto 本機加密)';
     showToast(`🔑 AI 金鑰與模型設定已透過【${modeName}】安全保存入櫃（100% 絕不上雲端）！`);
   }
 
   // 按鍵偏好獨立保存
   function handleSaveKeybindings(overrides: VimKeyOverrides, mode?: boolean) {
-    state.vimOverrides = overrides;
+    appState.vimOverrides = overrides;
     if (mode !== undefined) {
-      state.vimMode = mode;
+      appState.vimMode = mode;
     }
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     showToast('⌨️ 按鍵快捷鍵與編輯模式偏好已成功保存入櫃！');
   }
 
   // 煉丹卡片心法自訂獨立保存
   function handleSaveAlchemyCards(cards: Record<string, AlchemyCardConfig>) {
-    state.alchemyCards = cards;
-    saveVaultState(state, true);
+    appState.alchemyCards = cards;
+    saveVaultState(appState, true);
     showToast('📜 煉丹卡片心法設定已成功保存入櫃！');
   }
 
   function handleSaveSettings(
     groq: string, 
     gemini: string, 
-    model: 'groq' | 'gemini',
+    model: AiProvider,
     overrides: VimKeyOverrides
   ) {
-    state.groqApiKey = groq;
-    state.geminiApiKey = gemini;
-    state.selectedAiModel = model;
-    state.vimOverrides = overrides;
-    saveVaultState(state, true);
+    appState.groqApiKey = groq;
+    appState.geminiApiKey = gemini;
+    appState.selectedAiModel = model;
+    appState.vimOverrides = overrides;
+    saveVaultState(appState, true);
     showToast('⚙️ 偏好與金鑰設定已成功儲存！');
   }
 
   function handleSaveLayoutConfig(config: LayoutConfig) {
-    state.layoutConfig = config;
+    appState.layoutConfig = config;
     smearEnabled = config.smearCursor;
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     showToast('📐 工作台版面與檢視偏好已成功儲存！');
   }
 
   function handleToggleSmear() {
     smearEnabled = !smearEnabled;
-    if (state.layoutConfig) {
-      state.layoutConfig.smearCursor = smearEnabled;
+    if (appState.layoutConfig) {
+      appState.layoutConfig.smearCursor = smearEnabled;
     } else {
-      state.layoutConfig = {
-        theme: 'bauhaus-dark',
+      appState.layoutConfig = {
         workbenchWidth: 'zen',
+        autoDiffOnAi: true,
+        scrollSync: true,
         fontSize: '14px',
-        lineHeight: 1.6,
-        fontFamily: 'JetBrains Mono',
         smearCursor: smearEnabled,
       };
     }
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     showToast(`🖌️ 墨韻殘影特效已${smearEnabled ? '開啟' : '關閉'}`);
   }
 
   function handleToggleWorkbenchWidth() {
-    const current = state.layoutConfig?.workbenchWidth || 'zen';
+    const current = appState.layoutConfig?.workbenchWidth || 'zen';
     const nextWidth = current === 'full' ? 'zen' : 'full';
-    if (state.layoutConfig) {
-      state.layoutConfig.workbenchWidth = nextWidth;
+    if (appState.layoutConfig) {
+      appState.layoutConfig.workbenchWidth = nextWidth;
     } else {
-      state.layoutConfig = {
-        theme: 'bauhaus-dark',
+      appState.layoutConfig = {
         workbenchWidth: nextWidth,
+        autoDiffOnAi: true,
+        scrollSync: true,
         fontSize: '14px',
-        lineHeight: 1.6,
-        fontFamily: 'JetBrains Mono',
         smearCursor: smearEnabled,
       };
     }
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
     showToast(`📐 工作台畫布已切換為：${nextWidth === 'full' ? '全螢幕滿版 (FULL)' : '禪風置中 (ZEN)'}`);
   }
 
   function handleSaveOneDrivePreference(path: string, auto: boolean, intervalMinutes?: number, enablePeriodic?: boolean) {
-    state.selectedOneDrivePath = path;
-    state.autoOneDriveBackup = auto;
+    appState.selectedOneDrivePath = path;
+    appState.autoOneDriveBackup = auto;
     if (intervalMinutes !== undefined) {
-      state.oneDriveBackupIntervalMinutes = intervalMinutes;
+      appState.oneDriveBackupIntervalMinutes = intervalMinutes;
     }
     if (enablePeriodic !== undefined) {
-      state.enablePeriodicBackup = enablePeriodic;
+      appState.enablePeriodicBackup = enablePeriodic;
     }
-    saveVaultState(state, true);
+    saveVaultState(appState, true);
   }
 
   // 從 OneDrive 還原全域藥帖分頁
@@ -1508,9 +1507,9 @@
       if (activeTab) {
         triggerAutoSnapshot(activeTab, 'save', undefined, 'OneDrive雲端還原前本地留底');
       }
-      state.tabs = restoredTabs;
-      state.activeTabId = restoredTabs[0].id;
-      saveVaultState(state, true);
+      appState.tabs = restoredTabs;
+      appState.activeTabId = restoredTabs[0].id;
+      saveVaultState(appState, true);
     }
   }
 
@@ -1531,8 +1530,8 @@
     // 2. 收合新簡 (Ctrl + W / Cmd + W)
     if (isMod && e.key.toLowerCase() === 'w') {
       e.preventDefault();
-      if (state.activeTabId) {
-        closeTab(state.activeTabId);
+      if (appState.activeTabId) {
+        closeTab(appState.activeTabId);
       }
       return;
     }
@@ -1589,18 +1588,18 @@
 
   <!-- 主頂欄 (Primary Constructivist Command Bar)：56px 高度、懸停快捷中樞、檔案瀏覽功能、主頂分頁與意圖煉丹樞紐 -->
   <PrimaryTopBar 
-    bind:vimMode={state.vimMode}
+    bind:vimMode={appState.vimMode}
     {smearEnabled}
-    workbenchWidth={state.layoutConfig?.workbenchWidth || 'zen'}
-    autoOneDriveBackup={state.autoOneDriveBackup}
-    selectedOneDrivePath={state.selectedOneDrivePath}
+    workbenchWidth={appState.layoutConfig?.workbenchWidth || 'zen'}
+    autoOneDriveBackup={appState.autoOneDriveBackup}
+    selectedOneDrivePath={appState.selectedOneDrivePath}
     isZenFocusMode={isZenFocusMode}
-    typewriterMode={state.layoutConfig?.typewriterMode ?? false}
+    typewriterMode={appState.layoutConfig?.typewriterMode ?? false}
     onToggleZenFocus={toggleZenFocusMode}
     onToggleTypewriter={toggleTypewriterMode}
-    tabs={state.tabs}
-    activeTabId={state.activeTabId}
-    alchemyCards={state.alchemyCards}
+    tabs={appState.tabs}
+    activeTabId={appState.activeTabId}
+    alchemyCards={appState.alchemyCards}
     isRefining={isRefining}
     bind:isAlchemyOpen={isAlchemyOpen}
     bind:isExportOpen={isExportOpen}
@@ -1680,8 +1679,8 @@
   <!-- 主編輯工作台：沉陷包浩斯禪風置中排版 (精準對齊 code.html 第 15 行) -->
   <main class="workbench-sanctuary">
     <div 
-      class="zen-canvas-frame {state.layoutConfig?.workbenchWidth === 'full' ? 'is-full-width' : ''}"
-      style="--editor-font-size: {state.layoutConfig?.fontSize || '14px'};"
+      class="zen-canvas-frame {appState.layoutConfig?.workbenchWidth === 'full' ? 'is-full-width' : ''}"
+      style="--editor-font-size: {appState.layoutConfig?.fontSize || '14px'};"
     >
       {#if activeTab?.isAiDraft && reviewChunks.length > 0}
         <!-- 逐段對照審核模式：清晰卡片流，原文與 AI 提煉一目了然 -->
@@ -1696,18 +1695,18 @@
             bind:this={codeEditorRef}
             content={activeTab.content}
             language={activeTab.language}
-            vimMode={state.vimMode}
-            vimOverrides={state.vimOverrides}
+            vimMode={appState.vimMode}
+            vimOverrides={appState.vimOverrides}
             cursor={activeTab.cursor}
             smearEnabled={smearEnabled}
-            typewriterMode={state.layoutConfig?.typewriterMode || isZenFocusMode}
+            typewriterMode={appState.layoutConfig?.typewriterMode || isZenFocusMode}
             wikiLinkCandidates={wikiLinkCandidates}
             onOpenWikiLink={handleOpenWikiLink}
             onChange={handleContentChange}
             onCursorChange={handleCursorChange}
-            onSelectionChange={(sel) => (currentSelectionText = sel)}
-            onRegisterApi={(api) => (editorApi = api)}
-            onOpenInlinePrompt={(coords) => {
+            onSelectionChange={(sel: string) => (currentSelectionText = sel)}
+            onRegisterApi={(api: any) => (editorApi = api)}
+            onOpenInlinePrompt={(coords: { x: number; y: number } | null | undefined) => {
               inlinePromptCoords = coords || null;
               isInlineAiPromptOpen = true;
             }}
@@ -1728,7 +1727,7 @@
       content={activeTab.content}
       language={activeTab.language}
       cursor={activeTab.cursor}
-      vimMode={state.vimMode}
+      vimMode={appState.vimMode}
       onLanguageChange={handleLanguageChange}
       onToggleVim={handleToggleVimMode}
       onOpenFuzzy={() => {
@@ -1767,12 +1766,12 @@
       tab={activeTab}
       recentFolders={recentFolders.map((f) => f.path)}
       directorySkeleton={directorySkeleton}
-      groqKey={state.groqApiKey}
-      geminiKey={state.geminiApiKey}
-      customKey={state.customApiKey}
-      customEndpoint={state.customEndpoint}
-      modelPreference={state.selectedAiModel}
-      modelId={state.selectedAiModelId}
+      groqKey={appState.groqApiKey}
+      geminiKey={appState.geminiApiKey}
+      customKey={appState.customApiKey}
+      customEndpoint={appState.customEndpoint}
+      modelPreference={appState.selectedAiModel}
+      modelId={appState.selectedAiModelId}
       onConfirmSave={handleConfirmSaveAs}
       onClose={() => (isSaveModalOpen = false)}
     />
@@ -1781,21 +1780,21 @@
   <!-- 純文字編輯器檔案總管抽屜 (可隨時以 Ctrl+B 開合) -->
   <FileBrowserDrawer 
     isOpen={isFileBrowserOpen}
-    tabs={state.tabs}
-    activeTabId={state.activeTabId}
-    vaultFolderPath={state.vaultFolderPath || ''}
+    tabs={appState.tabs}
+    activeTabId={appState.activeTabId}
+    vaultFolderPath={appState.vaultFolderPath || ''}
     vaultFiles={vaultFiles}
     cavesFileCache={cavesFileCache}
     isScanningCaves={isScanningAllCaves}
     recentFiles={recentFiles}
     recentFolders={recentFolders}
     isScanning={isScanningFolder}
-    groqApiKey={state.groqApiKey}
-    geminiApiKey={state.geminiApiKey}
-    customApiKey={state.customApiKey}
-    customEndpoint={state.customEndpoint}
-    selectedAiModel={state.selectedAiModel}
-    selectedAiModelId={state.selectedAiModelId}
+    groqApiKey={appState.groqApiKey}
+    geminiApiKey={appState.geminiApiKey}
+    customApiKey={appState.customApiKey}
+    customEndpoint={appState.customEndpoint}
+    selectedAiModel={appState.selectedAiModel}
+    selectedAiModelId={appState.selectedAiModelId || ''}
     onSelectTab={selectTab}
     onAddTab={addTab}
     onCloseTab={closeTab}
@@ -1804,7 +1803,7 @@
     onSwitchFolder={handleSwitchFolder}
     onTogglePinFolder={handleTogglePinFolder}
     onRemoveRecentFolder={handleRemoveRecentFolder}
-    onRefreshFolder={() => state.vaultFolderPath && refreshVaultFiles(state.vaultFolderPath)}
+    onRefreshFolder={() => appState.vaultFolderPath && refreshVaultFiles(appState.vaultFolderPath)}
     onRefreshAllCaves={(force) => refreshAllCaves(undefined, force)}
     onOpenVaultFile={handleOpenVaultFile}
     onOpenFuzzyModal={(mode) => {
@@ -1819,14 +1818,14 @@
   <FuzzyFindModal 
     isOpen={isFuzzyModalOpen}
     initialMode={fuzzyInitialMode}
-    tabs={state.tabs}
+    tabs={appState.tabs}
     vaultFiles={vaultFiles}
     recentFiles={recentFiles}
-    groqApiKey={state.groqApiKey}
-    geminiApiKey={state.geminiApiKey}
-    customApiKey={state.customApiKey}
-    customEndpoint={state.customEndpoint}
-    selectedAiModel={state.selectedAiModel}
+    groqApiKey={appState.groqApiKey}
+    geminiApiKey={appState.geminiApiKey}
+    customApiKey={appState.customApiKey}
+    customEndpoint={appState.customEndpoint}
+    selectedAiModel={appState.selectedAiModel}
     onSelectTab={selectTab}
     onOpenVaultFile={handleOpenVaultFile}
     onCreateDemoTab={handleCreateDemoTab}
@@ -1846,22 +1845,22 @@
     isOpen={isAiModalOpen}
     activeTab={aiModalTab}
     onTabChange={(tab) => (aiModalTab = tab)}
-    selectedModel={state.selectedAiModel}
-    selectedModelId={state.selectedAiModelId}
-    securityMode={state.securityMode}
-    groqApiKey={state.groqApiKey}
-    geminiApiKey={state.geminiApiKey}
-    customApiKey={state.customApiKey}
-    customEndpoint={state.customEndpoint}
-    vimMode={state.vimMode}
-    vimOverrides={state.vimOverrides}
-    alchemyCards={state.alchemyCards}
-    layoutConfig={state.layoutConfig}
-    tabs={state.tabs}
-    selectedOneDrivePath={state.selectedOneDrivePath}
-    autoOneDriveBackup={state.autoOneDriveBackup}
-    backupIntervalMinutes={state.oneDriveBackupIntervalMinutes || 30}
-    enablePeriodicBackup={state.enablePeriodicBackup ?? true}
+    selectedModel={appState.selectedAiModel}
+    selectedModelId={appState.selectedAiModelId}
+    securityMode={appState.securityMode}
+    groqApiKey={appState.groqApiKey}
+    geminiApiKey={appState.geminiApiKey}
+    customApiKey={appState.customApiKey}
+    customEndpoint={appState.customEndpoint}
+    vimMode={appState.vimMode}
+    vimOverrides={appState.vimOverrides}
+    alchemyCards={appState.alchemyCards}
+    layoutConfig={appState.layoutConfig}
+    tabs={appState.tabs}
+    selectedOneDrivePath={appState.selectedOneDrivePath}
+    autoOneDriveBackup={appState.autoOneDriveBackup}
+    backupIntervalMinutes={appState.oneDriveBackupIntervalMinutes || 30}
+    enablePeriodicBackup={appState.enablePeriodicBackup ?? true}
     onClose={() => (isAiModalOpen = false)}
     onRefine={handleExecuteRefine}
     onSaveSettings={handleSaveSettings}
@@ -1892,12 +1891,12 @@
     isOpen={isAiChatDrawerOpen}
     activeTab={activeTab}
     selectionText={currentSelectionText}
-    groqKey={state.groqApiKey}
-    geminiKey={state.geminiApiKey}
-    customKey={state.customApiKey}
-    customEndpoint={state.customEndpoint}
-    selectedAiModel={state.selectedAiModel}
-    selectedAiModelId={state.selectedAiModelId}
+    groqKey={appState.groqApiKey}
+    geminiKey={appState.geminiApiKey}
+    customKey={appState.customApiKey}
+    customEndpoint={appState.customEndpoint}
+    selectedAiModel={appState.selectedAiModel}
+    selectedAiModelId={appState.selectedAiModelId || ""}
     onClose={() => (isAiChatDrawerOpen = false)}
     onSendToReview={handleChatSendToReview}
     onInsertToEditor={handleChatInsertToEditor}
@@ -2027,7 +2026,6 @@
     transition: max-width 0.2s ease, border-color 0.2s ease;
   }
 
-  .zen-canvas-frame.is-split-view,
   .zen-canvas-frame.is-full-width {
     max-width: 100%;
     border-left: none;
@@ -2051,84 +2049,7 @@
     position: relative;
   }
 
-  /* 雙欄對比模式 */
-  .diff-split-view {
-    display: flex;
-    width: 100%;
-    height: 100%;
-    gap: 1px;
-    background: rgba(80, 69, 52, 0.35);
-  }
-
-  .diff-pane {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .origin-pane {
-    background: #121414;
-  }
-
-  .ai-pane {
-    background: #141615;
-  }
-
-  .pane-header {
-    height: 34px;
-    background: #161817;
-    border-bottom: 1px solid rgba(80, 69, 52, 0.35);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 14px;
-    font-size: 11px;
-    color: #938c80;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .ai-header {
-    color: #d49b35;
-  }
-
-  .hud-pill {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    padding: 1px 5px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.06);
-    color: #938c80;
-    font-weight: 600;
-  }
-
-  .hud-pill.accent {
-    background: rgba(212, 155, 53, 0.2);
-    color: #d49b35;
-    border: 1px solid #d49b35;
-  }
-
-  .pane-content {
-    flex: 1;
-    overflow: auto;
-    position: relative;
-  }
-
-  .readonly-text {
-    padding: 24px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14.5px;
-    line-height: 2.1;
-    color: #938c80;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-
-  .editor-wrapper {
-    height: 100%;
-  }
-
+  
   /* 浮動 Toast */
   .toast-capsule {
     position: fixed;

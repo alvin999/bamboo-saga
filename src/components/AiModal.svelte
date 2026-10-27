@@ -97,11 +97,13 @@
 
   interface AiModalProps {
     isOpen: boolean;
-    selectedModel: "groq" | "gemini";
+    selectedModel: AiProvider;
     selectedModelId?: string;
     securityMode?: SecurityMode;
     groqApiKey: string;
     geminiApiKey: string;
+    customApiKey?: string;
+    customEndpoint?: string;
     vimMode?: boolean;
     vimOverrides?: VimKeyOverrides;
     alchemyCards?: Record<string, AlchemyCardConfig>;
