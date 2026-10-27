@@ -1,3 +1,5 @@
+import type { AiProvider } from '../../types/tab';
+import { normalizeEndpoint } from './modelFetcher';
 import { formatIndexedPromptInput } from './refinery';
 
 export type AdvisorMode = 'inquiry' | 'scribe'; // 'inquiry': 💬 問道模式, 'scribe': ✍️ 執筆模式
@@ -15,10 +17,12 @@ export interface ChatMessage {
 }
 
 export interface SendChatOptions {
-  model: 'groq' | 'gemini';
+  model: AiProvider;
   modelId?: string;
   groqKey: string;
   geminiKey: string;
+  customKey?: string;
+  customEndpoint?: string;
   history: ChatMessage[];
   userMessage: string;
   advisorMode?: AdvisorMode;      // 模式：問道 (inquiry) 或 執筆 (scribe)
@@ -109,10 +113,75 @@ ${contextNote.content.slice(0, 8000)}${contextNote.content.length > 8000 ? '\n..
  * 發送對話訊息（支援 Groq 與 Gemini，保留多輪上下文，支援問道與執筆雙模式）
  */
 export async function sendChatMessage(options: SendChatOptions): Promise<ChatCompletionResult> {
-  const { model, modelId, groqKey, geminiKey, history, userMessage, advisorMode = 'inquiry', targetParagraph, contextNote, signal } = options;
+  const { model, modelId, groqKey, geminiKey, customKey, customEndpoint, history, userMessage, advisorMode = 'inquiry', targetParagraph, contextNote, signal } = options;
   const systemPrompt = buildSystemPrompt(advisorMode, contextNote, targetParagraph);
 
-  // 1. 若使用 Groq
+  // 1. 若使用自訂本地端點 (Ollama / LM Studio)
+  if (model === 'custom') {
+    const endpoint = normalizeEndpoint(customEndpoint || 'http://localhost:11434/v1');
+    const customModel = modelId || 'llama3.2';
+
+    // 只取最近 10 輪避免超過 context window
+    const recentHistory = history.slice(-10).map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content,
+    }));
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...recentHistory,
+      { role: 'user', content: userMessage },
+    ];
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (customKey && customKey.trim()) {
+      headers['Authorization'] = `Bearer ${customKey.trim()}`;
+    }
+
+    try {
+      const resp = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: customModel,
+          messages,
+          temperature: 0.5,
+        }),
+        signal,
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `本地端點 API 錯誤 (${resp.status})`);
+      }
+
+      const data = await resp.json();
+      const answer = data.choices?.[0]?.message?.content || '';
+      const origText = targetParagraph?.text || contextNote?.selection || '';
+      return {
+        message: {
+          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          role: 'assistant',
+          content: answer,
+          timestamp: Date.now(),
+          engineUsed: `Local (${customModel})`,
+          mode: advisorMode,
+          targetOriginalText: advisorMode === 'scribe' ? origText : undefined,
+          targetRefinedText: advisorMode === 'scribe' ? answer : undefined,
+          paragraphLabel: advisorMode === 'scribe' ? (targetParagraph?.label || '當前段落') : undefined,
+        },
+        engineUsed: `Local (${customModel})`,
+      };
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw e;
+      console.warn('本地端點對話請求失敗：', e);
+      throw e;
+    }
+  }
+
+  // 2. 若使用 Groq
   if (model === 'groq' && groqKey) {
     const groqModel = modelId || 'llama-3.3-70b-versatile';
     

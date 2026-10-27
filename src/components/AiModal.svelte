@@ -52,6 +52,8 @@
   import {
     fetchGeminiModels,
     fetchGroqModels,
+    fetchCustomModels,
+    normalizeEndpoint,
     getCachedModels,
     type AvailableModelItem,
   } from "../lib/ai/modelFetcher";
@@ -60,6 +62,7 @@
     loadSecureKeys,
     getCurrentSecurityMode,
     type SecurityMode,
+    type AiProvider,
   } from "../lib/security/keyVault";
   import {
     checkForAppUpdates,
@@ -121,15 +124,17 @@
     onSaveSettings?: (
       groq: string,
       gemini: string,
-      model: "groq" | "gemini",
+      model: AiProvider,
       vimOverrides: VimKeyOverrides,
     ) => void;
     onSaveKeys?: (
       groq: string,
       gemini: string,
-      model: "groq" | "gemini",
+      model: AiProvider,
       modelId?: string,
       securityMode?: SecurityMode,
+      customKey?: string,
+      customEndpoint?: string,
     ) => void;
     onSaveKeybindings?: (overrides: VimKeyOverrides, mode?: boolean) => void;
     onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
@@ -147,11 +152,13 @@
 
   let {
     isOpen = false,
-    selectedModel = "gemini" as "groq" | "gemini",
+    selectedModel = "gemini" as AiProvider,
     selectedModelId = "gemini-1.5-flash",
     securityMode = "scheme_3_os_native" as SecurityMode,
     groqApiKey = "",
     geminiApiKey = "",
+    customApiKey = "",
+    customEndpoint = "http://localhost:11434/v1",
     vimMode = false,
     vimOverrides = getDefaultVimOverrides(),
     alchemyCards = getDefaultAlchemyCards(),
@@ -200,9 +207,12 @@
   // 金鑰與推論核心狀態
   let inputGroqKey = $state("");
   let inputGeminiKey = $state("");
-  let inputModel = $state<"groq" | "gemini">("gemini");
+  let inputCustomKey = $state("");
+  let inputCustomEndpoint = $state("http://localhost:11434/v1");
+  let inputModel = $state<AiProvider>("gemini");
   let inputModelId = $state("gemini-1.5-flash");
   let inputSecurityMode = $state<SecurityMode>("scheme_3_os_native");
+  let showCustomKey = $state(false);
 
   // 模型熱重載動態探勘狀態
   let availableModels = $state<AvailableModelItem[]>([]);
@@ -217,6 +227,34 @@
 
     const execute = async () => {
       const currentProvider = inputModel;
+
+      if (currentProvider === "custom") {
+        isFetchingModels = true;
+        fetchModelsError = null;
+        fetchModelsSuccess = false;
+
+        try {
+          const res = await fetchCustomModels(inputCustomEndpoint, inputCustomKey);
+          if (res.success && res.models.length > 0) {
+            availableModels = res.models;
+            fetchModelsSuccess = true;
+            fetchModelsSource = res.source;
+            if (!res.models.some((m) => m.id === inputModelId)) {
+              inputModelId = res.models[0].id;
+            }
+          } else {
+            availableModels = [];
+            fetchModelsError = res.error || "連線至本地端點失敗";
+          }
+        } catch (err: any) {
+          availableModels = [];
+          fetchModelsError = err.message || "連線異常";
+        } finally {
+          isFetchingModels = false;
+        }
+        return;
+      }
+
       const key =
         currentProvider === "gemini"
           ? inputGeminiKey.trim()
@@ -267,7 +305,7 @@
     }
   }
 
-  function handleProviderChange(newProvider: "groq" | "gemini") {
+  function handleProviderChange(newProvider: AiProvider) {
     inputModel = newProvider;
     // 優先讀取本地快取的模型
     const cached = getCachedModels(newProvider);
@@ -278,6 +316,9 @@
       }
     } else {
       availableModels = [];
+      if (newProvider === 'custom') {
+        inputModelId = 'llama3.2';
+      }
     }
     triggerModelFetch(true);
   }
@@ -349,11 +390,15 @@
     if (isOpen && !prevIsOpen) {
       inputGroqKey = groqApiKey;
       inputGeminiKey = geminiApiKey;
+      inputCustomKey = customApiKey;
+      inputCustomEndpoint = customEndpoint || "http://localhost:11434/v1";
       inputModel = selectedModel;
       const currentOrFallback =
         !selectedModelId || selectedModelId === "gemini-2.5-flash"
           ? selectedModel === "groq"
             ? "llama-3.3-70b-versatile"
+            : selectedModel === "custom"
+            ? "llama3.2"
             : "gemini-1.5-flash"
           : selectedModelId;
       inputModelId = currentOrFallback;
@@ -366,7 +411,8 @@
       }
       if (
         (inputModel === "gemini" && inputGeminiKey) ||
-        (inputModel === "groq" && inputGroqKey)
+        (inputModel === "groq" && inputGroqKey) ||
+        inputModel === "custom"
       ) {
         triggerModelFetch(true);
       }
@@ -637,6 +683,8 @@
         inputModel,
         inputModelId,
         inputSecurityMode,
+        inputCustomKey.trim(),
+        inputCustomEndpoint.trim(),
       );
     } else if (onSaveSettings) {
       onSaveSettings(
@@ -889,10 +937,18 @@
                 <span>Groq Llama</span>
                 <span class="capsule-sub">超極速毫秒級推論</span>
               </button>
+              <button
+                type="button"
+                class="provider-capsule {inputModel === 'custom' ? 'active' : ''}"
+                onclick={() => handleProviderChange("custom")}
+              >
+                <span>🦙 本地 / Ollama</span>
+                <span class="capsule-sub">100% 離線私密 · 自訂端點</span>
+              </button>
             </div>
           </div>
 
-          <!-- 對應供應商之 API Key 輸入框 -->
+          <!-- 對應供應商之 API Key / 端點輸入框 -->
           {#if inputModel === "gemini"}
             <div class="form-group">
               <div class="label-with-tool">
@@ -939,7 +995,7 @@
                 免費金鑰，長文提煉效果極佳。輸入後自動熱重載官方可用模型。</span
               >
             </div>
-          {:else}
+          {:else if inputModel === "groq"}
             <div class="form-group">
               <div class="label-with-tool">
                 <label class="form-label" for="groq-key">Groq API Key</label>
@@ -982,6 +1038,104 @@
                 >極速毫秒級響應，適合靈感速記與即時整理。輸入後自動熱重載官方可用模型。</span
               >
             </div>
+          {:else}
+            <!-- 自訂本地端點 (Ollama / LM Studio) -->
+            <div class="form-group">
+              <div class="label-with-tool">
+                <label class="form-label" for="custom-endpoint"
+                  >本地端點 URL (OpenAI-Compatible Base URL)</label
+                >
+                <div class="tool-btn-group">
+                  <button
+                    type="button"
+                    class="refresh-models-btn"
+                    disabled={isFetchingModels}
+                    onclick={() => triggerModelFetch(true)}
+                    title="立即向本機端點探勘已下載之模型清單"
+                  >
+                    <RefreshCw
+                      size={12}
+                      class={isFetchingModels ? "spin" : ""}
+                    />
+                    <span>測試連線與探勘模型</span>
+                  </button>
+                </div>
+              </div>
+              <input
+                id="custom-endpoint"
+                type="text"
+                class="form-input font-mono"
+                placeholder="http://localhost:11434/v1"
+                bind:value={inputCustomEndpoint}
+                oninput={() => triggerModelFetch(false)}
+              />
+              <div class="quick-endpoint-chips">
+                <span class="chip-label">快捷填入：</span>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  onclick={() => {
+                    inputCustomEndpoint = "http://localhost:11434/v1";
+                    triggerModelFetch(true);
+                  }}
+                >
+                  🦙 Ollama (11434)
+                </button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  onclick={() => {
+                    inputCustomEndpoint = "http://localhost:1234/v1";
+                    triggerModelFetch(true);
+                  }}
+                >
+                  🧪 LM Studio (1234)
+                </button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  onclick={() => {
+                    inputCustomEndpoint = "http://localhost:8080/v1";
+                    triggerModelFetch(true);
+                  }}
+                >
+                  ⚡ LocalAI (8080)
+                </button>
+              </div>
+              <span class="field-hint"
+                >支援 Ollama、LM Studio 等 OpenAI 相容本機伺服器。若使用 Ollama，請確認背景已執行 <code>ollama serve</code>。</span
+              >
+            </div>
+
+            <div class="form-group">
+              <div class="label-with-tool">
+                <label class="form-label" for="custom-key">API Key (選填)</label>
+                <div class="tool-btn-group">
+                  <button
+                    type="button"
+                    class="text-link-btn"
+                    onclick={() => (showCustomKey = !showCustomKey)}
+                  >
+                    {#if showCustomKey}
+                      <EyeOff size={13} /> <span>隱藏</span>
+                    {:else}
+                      <Eye size={13} /> <span>顯示</span>
+                    {/if}
+                  </button>
+                </div>
+              </div>
+              <input
+                id="custom-key"
+                type={showCustomKey ? "text" : "password"}
+                class="form-input"
+                placeholder="本地端點若無驗證可直接留空..."
+                bind:value={inputCustomKey}
+                oninput={() => triggerModelFetch(false)}
+              />
+              <span class="field-hint"
+                >本地 Ollama 或 LM Studio 預設不需金鑰，直接留空即可連線推論。</span
+              >
+            </div>
           {/if}
 
           <!-- 連線狀態指示條 (Status Banner) -->
@@ -990,7 +1144,7 @@
               <div class="status-indicator loading">
                 <span class="spinner-small">⏳</span>
                 <span
-                  >正在向 {inputModel === "gemini" ? "Google" : "Groq"} 官方端點探勘支援之模型清單...</span
+                  >正在向 {inputModel === "gemini" ? "Google" : inputModel === "groq" ? "Groq" : "本地端點"} 探勘支援之模型清單...</span
                 >
               </div>
             {:else if fetchModelsSuccess && availableModels.length > 0}
@@ -1007,7 +1161,14 @@
               <div class="status-indicator error">
                 <AlertCircle size={13} />
                 <span
-                  >⚠️ 驗證失敗：{fetchModelsError}（請檢查金鑰有效性或網路）</span
+                  >⚠️ 驗證失敗：{fetchModelsError}（請檢查端點連線或金鑰）</span
+                >
+              </div>
+            {:else if inputModel === "custom"}
+              <div class="status-indicator idle">
+                <Sparkles size={13} />
+                <span
+                  >💡 本地模式：請確認本機 Ollama 或 LM Studio 已啟動，點擊上方「測試連線與探勘模型」自動載入。</span
                 >
               </div>
             {:else if !(inputModel === "gemini" ? inputGeminiKey.trim() : inputGroqKey.trim())}
@@ -1023,28 +1184,29 @@
           <!-- 動態熱重載模型選擇器 -->
           <div class="form-group">
             <label class="form-label" for="dynamic-model-select">
-              推論模型選擇 (依金鑰權限動態生成)
+              推論模型選擇 (依金鑰或端點動態探勘)
             </label>
-            <select
-              id="dynamic-model-select"
-              class="form-select dynamic-select"
-              bind:value={inputModelId}
-              disabled={availableModels.length === 0}
-            >
-              {#if availableModels.length === 0}
-                <option value="" disabled selected>
-                  {isFetchingModels
-                    ? "⏳ 正在熱重載模型中..."
-                    : "🔒 請先在上方輸入有效 API Key 以載入模型清單"}
-                </option>
-              {:else}
+            {#if availableModels.length > 0}
+              <select
+                id="dynamic-model-select"
+                class="form-select dynamic-select"
+                bind:value={inputModelId}
+              >
                 {#each availableModels as model (model.id)}
                   <option value={model.id}>
                     {model.displayName}
                   </option>
                 {/each}
-              {/if}
-            </select>
+              </select>
+            {:else}
+              <input
+                id="dynamic-model-select"
+                type="text"
+                class="form-input font-mono"
+                placeholder={inputModel === 'custom' ? '例如 llama3.2, mistral 或 qwen2.5...' : '請先配置金鑰'}
+                bind:value={inputModelId}
+              />
+            {/if}
             {#if availableModels.length > 0}
               {@const currentModelObj = availableModels.find(
                 (m) => m.id === inputModelId,
@@ -3514,8 +3676,39 @@
   /* 推論引擎選擇膠囊按鈕 */
   .provider-capsule-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  /* 快捷填入標籤 (Chips) */
+  .quick-endpoint-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+
+  .chip-label {
+    font-size: 11px;
+    color: #928374;
+  }
+
+  .quick-chip {
+    padding: 3px 8px;
+    background: #282828;
+    border: 1px solid #3c3836;
+    border-radius: 4px;
+    color: #d5c4a1;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .quick-chip:hover {
+    border-color: #d49b35;
+    background: rgba(212, 155, 53, 0.1);
+    color: #fabd2f;
   }
 
   .provider-capsule {

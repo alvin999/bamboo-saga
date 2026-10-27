@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
-  import type { AppState, TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig, LayoutConfig, NativeRoutePayload } from './types/tab';
+  import type { AppState, TabItem, SupportedLanguage, CursorPosition, VimKeyOverrides, AlchemyCardConfig, LayoutConfig, NativeRoutePayload, AiProvider } from './types/tab';
   import { loadVaultState, saveVaultState, INITIAL_WELCOME_CONTENT } from './lib/storage/vault';
   import { refineNotes, stripOriginalContextQuotes } from './lib/ai/refinery';
   import type { RefineryMode } from './lib/ai/refinery';
@@ -358,6 +358,8 @@
     loadSecureKeys().then((keys) => {
       if (keys.groqKey) state.groqApiKey = keys.groqKey;
       if (keys.geminiKey) state.geminiApiKey = keys.geminiKey;
+      if (keys.customKey !== undefined) state.customApiKey = keys.customKey;
+      if (keys.customEndpoint) state.customEndpoint = keys.customEndpoint;
       if (keys.selectedModel) state.selectedAiModel = keys.selectedModel;
       if (keys.selectedModelId) state.selectedAiModelId = keys.selectedModelId;
       if (keys.securityMode) state.securityMode = keys.securityMode;
@@ -977,6 +979,8 @@
         modelId: state.selectedAiModelId,
         groqKey: state.groqApiKey,
         geminiKey: state.geminiApiKey,
+        customKey: state.customApiKey,
+        customEndpoint: state.customEndpoint,
         mode,
         content: activeTab.content,
         customPrompt,
@@ -1244,12 +1248,16 @@
   async function handleSaveKeys(
     groq: string, 
     gemini: string, 
-    model: 'groq' | 'gemini',
+    model: AiProvider,
     modelId?: string,
-    securityMode?: SecurityMode
+    securityMode?: SecurityMode,
+    customKey?: string,
+    customEndpoint?: string
   ) {
     state.groqApiKey = groq;
     state.geminiApiKey = gemini;
+    state.customApiKey = customKey || '';
+    state.customEndpoint = customEndpoint || '';
     state.selectedAiModel = model;
     if (modelId) state.selectedAiModelId = modelId;
     if (securityMode) state.securityMode = securityMode;
@@ -1258,14 +1266,16 @@
     await saveSecureKeys({
       groqKey: groq,
       geminiKey: gemini,
+      customKey: customKey || '',
+      customEndpoint: customEndpoint || '',
       selectedModel: model,
-      selectedModelId: modelId || state.selectedAiModelId || (model === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-1.5-flash'),
+      selectedModelId: modelId || state.selectedAiModelId || (model === 'groq' ? 'llama-3.3-70b-versatile' : model === 'custom' ? 'llama3.2' : 'gemini-1.5-flash'),
       securityMode: securityMode || state.securityMode || 'scheme_3_os_native',
     });
 
     saveVaultState(state, true);
     const modeName = securityMode === 'scheme_3_os_native' ? '方案 3 (OS 原生保險庫)' : '方案 2+1 (Web Crypto 本機加密)';
-    showToast(`🔑 AI 金鑰已透過【${modeName}】安全保存入櫃（100% 絕不上雲端）！`);
+    showToast(`🔑 AI 金鑰與模型設定已透過【${modeName}】安全保存入櫃（100% 絕不上雲端）！`);
   }
 
   // 按鍵偏好獨立保存
@@ -1601,6 +1611,8 @@
       directorySkeleton={directorySkeleton}
       groqKey={state.groqApiKey}
       geminiKey={state.geminiApiKey}
+      customKey={state.customApiKey}
+      customEndpoint={state.customEndpoint}
       modelPreference={state.selectedAiModel}
       modelId={state.selectedAiModelId}
       onConfirmSave={handleConfirmSaveAs}
@@ -1622,6 +1634,8 @@
     isScanning={isScanningFolder}
     groqApiKey={state.groqApiKey}
     geminiApiKey={state.geminiApiKey}
+    customApiKey={state.customApiKey}
+    customEndpoint={state.customEndpoint}
     selectedAiModel={state.selectedAiModel}
     selectedAiModelId={state.selectedAiModelId}
     onSelectTab={selectTab}
@@ -1652,6 +1666,8 @@
     recentFiles={recentFiles}
     groqApiKey={state.groqApiKey}
     geminiApiKey={state.geminiApiKey}
+    customApiKey={state.customApiKey}
+    customEndpoint={state.customEndpoint}
     selectedAiModel={state.selectedAiModel}
     onSelectTab={selectTab}
     onOpenVaultFile={handleOpenVaultFile}
@@ -1677,6 +1693,8 @@
     securityMode={state.securityMode}
     groqApiKey={state.groqApiKey}
     geminiApiKey={state.geminiApiKey}
+    customApiKey={state.customApiKey}
+    customEndpoint={state.customEndpoint}
     vimMode={state.vimMode}
     vimOverrides={state.vimOverrides}
     alchemyCards={state.alchemyCards}
@@ -1718,6 +1736,8 @@
     selectionText={currentSelectionText}
     groqKey={state.groqApiKey}
     geminiKey={state.geminiApiKey}
+    customKey={state.customApiKey}
+    customEndpoint={state.customEndpoint}
     selectedAiModel={state.selectedAiModel}
     selectedAiModelId={state.selectedAiModelId}
     onClose={() => (isAiChatDrawerOpen = false)}

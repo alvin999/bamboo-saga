@@ -21,7 +21,7 @@
     RefreshCw,
     SplitSquareVertical
   } from 'lucide-svelte';
-  import type { TabItem } from '../types/tab';
+  import type { TabItem, AiProvider } from '../types/tab';
   import {
     sendChatMessage,
     type ChatMessage,
@@ -36,7 +36,9 @@
     selectionText?: string;
     groqKey: string;
     geminiKey: string;
-    selectedAiModel: 'groq' | 'gemini';
+    customKey?: string;
+    customEndpoint?: string;
+    selectedAiModel: AiProvider;
     selectedAiModelId: string;
     onClose: () => void;
     onSendToReview: (aiContent: string, summary: string) => void;
@@ -51,6 +53,8 @@
     selectionText = '',
     groqKey = '',
     geminiKey = '',
+    customKey = '',
+    customEndpoint = '',
     selectedAiModel = 'gemini',
     selectedAiModelId = 'gemini-1.5-flash',
     onClose,
@@ -249,6 +253,8 @@
         modelId: selectedAiModelId,
         groqKey,
         geminiKey,
+        customKey,
+        customEndpoint,
         history: messages.filter((m) => m.id !== 'welcome'),
         userMessage: text,
         advisorMode,

@@ -7,6 +7,7 @@
     RecentFolderRecord,
     VaultCave,
     VaultTreeNode,
+    AiProvider,
   } from "../types/tab";
   import Fuse from "fuse.js";
   import VaultTreeItem from "./VaultTreeItem.svelte";
@@ -37,7 +38,9 @@
     isScanning: boolean;
     groqApiKey?: string;
     geminiApiKey?: string;
-    selectedAiModel?: "groq" | "gemini";
+    customApiKey?: string;
+    customEndpoint?: string;
+    selectedAiModel?: AiProvider;
     selectedAiModelId?: string;
     onSelectTab: (id: string) => void;
     onAddTab: () => void;
@@ -68,7 +71,9 @@
     isScanning = false,
     groqApiKey = "",
     geminiApiKey = "",
-    selectedAiModel = "groq",
+    customApiKey = "",
+    customEndpoint = "",
+    selectedAiModel = "gemini",
     selectedAiModelId = "",
     onSelectTab,
     onAddTab,

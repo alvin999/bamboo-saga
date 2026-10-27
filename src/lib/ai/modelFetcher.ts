@@ -137,9 +137,133 @@ export async function fetchGroqModels(apiKey: string): Promise<FetchModelsResult
 }
 
 /**
+ * 標準化自訂 OpenAI-Compatible 端點 URL
+ */
+export function normalizeEndpoint(rawUrl: string): string {
+  let clean = rawUrl.trim();
+  if (!clean) return 'http://localhost:11434/v1';
+  // 移除結尾的斜線
+  clean = clean.replace(/\/+$/, '');
+  // 若未包含 /v1 或其他 api 路徑，自動補上 /v1
+  if (!clean.endsWith('/v1') && !clean.includes('/v1/')) {
+    clean = `${clean}/v1`;
+  }
+  return clean;
+}
+
+/**
+ * 探勘自訂 / 本地端點支援的模型清單（支援 Ollama、LM Studio、LocalAI 等 OpenAI 相容服務）
+ */
+export async function fetchCustomModels(endpoint: string, apiKey?: string): Promise<FetchModelsResult> {
+  const cleanEndpoint = normalizeEndpoint(endpoint);
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey && apiKey.trim()) {
+    headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 秒超時保護
+
+    // 1. 優先嘗試標準 OpenAI 規範: GET ${endpoint}/models
+    let modelsUrl = `${cleanEndpoint}/models`;
+    let resp: Response | null = null;
+    let fetchErrorMsg = '';
+
+    try {
+      resp = await fetch(modelsUrl, {
+        headers,
+        signal: controller.signal,
+      });
+    } catch (e: any) {
+      fetchErrorMsg = e.message || '';
+    }
+
+    // 2. 若標準路徑失敗且可能為原生 Ollama (例如 port 11434)，嘗試原生 /api/tags
+    if ((!resp || !resp.ok) && cleanEndpoint.includes('11434')) {
+      try {
+        const urlObj = new URL(cleanEndpoint);
+        const ollamaTagsUrl = `${urlObj.origin}/api/tags`;
+        const ollamaResp = await fetch(ollamaTagsUrl, { signal: controller.signal });
+        if (ollamaResp.ok) {
+          const tagData = await ollamaResp.json();
+          const rawTagModels: any[] = tagData.models || [];
+          const models: AvailableModelItem[] = rawTagModels.map((m: any) => ({
+            id: m.name,
+            displayName: `${m.name} (本機 Ollama 離線模型)`,
+            description: `大小: ${m.size ? (m.size / (1024 * 1024 * 1024)).toFixed(1) + ' GB' : '未知'}`,
+            isRecommended: true,
+          }));
+
+          clearTimeout(timeoutId);
+          saveModelsToCache('custom', models);
+          return { success: true, models, source: 'remote' };
+        }
+      } catch (ollamaErr) {
+        // 忽略，繼續回報原先的錯誤
+      }
+    }
+
+    clearTimeout(timeoutId);
+
+    if (!resp) {
+      return {
+        success: false,
+        models: [],
+        error: `無法連線至本地端點 (${cleanEndpoint})，請確認 Ollama 或 LM Studio 已啟動。\n原因: ${fetchErrorMsg}`,
+        source: 'remote',
+      };
+    }
+
+    if (!resp.ok) {
+      const errJson = await resp.json().catch(() => ({}));
+      const msg = errJson.error?.message || `端點回應 HTTP ${resp.status}`;
+      return { success: false, models: [], error: msg, source: 'remote' };
+    }
+
+    const data = await resp.json();
+    const rawModels: any[] = data.data || data.models || [];
+
+    if (!Array.isArray(rawModels) || rawModels.length === 0) {
+      return {
+        success: true,
+        models: [
+          { id: 'llama3.2', displayName: 'llama3.2 (自訂)', isRecommended: true },
+          { id: 'mistral', displayName: 'mistral (自訂)' },
+        ],
+        error: '端點未回傳可用模型清單，已載入通用預設名稱',
+        source: 'remote',
+      };
+    }
+
+    const models: AvailableModelItem[] = rawModels.map((m: any) => {
+      const id = typeof m === 'string' ? m : m.id || m.name;
+      const isRec = id.includes('llama3') || id.includes('qwen') || id.includes('deepseek');
+      return {
+        id,
+        displayName: `${id}${isRec ? ' (推薦 - 本機流暢)' : ''}`,
+        description: m.owned_by ? `提供者: ${m.owned_by}` : 'OpenAI-Compatible 本機端點',
+        isRecommended: isRec,
+      };
+    }).sort((a, b) => (b.isRecommended ? 1 : 0) - (a.isRecommended ? 1 : 0));
+
+    saveModelsToCache('custom', models);
+    return { success: true, models, source: 'remote' };
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      return { success: false, models: [], error: `連線至 ${cleanEndpoint} 逾時，請檢查本機模型伺服器狀態`, source: 'remote' };
+    }
+    return { success: false, models: [], error: err.message || '未知錯誤', source: 'remote' };
+  }
+}
+
+/**
  * 讀取本機快取的模型清單
  */
-export function getCachedModels(provider: 'gemini' | 'groq'): AvailableModelItem[] {
+export function getCachedModels(provider: 'gemini' | 'groq' | 'custom'): AvailableModelItem[] {
   try {
     const raw = localStorage.getItem(`${CACHE_KEY_PREFIX}${provider}`);
     if (raw) {
@@ -154,7 +278,7 @@ export function getCachedModels(provider: 'gemini' | 'groq'): AvailableModelItem
 /**
  * 儲存模型清單至本機快取
  */
-export function saveModelsToCache(provider: 'gemini' | 'groq', models: AvailableModelItem[]) {
+export function saveModelsToCache(provider: 'gemini' | 'groq' | 'custom', models: AvailableModelItem[]) {
   try {
     localStorage.setItem(`${CACHE_KEY_PREFIX}${provider}`, JSON.stringify(models));
   } catch (e) {

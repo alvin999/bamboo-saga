@@ -1,4 +1,5 @@
-import type { SupportedLanguage } from '../../types/tab';
+import type { SupportedLanguage, AiProvider } from '../../types/tab';
+import { normalizeEndpoint } from './modelFetcher';
 
 export interface SaveRecommendationRequest {
   content: string;
@@ -6,10 +7,12 @@ export interface SaveRecommendationRequest {
   currentTitle?: string;
   recentFolders?: string[];
   directorySkeleton?: string[]; // 本機已存在的洞天與子目錄骨架
-  model?: 'groq' | 'gemini';
+  model?: AiProvider;
   modelId?: string;
   groqKey?: string;
   geminiKey?: string;
+  customKey?: string;
+  customEndpoint?: string;
   excludeFilenames?: string[]; // 使用者不滿意或略過的歷史建議檔名
   excludeFolders?: string[];   // 略過的歷史推薦目錄
   isRetry?: boolean;          // 是否為重新分析模式
@@ -147,8 +150,8 @@ export async function recommendSaveLocation(
   const ext = getExtensionForLanguage(req.language);
   const recentFolders = req.recentFolders || [];
 
-  // 若兩者金鑰皆未提供，直接降級為本地啟發式推薦
-  if (!req.groqKey && !req.geminiKey) {
+  // 若無外網金鑰且非本地端點模式，直接降級為本地啟發式推薦
+  if (!req.groqKey && !req.geminiKey && req.model !== 'custom') {
     return generateHeuristicRecommendation(req.content, req.language, recentFolders);
   }
 
@@ -328,9 +331,76 @@ ${excludeFilenamesText}${excludeFoldersText}
     return null;
   };
 
+  // 封裝自訂本地端點 (Ollama / LM Studio) 呼叫
+  const callCustom = async (): Promise<SaveRecommendationResult | null> => {
+    const endpoint = normalizeEndpoint(req.customEndpoint || 'http://localhost:11434/v1');
+    const customModel = req.modelId || 'llama3.2';
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (req.customKey && req.customKey.trim()) {
+      headers['Authorization'] = `Bearer ${req.customKey.trim()}`;
+    }
+
+    try {
+      const resp = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: customModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `以下為筆記前段內容：\n${snippet}` },
+          ],
+          temperature,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.text().catch(() => '');
+        lastApiError = `本地端點 API 狀態碼 ${resp.status}`;
+        console.warn(`[saveRecommender] 本地端點 (${customModel}) API 錯誤 (${resp.status}):`, errBody);
+        return null;
+      }
+
+      const data = await resp.json();
+      const contentStr = data.choices?.[0]?.message?.content || '';
+      const parsed = extractJsonPayload(contentStr);
+      if (parsed && parsed.recommendedFilename) {
+        const recFolder = parsed.recommendedFolder || (skeletonList[0] ?? undefined);
+        const altFolders = Array.isArray(parsed.alternativeFolders)
+          ? parsed.alternativeFolders.filter((f: string) => f && f !== recFolder).slice(0, 3)
+          : skeletonList.filter((f) => f !== recFolder).slice(0, 2);
+
+        return {
+          recommendedFilename: sanitizeFilenameWithExt(parsed.recommendedFilename, ext),
+          alternativeFilenames: (parsed.alternativeFilenames || []).map((n: string) => sanitizeFilenameWithExt(n, ext)),
+          extension: ext,
+          recommendedFolder: recFolder ? recFolder.replace(/\\+/g, '/') : undefined,
+          alternativeFolders: altFolders.map((f: string) => f.replace(/\\+/g, '/')),
+          reason: parsed.reason || `本地端點 (${customModel}) 語意分析智能歸檔`,
+          isAiGenerated: true,
+        };
+      }
+    } catch (err: any) {
+      lastApiError = `本地端點連線失敗: ${err?.message || err}`;
+      console.warn('[saveRecommender] 本地端點連線失敗：', err);
+    }
+    return null;
+  };
+
   // 優先嘗試使用者偏好之模型，失敗則自動無縫走備援模型
   let res: SaveRecommendationResult | null = null;
-  if (req.model === 'groq') {
+  if (req.model === 'custom') {
+    res = await callCustom();
+    if (!res && req.groqKey) {
+      console.log('[saveRecommender] 本地端點無法回傳，自動切換至 Groq 備援');
+      res = await callGroq();
+    } else if (!res && req.geminiKey) {
+      console.log('[saveRecommender] 本地端點無法回傳，自動切換至 Gemini 備援');
+      res = await callGemini();
+    }
+  } else if (req.model === 'groq') {
     res = await callGroq();
     if (!res && req.geminiKey) {
       console.log('[saveRecommender] Groq 無法回傳，自動切換至 Gemini 備援推論');

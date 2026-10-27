@@ -7,6 +7,8 @@ export type RefineryMode =
   | 'action_items'
   | 'code_refactor';
 
+import type { AiProvider } from '../../types/tab';
+import { normalizeEndpoint } from './modelFetcher';
 import {
   isChunkingNeeded,
   executeChunkedRefineryPipeline,
@@ -14,10 +16,12 @@ import {
 } from './chunkPipeline';
 
 export interface RefineryRequest {
-  model: 'groq' | 'gemini';
+  model: AiProvider;
   modelId?: string;
   groqKey: string;
   geminiKey: string;
+  customKey?: string;
+  customEndpoint?: string;
   mode: RefineryMode;
   content: string;
   selection?: string;
@@ -138,7 +142,52 @@ export async function refineNotes(req: RefineryRequest): Promise<RefineryResult>
   const indexedTargetText = formatIndexedPromptInput(targetText);
   const fullPrompt = `${promptHeader}\n${indexedTargetText}\n\n${req.customPrompt ? `額外補充要求：${req.customPrompt}` : ''}`;
 
-  // 1. 如果有 Groq API Key 且選中 Groq
+  // 1. 如果選用自訂本地端點 (Ollama / LM Studio)
+  if (req.model === 'custom') {
+    const endpoint = normalizeEndpoint(req.customEndpoint || 'http://localhost:11434/v1');
+    const customModel = req.modelId || 'llama3.2';
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (req.customKey && req.customKey.trim()) {
+      headers['Authorization'] = `Bearer ${req.customKey.trim()}`;
+    }
+
+    try {
+      const resp = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: customModel,
+          messages: [
+            { role: 'system', content: '你是《廣零散》筆記工作台的 AI 提煉師。請輸出正體/繁體中文，注重排版美學與精準度。' },
+            { role: 'user', content: fullPrompt },
+          ],
+          temperature: 0.3,
+        }),
+        signal: req.signal,
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `本地端點回應 HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      const answer = data.choices?.[0]?.message?.content || '';
+      return {
+        refinedText: answer,
+        summary: getModeSummary(req.mode),
+        engineUsed: `Local (${customModel})`,
+      };
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw e;
+      console.warn('本地端點推論失敗：', e);
+      throw e;
+    }
+  }
+
+  // 2. 如果有 Groq API Key 且選中 Groq
   if (req.model === 'groq' && req.groqKey) {
     const groqModel = req.modelId || 'llama-3.3-70b-versatile';
     try {
@@ -265,16 +314,18 @@ export interface AiSearchResultItem {
 export interface AiSearchRequest {
   query: string;
   candidates: AiSearchCandidate[];
-  model: 'groq' | 'gemini';
+  model: AiProvider;
   groqKey: string;
   geminiKey: string;
+  customKey?: string;
+  customEndpoint?: string;
 }
 
 /**
  * 使用 AI 對話與語意理解協助在全庫/資料夾中精準尋找藥帖
  */
 export async function searchVaultWithAi(req: AiSearchRequest): Promise<AiSearchResultItem[]> {
-  const { query, candidates, model, groqKey, geminiKey } = req;
+  const { query, candidates, model, groqKey, geminiKey, customKey, customEndpoint } = req;
   if (!query.trim() || candidates.length === 0) return [];
 
   // 取前 35 筆候選檔案摘要
@@ -300,7 +351,42 @@ export async function searchVaultWithAi(req: AiSearchRequest): Promise<AiSearchR
 
   const userPrompt = `使用者查詢需求：「${query}」\n\n候選筆記與檔案清單：\n${JSON.stringify(sampleList, null, 2)}`;
 
-  // 1. Groq 呼叫
+  // 1. 本地 Ollama / Custom 端點呼叫
+  if (model === 'custom') {
+    const endpoint = normalizeEndpoint(customEndpoint || 'http://localhost:11434/v1');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (customKey && customKey.trim()) {
+      headers['Authorization'] = `Bearer ${customKey.trim()}`;
+    }
+
+    try {
+      const resp = await fetch(`${endpoint}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: 'llama3.2',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.1,
+          response_format: { type: 'json_object' },
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const content = data.choices?.[0]?.message?.content || '[]';
+        const parsed = JSON.parse(content);
+        return Array.isArray(parsed) ? parsed : (parsed.results || parsed.matches || []);
+      }
+    } catch (err) {
+      console.warn('[AI Search] 本地端點檢索失敗，切換至備援：', err);
+    }
+  }
+
+  // 2. Groq 呼叫
   if (model === 'groq' && groqKey) {
     try {
       const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {

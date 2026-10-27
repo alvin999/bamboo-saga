@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { Save, Folder, Sparkles, X, Check, Loader2, RefreshCw } from 'lucide-svelte';
-  import type { TabItem } from '../types/tab';
+  import type { TabItem, AiProvider } from '../types/tab';
   import {
     recommendSaveLocation,
     generateHeuristicRecommendation,
@@ -17,7 +17,9 @@
     directorySkeleton?: string[];
     groqKey: string;
     geminiKey: string;
-    modelPreference?: 'groq' | 'gemini';
+    customKey?: string;
+    customEndpoint?: string;
+    modelPreference?: AiProvider;
     modelId?: string;
     onConfirmSave: (targetDir: string, fileName: string) => Promise<void>;
     onClose: () => void;
@@ -30,6 +32,8 @@
     directorySkeleton = [],
     groqKey = '',
     geminiKey = '',
+    customKey = '',
+    customEndpoint = '',
     modelPreference = 'groq',
     modelId = '',
     onConfirmSave,
@@ -111,15 +115,19 @@
 
     let activeGroq = groqKey;
     let activeGemini = geminiKey;
-    let activeModel: 'groq' | 'gemini' = modelPreference;
+    let activeCustomKey = customKey;
+    let activeCustomEndpoint = customEndpoint;
+    let activeModel: AiProvider = modelPreference;
     let activeModelId = modelId;
 
     // 若傳入的金鑰為空，主動從本機安全保險庫異步讀取一次，消除時序差
-    if (!activeGroq && !activeGemini) {
+    if (!activeGroq && !activeGemini && activeModel !== 'custom') {
       try {
         const sec = await loadSecureKeys();
         if (sec.groqKey) activeGroq = sec.groqKey;
         if (sec.geminiKey) activeGemini = sec.geminiKey;
+        if (sec.customKey) activeCustomKey = sec.customKey;
+        if (sec.customEndpoint) activeCustomEndpoint = sec.customEndpoint;
         if (sec.selectedModel) activeModel = sec.selectedModel;
         if (sec.selectedModelId) activeModelId = sec.selectedModelId;
       } catch (e) {
@@ -127,8 +135,8 @@
       }
     }
 
-    if (!activeGroq && !activeGemini) {
-      return; // 確實未設定金鑰，維持本地啟發式推薦
+    if (!activeGroq && !activeGemini && activeModel !== 'custom') {
+      return; // 確實未設定金鑰且非本地端點，維持本地啟發式推薦
     }
 
     isAnalyzing = true;
@@ -143,6 +151,8 @@
         modelId: activeModelId,
         groqKey: activeGroq,
         geminiKey: activeGemini,
+        customKey: activeCustomKey,
+        customEndpoint: activeCustomEndpoint,
         excludeFilenames: rejectedFilenames,
         excludeFolders: rejectedFolders,
         isRetry,

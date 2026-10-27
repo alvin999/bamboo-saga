@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { Scroll, Clock, FileText, Zap, Sparkles } from 'lucide-svelte';
-  import type { TabItem, VaultFileEntry, RecentFileRecord } from '../types/tab';
+  import type { TabItem, VaultFileEntry, RecentFileRecord, AiProvider } from '../types/tab';
   import { buildSearchIndex, DEMO_ACTION_ITEM, type UnifiedSearchItem } from '../lib/search/fuzzy';
   import { searchVaultWithAi, type AiSearchResultItem, type AiSearchCandidate } from '../lib/ai/refinery';
 
@@ -12,6 +12,8 @@
     recentFiles = [],
     groqApiKey = '',
     geminiApiKey = '',
+    customApiKey = '',
+    customEndpoint = '',
     selectedAiModel = 'gemini',
     initialMode,
     onSelectTab,
@@ -24,8 +26,10 @@
     vaultFiles: VaultFileEntry[];
     recentFiles: RecentFileRecord[];
     groqApiKey: string;
-    geminiApiKey: string;
-    selectedAiModel: 'groq' | 'gemini';
+    geminiKey: string;
+    customApiKey?: string;
+    customEndpoint?: string;
+    selectedAiModel: AiProvider;
     initialMode?: 'fuzzy' | 'ai';
     onSelectTab: (tabId: string) => void;
     onOpenVaultFile: (file: VaultFileEntry) => void;
@@ -167,6 +171,8 @@
         model: selectedAiModel,
         groqKey: groqApiKey,
         geminiKey: geminiApiKey,
+        customKey: customApiKey,
+        customEndpoint,
       });
 
       aiResults = res;

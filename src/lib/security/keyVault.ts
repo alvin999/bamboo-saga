@@ -11,12 +11,17 @@
 import { isTauriEnvironment } from '../storage/fsBridge';
 import { invoke } from '@tauri-apps/api/core';
 
+import type { AiProvider } from '../../types/tab';
+
 export type SecurityMode = 'scheme_3_os_native' | 'scheme_2_web_crypto';
+export type { AiProvider };
 
 export interface DecryptedKeys {
   groqKey: string;
   geminiKey: string;
-  selectedModel: 'groq' | 'gemini';
+  customKey?: string;
+  customEndpoint?: string;
+  selectedModel: AiProvider;
   selectedModelId: string;
   securityMode: SecurityMode;
 }
@@ -125,7 +130,9 @@ export function setSecurityModePreference(mode: SecurityMode) {
 export async function saveSecureKeys(data: {
   groqKey: string;
   geminiKey: string;
-  selectedModel: 'groq' | 'gemini';
+  customKey?: string;
+  customEndpoint?: string;
+  selectedModel: AiProvider;
   selectedModelId: string;
   securityMode?: SecurityMode;
 }): Promise<boolean> {
@@ -135,6 +142,8 @@ export async function saveSecureKeys(data: {
   const payloadString = JSON.stringify({
     groqKey: data.groqKey.trim(),
     geminiKey: data.geminiKey.trim(),
+    customKey: (data.customKey || '').trim(),
+    customEndpoint: (data.customEndpoint || '').trim(),
     selectedModel: data.selectedModel,
     selectedModelId: data.selectedModelId,
   });
@@ -170,14 +179,18 @@ export async function loadSecureKeys(): Promise<DecryptedKeys> {
   const defaultRes: DecryptedKeys = {
     groqKey: '',
     geminiKey: '',
+    customKey: '',
+    customEndpoint: 'http://localhost:11434/v1',
     selectedModel: 'gemini',
     selectedModelId: 'gemini-1.5-flash',
     securityMode: mode,
   };
 
-  const sanitizeReadModelId = (model: 'groq' | 'gemini', modelId?: string) => {
+  const sanitizeReadModelId = (model: AiProvider, modelId?: string) => {
     if (!modelId || modelId === 'gemini-2.5-flash') {
-      return model === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-1.5-flash';
+      if (model === 'groq') return 'llama-3.3-70b-versatile';
+      if (model === 'custom') return 'llama3.2';
+      return 'gemini-1.5-flash';
     }
     return modelId;
   };
@@ -189,10 +202,12 @@ export async function loadSecureKeys(): Promise<DecryptedKeys> {
         const raw = await invoke<string>('load_os_secure_keys');
         if (raw) {
           const parsed = JSON.parse(raw);
-          const chosenModel = parsed.selectedModel || 'gemini';
+          const chosenModel: AiProvider = parsed.selectedModel || 'gemini';
           return {
             groqKey: parsed.groqKey || '',
             geminiKey: parsed.geminiKey || '',
+            customKey: parsed.customKey || '',
+            customEndpoint: parsed.customEndpoint || 'http://localhost:11434/v1',
             selectedModel: chosenModel,
             selectedModelId: sanitizeReadModelId(chosenModel, parsed.selectedModelId),
             securityMode: 'scheme_3_os_native',
@@ -209,10 +224,12 @@ export async function loadSecureKeys(): Promise<DecryptedKeys> {
       const decryptedString = await decryptWithWebCrypto(encrypted);
       if (decryptedString) {
         const parsed = JSON.parse(decryptedString);
-        const chosenModel = parsed.selectedModel || 'gemini';
+        const chosenModel: AiProvider = parsed.selectedModel || 'gemini';
         return {
           groqKey: parsed.groqKey || '',
           geminiKey: parsed.geminiKey || '',
+          customKey: parsed.customKey || '',
+          customEndpoint: parsed.customEndpoint || 'http://localhost:11434/v1',
           selectedModel: chosenModel,
           selectedModelId: sanitizeReadModelId(chosenModel, parsed.selectedModelId),
           securityMode: 'scheme_2_web_crypto',

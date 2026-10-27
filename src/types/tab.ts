@@ -141,6 +141,8 @@ export interface LayoutConfig {
   fontSize: '13px' | '14px' | '16px' | '18px'; // 編輯器文字大小
 }
 
+export type AiProvider = 'groq' | 'gemini' | 'custom';
+
 export interface AppState {
   activeTabId: string;
   tabs: TabItem[];
@@ -150,8 +152,10 @@ export interface AppState {
   layoutConfig?: LayoutConfig;
   groqApiKey: string;
   geminiApiKey: string;
-  selectedAiModel: 'groq' | 'gemini';
-  selectedAiModelId?: string; // 熱重載選定的具體模型 ID (如 gemini-1.5-flash, llama-3.3-70b-versatile)
+  customApiKey?: string;
+  customEndpoint?: string;
+  selectedAiModel: AiProvider;
+  selectedAiModelId?: string; // 熱重載選定的具體模型 ID (如 gemini-1.5-flash, llama-3.3-70b-versatile, llama3.2 等)
   securityMode?: 'scheme_3_os_native' | 'scheme_2_web_crypto'; // 金鑰加密方案選擇
   vaultFolderPath?: string;
   recentFiles?: RecentFileRecord[];
