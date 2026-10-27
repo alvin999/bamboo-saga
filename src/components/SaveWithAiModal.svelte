@@ -52,10 +52,11 @@
   let rejectedFolders = $state<string[]>([]);
 
   let inputEl = $state<HTMLInputElement | null>(null);
+  let prevIsOpen = false;
 
-  // 當彈窗開啟時，啟動 AI 推薦流程
+  // 當彈窗剛由關閉轉為開啟時，僅初始化一次 AI 推薦流程（防止 Svelte 5 effect 循環觸發）
   $effect(() => {
-    if (isOpen && tab) {
+    if (isOpen && !prevIsOpen && tab) {
       hasUserEditedName = false;
       hasUserEditedFolder = false;
       isSaving = false;
@@ -86,6 +87,7 @@
       // 2. 啟動背景 AI 推薦（若有金鑰或可從保險庫異步讀取）
       fetchAiRecommendation(false);
     }
+    prevIsOpen = isOpen;
   });
 
   async function handleRetryRecommendation() {

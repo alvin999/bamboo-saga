@@ -472,6 +472,13 @@
     };
   });
 
+  // 記錄前端近期主動寫入實體磁碟的時間戳（以防 File Watcher 反向誤判為外部程式修改而引發無限熱重載迴圈）
+  const recentSelfWrites = new Map<string, number>();
+
+  function normalizeNewlines(str: string): string {
+    return str ? str.replace(/\r\n/g, '\n') : '';
+  }
+
   // 外部檔案變更與衝突協調處理
   function handleExternalFileChanged(payload: ExternalFileChangePayload) {
     if (!payload || !payload.path) return;
@@ -481,8 +488,14 @@
     );
     if (!targetTab) return;
 
-    // 若磁碟新內容與記憶體中內容完全一致，無需處理
-    if (targetTab.content === payload.content) {
+    // 核心防護 1：正規化換行符比對，若內容實質一致，完全無需處理
+    if (normalizeNewlines(targetTab.content) === normalizeNewlines(payload.content)) {
+      return;
+    }
+
+    // 核心防護 2：若此檔案在 2.5 秒內剛由自己寫入，忽略 Watcher 回音事件避免無限循環
+    const lastSelfWrite = recentSelfWrites.get(normalized) || 0;
+    if (Date.now() - lastSelfWrite < 2500) {
       return;
     }
 
@@ -829,6 +842,8 @@
     if (!tab.filePath) return;
     const doSync = async () => {
       try {
+        const normalized = tab.filePath!.replace(/\\/g, '/').toLowerCase();
+        recentSelfWrites.set(normalized, Date.now());
         await writeVaultFile(tab.filePath!, tab.content);
         tab.isDirty = false;
       } catch (err) {
@@ -915,6 +930,8 @@
     const cleanDir = targetDir.replace(/\\+/g, '/').replace(/\/+$/, '');
     const cleanFile = fileName.replace(/^[/\\]+/, '');
     const fullPath = `${cleanDir}/${cleanFile}`;
+    const normalized = fullPath.replace(/\\/g, '/').toLowerCase();
+    recentSelfWrites.set(normalized, Date.now());
 
     await writeVaultFile(fullPath, activeTab.content);
     activeTab.filePath = fullPath;

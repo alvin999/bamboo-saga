@@ -160,6 +160,26 @@ export const INITIAL_WELCOME_CONTENT = `# ![廣零散](/bamboo.svg) 廣零散 (b
 - [x] 洞悉純文字五行智慧染色異象
 - [ ] 催動頂部「✨ 煉丹」陣眼，一鍵將凌亂藥渣提煉為純陽極品丹方
 
+---
+
+### 8. 🛡️ 機敏資訊防護濾網 (Sanitizer Guard & Private Tags)
+手稿若載有機密法門或金鑰，廣零散提供 Zero-Trust 零信任本機私密防護：
+- 私密標籤防護：在手稿中標註 \`#private\` 或 \`#secret\`，雲端 AI 煉丹將自動嚴格攔截阻斷，守護百分之百本機私密！
+  - 範例標記：#private #secret
+- 雲端自動脫敏：若向外連雲端 API 提煉，前端自動將 API 金鑰、密碼、Token 與個資遮蔽為 \`[REDACTED]\`。
+
+---
+
+### 9. 🎋 竹林靜心與打字機模式 (True Zen Mode & Typewriter)
+- 竹林靜心 (True Zen Mode)：敲擊 \`F11\` 或 \`Alt+Z\`，瞬間隱藏頂底欄，只留一卷清幽筆墨；按 \`Esc\` 隨時秒退。
+- 打字機置中捲動 (Typewriter Scrolling)：輸入或移動游標時，始終將正在書寫的行保持於視線垂直居中位置，底部預留從容呼吸空間。可在「⚙️ 設定 -> 版面偏好」隨心開啟。
+
+---
+
+### 10. 🧹 行處理解藥包與雙向連結 (Text Tools & WikiLinks)
+- 行處理解藥包：隨時按 \`Ctrl+Shift+T\`，一鍵去除重複行、清除空白行、中英混排 Markdown 表格自動對齊。
+- 輕量雙向關聯 (WikiLinks)：支援 \`[[藥帖名稱]]\` 語法，手稿筆墨自然交織成網。
+
 \`\`\`javascript
 // 丹道符咒亦與各門程式語言語法高亮無縫交融
 function igniteFurnace() {

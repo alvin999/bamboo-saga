@@ -297,9 +297,9 @@
     } catch (e) {}
   }
 
-  // 監聽外部內容變化（分頁切換時更換 doc）
+  // 監聽外部內容變化（分頁切換時更換 doc，正規化換行符避免 Windows CRLF 造成無限 dispatch 迴圈）
   $effect(() => {
-    if (view && content !== view.state.doc.toString()) {
+    if (view && content.replace(/\r\n/g, '\n') !== view.state.doc.toString()) {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: content },
       });
