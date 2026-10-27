@@ -366,6 +366,23 @@ fn write_vault_file(
         if !parent.exists() {
             fs::create_dir_all(parent).map_err(|e| format!("無法建立目錄: {}", e))?;
         }
+
+        // 3.6 防覆寫備份：若檔案已存在且內容不同，自動於 .bamboo_history/ 保留歷程快照
+        if path.exists() && path.is_file() {
+            if let Ok(old_content) = fs::read_to_string(&path) {
+                if old_content != content {
+                    let history_dir = parent.join(".bamboo_history");
+                    let _ = fs::create_dir_all(&history_dir);
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis();
+                    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                    let backup_path = history_dir.join(format!("{}.{}.bak", file_name, now_ms));
+                    let _ = fs::write(backup_path, old_content);
+                }
+            }
+        }
     }
 
     // 計算寫入內容的 Hash 並登記，避免觸發自我監聽迴圈 (Self-trigger loop)
@@ -380,6 +397,67 @@ fn write_vault_file(
     }
 
     fs::write(&path, content).map_err(|e| format!("無法寫入檔案 {}: {}", file_path, e))
+}
+
+/// 3.6 軟刪除：將檔案安全移至系統資源回收桶 (Recycle Bin / Trash)
+#[tauri::command]
+fn trash_vault_file(file_path: String) -> Result<(), String> {
+    let path = PathBuf::from(&file_path);
+    if !path.exists() {
+        return Err(format!("檔案不存在: {}", file_path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let escaped_path = file_path.replace('\'', "''");
+        let script = format!(
+            "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('{}', 'OnlyErrorDialogs', 'SendToRecycleBin')",
+            escaped_path
+        );
+        let output = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => return Ok(()),
+            _ => {
+                // 若 PowerShell 資源回收桶受限，執行安全軟刪除 Fallback：移動至 .bamboo_trash
+                if let Some(parent) = path.parent() {
+                    let trash_dir = parent.join(".bamboo_trash");
+                    let _ = fs::create_dir_all(&trash_dir);
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis();
+                    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                    let target = trash_dir.join(format!("{}.{}.trashed", file_name, now_ms));
+                    fs::rename(&path, target).map_err(|e| format!("移動至安全回收庫失敗: {}", e))?;
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Some(parent) = path.parent() {
+            let trash_dir = parent.join(".bamboo_trash");
+            let _ = fs::create_dir_all(&trash_dir);
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis();
+            let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+            let target = trash_dir.join(format!("{}.{}.trashed", file_name, now_ms));
+            fs::rename(&path, target).map_err(|e| format!("移動至安全回收庫失敗: {}", e))?;
+            return Ok(());
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -1243,7 +1321,8 @@ pub fn run() {
             load_os_secure_keys,
             purge_os_secure_keys,
             load_caves_cache,
-            save_caves_cache
+            save_caves_cache,
+            trash_vault_file
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

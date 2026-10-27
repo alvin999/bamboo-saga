@@ -257,3 +257,20 @@ export async function toggleWindowsContextMenu(enable: boolean): Promise<boolean
   }
   throw new Error('此功能僅限桌面應用程式環境執行');
 }
+
+/**
+ * 3.6 軟刪除：將檔案安全移至系統資源回收桶 (Recycle Bin / Trash)
+ */
+export async function trashVaultFile(filePath: string): Promise<boolean> {
+  if (isTauriEnvironment()) {
+    try {
+      await invoke('trash_vault_file', { filePath });
+      return true;
+    } catch (err) {
+      console.error('[fsBridge] trash_vault_file failed:', err);
+      throw err;
+    }
+  }
+  throw new Error('瀏覽器預覽環境不支援原生資源回收桶操作');
+}
+

@@ -23,7 +23,7 @@
     joinPaths,
     extractDirectorySkeleton,
   } from "../lib/storage/vaultCaves";
-  import { readVaultFile } from "../lib/storage/fsBridge";
+  import { readVaultFile, trashVaultFile } from "../lib/storage/fsBridge";
 
   interface FileBrowserDrawerProps {
     isOpen: boolean;
@@ -643,6 +643,35 @@
     a.download = `bamboo-saga-vault-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function showDrawerToast(msg: string) {
+    yankToast = msg;
+    if (yankToastTimer) clearTimeout(yankToastTimer);
+    yankToastTimer = window.setTimeout(() => {
+      yankToast = null;
+    }, 2500);
+  }
+
+  // 3.6 軟刪除實體檔案至資源回收桶
+  async function handleTrashNode(node: VaultTreeNode) {
+    if (node.isFolder) {
+      alert("目前僅支援將單一藥帖檔案移至回收桶");
+      return;
+    }
+    const confirmMsg = `確定要將《${node.name}》移至系統資源回收桶嗎？\n（檔案可隨時從資源回收桶還原）`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      await trashVaultFile(node.path);
+      selectedNode = null;
+      previewFileContent = "";
+      onRefreshFolder();
+      onRefreshAllCaves?.(true);
+      showDrawerToast(`🗑️ 已將《${node.name}》安全移至資源回收桶`);
+    } catch (err: any) {
+      alert(`移至回收桶失敗：${err?.message || err}`);
+    }
   }
 
   function formatTime(timestamp: number) {
@@ -1329,6 +1358,14 @@
                 onclick={() => handleOpenNode(selectedNode!)}
               >
                 📜 立即開卷載入
+              </button>
+              <button
+                type="button"
+                class="action-btn-trash"
+                onclick={() => handleTrashNode(selectedNode!)}
+                title="將此藥帖安全移至系統資源回收桶"
+              >
+                🗑️ 移至回收桶
               </button>
             </div>
           {/if}
@@ -2602,10 +2639,12 @@
     padding: 12px 16px;
     background: #1d2021;
     border-top: 1px solid #282828;
+    display: flex;
+    gap: 8px;
   }
 
   .action-btn-main {
-    width: 100%;
+    flex: 1;
     background: #fabd2f;
     border: none;
     color: #1d2021;
@@ -2619,6 +2658,25 @@
 
   .action-btn-main:hover {
     background: #d79921;
+  }
+
+  .action-btn-trash {
+    background: rgba(204, 36, 29, 0.12);
+    border: 1px solid rgba(204, 36, 29, 0.3);
+    color: #fb4934;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .action-btn-trash:hover {
+    background: #cc241d;
+    color: #fbf1c7;
+    border-color: #cc241d;
   }
 
   .preview-empty-state {
