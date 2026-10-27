@@ -31,8 +31,11 @@ export interface SanitizeOptions {
   allowLocalBypassPrivate?: boolean;
 }
 
-// 支援辨識之私密標籤正則
-const PRIVATE_TAG_REGEX = /(?:^|\s)#(?:private|secret|confidential|個人機敏|不公開)(?:\s|$)/i;
+// 1. 全篇私密阻斷標籤：整篇藥帖禁止外傳雲端第三方 AI
+const WHOLE_NOTE_PRIVATE_REGEX = /(?:^|\s)#(?:private|confidential|個人機敏|不公開)(?:\s|$)/i;
+
+// 2. 段落級私密過濾標籤：僅標註 #secret 的段落被過濾遮蔽，其餘段落正常送審
+const SECRET_PARAGRAPH_TAG_REGEX = /(?:^|\s)#(?:secret|機密|密)(?:\s|$)/i;
 
 // 各類憑證與機敏資訊正則模式清單
 interface PatternRule {
@@ -111,15 +114,31 @@ const SANITIZER_RULES: PatternRule[] = [
 ];
 
 /**
- * 檢查輸入字串是否包含私密筆記標籤
+ * 檢查輸入字串是否包含全篇私密筆記標籤 (#private)
  */
-export function hasPrivateTag(text: string): boolean {
+export function hasWholeNotePrivateTag(text: string): boolean {
   if (!text) return false;
-  return PRIVATE_TAG_REGEX.test(text);
+  return WHOLE_NOTE_PRIVATE_REGEX.test(text);
 }
 
 /**
+ * 檢查輸入字串是否包含段落級私密標籤 (#secret)
+ */
+export function hasSecretParagraphTag(text: string): boolean {
+  if (!text) return false;
+  return SECRET_PARAGRAPH_TAG_REGEX.test(text);
+}
+
+// 相容舊函式命名
+export const hasPrivateTag = hasWholeNotePrivateTag;
+
+/**
  * 核心脫敏防護過濾器
+ * 
+ * 語意職責：
+ * 1. #private (全篇私密)：整篇藥帖絕對禁止傳送給雲端 AI，全篇阻斷保護。
+ * 2. #secret (段落私密)：僅過濾並遮蔽帶有 #secret 的該段落，其餘公開段落照常送 AI 提煉。
+ * 3. 行內機敏資訊 (API Key、Token、密碼)：自動遮蔽為 [REDACTED:類型]。
  * 
  * @param text 待傳送給 AI 的文字內容
  * @param isLocalEndpoint 是否為本地離線端點 (如 Ollama / LocalAI)
@@ -145,16 +164,16 @@ export function sanitizeForAi(
     };
   }
 
-  // 1. 私密標籤安全防護
-  if (checkPrivateTags && hasPrivateTag(text)) {
-    // 若為本地端點且允許本地私密存取，則放行；若是雲端 API，則絕對封鎖
+  // 1. 全篇私密標籤 (#private)：整篇攔截阻斷
+  if (checkPrivateTags && hasWholeNotePrivateTag(text)) {
+    // 若為本地端點且允許本地私密存取，則放行；若是雲端 API，則絕對封鎖整篇手稿
     if (!isLocalEndpoint || !allowLocalBypassPrivate) {
       return {
         sanitizedText: '',
         isBlocked: true,
-        blockedReason: '⚠️ 此筆記標註有私密標籤（#private / #secret），廣零散安全防護已攔截，禁止上傳至雲端 AI！',
+        blockedReason: '⚠️ 此藥帖標註有全篇私密標籤（#private），廣零散安全防護已全篇攔截，禁止送至雲端 AI！',
         redactedCount: 0,
-        redactedTypes: ['Private Tag Blocked'],
+        redactedTypes: ['Whole Note Blocked (#private)'],
       };
     }
   }
@@ -162,6 +181,21 @@ export function sanitizeForAi(
   let sanitized = text;
   let totalRedacted = 0;
   const detectedTypes = new Set<string>();
+
+  // 2. 段落級私密標籤 (#secret)：若為雲端 API，過濾遮蔽含有 #secret 的該段落
+  if (!isLocalEndpoint && hasSecretParagraphTag(sanitized)) {
+    // 按雙換行切分段落
+    const paragraphs = sanitized.split(/\n\n+/);
+    const safeParagraphs = paragraphs.map((p) => {
+      if (hasSecretParagraphTag(p)) {
+        totalRedacted++;
+        detectedTypes.add('Secret Paragraph (#secret)');
+        return '[REDACTED:SECRET_PARAGRAPH] (此段落標註 #secret，已由安全濾網自動排除)';
+      }
+      return p;
+    });
+    sanitized = safeParagraphs.join('\n\n');
+  }
 
   // 2. 依序執行正則脫敏替換
   for (const rule of SANITIZER_RULES) {

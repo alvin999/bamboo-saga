@@ -162,11 +162,27 @@ export const INITIAL_WELCOME_CONTENT = `# ![廣零散](/bamboo.svg) 廣零散 (b
 
 ---
 
-### 8. 🛡️ 機敏資訊防護濾網 (Sanitizer Guard & Private Tags)
-手稿若載有機密法門或金鑰，廣零散提供 Zero-Trust 零信任本機私密防護：
-- 私密標籤防護：在手稿中標註 \`#private\` 或 \`#secret\`，雲端 AI 煉丹將自動嚴格攔截阻斷，守護百分之百本機私密！
-  - 範例標記：#private #secret
-- 雲端自動脫敏：若向外連雲端 API 提煉，前端自動將 API 金鑰、密碼、Token 與個資遮蔽為 \`[REDACTED]\`。
+### 8. 🛡️ 機敏資訊防護濾網 (Sanitizer Guard & Privacy Shield)
+廣零散落實 Zero-Trust 零信任本機私密防護，語意職責各司其職：
+
+1. **全篇私密標籤 (\`#private\`)**：
+   - 只要藥帖內任何一處標註 \`#private\`，這篇筆記便視為「全篇機密」。
+   - 當您使用雲端 AI 煉丹或問道時，系統將**整篇直接攔截阻斷、絕不外流**！
+   - （範例語法：\`#private\`）
+
+2. **段落私密標籤 (\`#secret\`)**：
+   - 若手稿大體為公開心得，僅某個段落涉及私人秘密，請在該段落加上 \`#secret\`。
+   - 雲端 AI 煉丹時，**只有帶有 #secret 的該段落會被自動過濾排除**，其餘段落依然正常提煉！
+   - （範例：這行記載了不可告人的丹方密碼 #secret ➔ 雲端傳送時該段自動變為 \`[REDACTED:SECRET_PARAGRAPH]\`）
+
+3. **行內金鑰與密碼自動脫敏 (Automatic Inline Redaction)**：
+   - 手稿即使沒打任何標籤，凡出現常見金鑰、連線字串或個資，向外連 API 傳送前前端皆會**自動替換脫敏**：
+   - 原始內容：\`openai_key = "sk-1234567890abcdefghijklmn..."\`
+     ➔ 送給 AI 時自動脫敏為：\`openai_key = "[REDACTED:OPENAI_KEY]"\`
+   - 原始內容：\`database_url = "postgres://admin:secret123@db.com/prod"\`
+     ➔ 送給 AI 時自動脫敏為：\`database_url = "[REDACTED:DB_CONNECTION_URL]"\`
+   - 原始內容：\`Taiwan ID: A123456789\`
+     ➔ 送給 AI 時自動脫敏為：\`Taiwan ID: [REDACTED:TW_ID]\`
 
 ---
 
