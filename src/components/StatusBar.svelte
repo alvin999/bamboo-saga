@@ -105,17 +105,17 @@
 </footer>
 
 <style>
-  /* 精準對齊 code.html 第 92 行：h-8 w-full px-4 flex items-center justify-between bg-[#111312] border-t border-[#262420]/70 text-[#938c80] */
+  /* Apothecary Gruvbox 沉浸通透狀態底欄 */
   .metaphysical-statusbar {
-    height: 32px;
+    height: 30px;
     width: 100%;
     padding: 0 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #111312;
-    border-top: 1px solid rgba(38, 36, 32, 0.7);
-    color: #938c80;
+    background: rgba(16, 17, 16, 0.98);
+    border-top: 1px solid rgba(100, 86, 66, 0.25);
+    color: #8c8273;
     font-size: 11px;
     user-select: none;
     position: relative;
@@ -129,7 +129,7 @@
   }
 
   .status-left {
-    gap: 12px;
+    gap: 10px;
   }
 
   .status-right {
@@ -137,50 +137,80 @@
   }
 
   .mode-tag {
-    color: #b59e72;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    font-size: 11px;
+    color: #a89984;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(100, 86, 66, 0.25);
+    border-radius: 4px;
+    font-size: 10.5px;
     font-weight: 600;
-    letter-spacing: 0.08em;
-    padding: 2px 6px;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
   .mode-tag:hover {
-    color: #d49b35;
-    border-color: rgba(212, 155, 53, 0.4);
-    background: rgba(212, 155, 53, 0.08);
+    color: #fabd2f;
+    border-color: rgba(250, 189, 47, 0.4);
+    background: rgba(250, 189, 47, 0.08);
   }
 
   .mode-tag.active {
     color: #fabd2f;
-    border-color: #d49b35;
-    background: rgba(212, 155, 53, 0.18);
+    border-color: rgba(250, 189, 47, 0.45);
+    background: rgba(250, 189, 47, 0.14);
   }
 
   .vault-tag {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 2px 6px;
+    padding: 2px 7px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(100, 86, 66, 0.2);
+    border-radius: 4px;
   }
 
   .vault-amber-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
-    background: #d49b35;
-    box-shadow: 0 0 5px #d49b35;
+    background: #fabd2f;
+    box-shadow: 0 0 5px rgba(250, 189, 47, 0.8);
     flex-shrink: 0;
   }
 
   .vault-label {
-    color: #b59e72;
+    color: #a89984;
     font-weight: 500;
     letter-spacing: 0.04em;
+    font-size: 10.5px;
+  }
+
+  .history-btn, .fuzzy-quick-btn, .backup-quick-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(100, 86, 66, 0.22);
+    border-radius: 4px;
+    color: #8c8273;
+    padding: 2px 7px;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .history-btn:hover, .fuzzy-quick-btn:hover, .backup-quick-btn:hover {
+    color: #fabd2f;
+    border-color: rgba(250, 189, 47, 0.35);
+    background: rgba(250, 189, 47, 0.08);
+  }
+
+  .history-icon, .fuzzy-icon, .backup-icon {
+    font-size: 11px;
+    line-height: 1;
   }
 
   .metric-item {
@@ -189,16 +219,15 @@
     gap: 4px;
     font-size: 11px;
     font-weight: 500;
-    color: rgba(147, 140, 128, 0.85);
   }
 
   .metric-key {
-    color: #5b564c;
+    color: #665c54;
     font-weight: 400;
   }
 
   .metric-val {
-    color: #938c80;
+    color: #bdae93;
   }
 
   .lang-selector-group {
@@ -211,60 +240,37 @@
   .lang-dropdown {
     background: transparent;
     border: none;
-    color: #b59e72;
+    color: #bdae93;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     font-family: 'JetBrains Mono', monospace;
     cursor: pointer;
     outline: none;
     padding-right: 14px;
     appearance: none;
     -webkit-appearance: none;
+    transition: color 0.12s ease;
   }
 
   .lang-dropdown:hover {
-    color: #d49b35;
+    color: #fabd2f;
   }
 
   .lang-dropdown option {
-    background: #191b1a;
-    color: #ece7dc;
+    background: #18191a;
+    color: #ebdbb2;
   }
 
   .arrow-icon {
     position: absolute;
     right: 0;
     pointer-events: none;
+    color: #7c7365;
   }
 
   .encoding-badge {
-    color: #868074;
-    font-size: 11px;
+    color: #7c7365;
+    font-size: 10.5px;
     padding: 1px 4px;
-  }
-
-  .history-btn, .fuzzy-quick-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: transparent;
-    border: 1px solid rgba(80, 69, 52, 0.45);
-    border-radius: 3px;
-    color: #b59e72;
-    padding: 2px 7px;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .history-btn:hover, .fuzzy-quick-btn:hover {
-    color: #fabd2f;
-    border-color: #fabd2f;
-    background: rgba(250, 189, 47, 0.1);
-  }
-
-  .history-icon, .fuzzy-icon {
-    font-size: 10px;
   }
 </style>

@@ -1,15 +1,15 @@
 <script lang="ts">
-  import type { RefineryMode } from '../lib/ai/refinery';
-  import type { TabItem, AlchemyCardConfig } from '../types/tab';
-  import ShortcutCheatSheet from './ShortcutCheatSheet.svelte';
-  import AlchemyPopover from './AlchemyPopover.svelte';
-  import ExportNotePopover from './ExportNotePopover.svelte';
-  import BrandQuickMenu from './BrandQuickMenu.svelte';
+  import type { RefineryMode } from "../lib/ai/refinery";
+  import type { TabItem, AlchemyCardConfig } from "../types/tab";
+  import ShortcutCheatSheet from "./ShortcutCheatSheet.svelte";
+  import AlchemyPopover from "./AlchemyPopover.svelte";
+  import ExportNotePopover from "./ExportNotePopover.svelte";
+  import BrandQuickMenu from "./BrandQuickMenu.svelte";
 
   interface PrimaryTopBarProps {
     vimMode: boolean;
     smearEnabled?: boolean;
-    workbenchWidth?: 'zen' | 'full';
+    workbenchWidth?: "zen" | "full";
     autoOneDriveBackup?: boolean;
     selectedOneDrivePath?: string;
     tabs: TabItem[];
@@ -21,7 +21,7 @@
     onAddTab: () => void;
     onCloseTab: (id: string) => void;
     onRenameTab: (id: string, newTitle: string) => void;
-    onMoveTabDeck: (id: string, deck: 'primary' | 'secondary') => void;
+    onMoveTabDeck: (id: string, deck: "primary" | "secondary") => void;
     onReorderTabs?: (sourceId: string, targetId: string) => void;
     onToggleFileBrowser: () => void;
     onManualSave?: () => void;
@@ -39,7 +39,11 @@
     onToggleTypewriter?: () => void;
     onOpenSettings: () => void;
     onOpenKeybindings?: () => void;
-    onExecuteRefine?: (mode: RefineryMode | string, customPrompt: string, cardPrompt?: string) => Promise<void>;
+    onExecuteRefine?: (
+      mode: RefineryMode | string,
+      customPrompt: string,
+      cardPrompt?: string,
+    ) => Promise<void>;
     onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
     onToggleAiChat?: () => void;
     isAiChatOpen?: boolean;
@@ -48,14 +52,14 @@
     isSaved: boolean;
   }
 
-  let { 
+  let {
     vimMode = $bindable(false),
     smearEnabled = true,
-    workbenchWidth = 'zen',
+    workbenchWidth = "zen",
     autoOneDriveBackup = false,
-    selectedOneDrivePath = '',
+    selectedOneDrivePath = "",
     tabs = [],
-    activeTabId = '',
+    activeTabId = "",
     alchemyCards = {},
     isRefining = false,
     isAlchemyOpen = $bindable(false),
@@ -87,35 +91,35 @@
     onToggleAiChat,
     isAiChatOpen = false,
     onShowToast,
-    isSaved = true
+    isSaved = true,
   }: PrimaryTopBarProps = $props();
-
 
   let isCheatSheetOpen = $state(false);
   let editingTabId = $state<string | null>(null);
-  let editInput = $state('');
+  let editInput = $state("");
   let draggedTabId = $state<string | null>(null);
   let dragOverTabId = $state<string | null>(null);
   let isDeckDragOver = $state(false);
 
-  // 統一由主頂欄管理所有分頁
   const primaryTabs = $derived(tabs);
-  const activeTab = $derived(tabs.find((t: TabItem) => t.id === activeTabId) || null);
+  const activeTab = $derived(
+    tabs.find((t: TabItem) => t.id === activeTabId) || null,
+  );
 
   function handleDragStart(e: DragEvent, id: string) {
     if (editingTabId) return;
     draggedTabId = id;
     if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'all';
-      e.dataTransfer.setData('text/plain', id);
-      e.dataTransfer.setData('application/x-bamboo-tab', id);
+      e.dataTransfer.effectAllowed = "all";
+      e.dataTransfer.setData("text/plain", id);
+      e.dataTransfer.setData("application/x-bamboo-tab", id);
     }
   }
 
   function handleDragEnter(e: DragEvent, id?: string) {
     e.preventDefault();
     if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = 'move';
+      e.dataTransfer.dropEffect = "move";
     }
     if (id && draggedTabId && draggedTabId !== id) {
       dragOverTabId = id;
@@ -125,7 +129,7 @@
   function handleDragOver(e: DragEvent, id?: string) {
     e.preventDefault();
     if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = 'move';
+      e.dataTransfer.dropEffect = "move";
     }
     if (id && draggedTabId && draggedTabId !== id) {
       dragOverTabId = id;
@@ -146,13 +150,15 @@
   function handleDrop(e: DragEvent, targetId?: string) {
     e.preventDefault();
     e.stopPropagation();
-    const sourceId = draggedTabId || e.dataTransfer?.getData('application/x-bamboo-tab') || e.dataTransfer?.getData('text/plain');
+    const sourceId =
+      draggedTabId ||
+      e.dataTransfer?.getData("application/x-bamboo-tab") ||
+      e.dataTransfer?.getData("text/plain");
     if (sourceId) {
       if (targetId && sourceId !== targetId) {
         onReorderTabs?.(sourceId, targetId);
       } else {
-        // 拖曳至主頂欄空白軌道處或自身
-        onMoveTabDeck?.(sourceId, 'primary');
+        onMoveTabDeck?.(sourceId, "primary");
       }
     }
     draggedTabId = null;
@@ -179,19 +185,18 @@
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       commitRename();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       editingTabId = null;
     }
   }
 
-  // 滑鼠中鍵關閉分頁處理
   function handleTabAuxClick(e: MouseEvent, tabId: string) {
-    if (e.button === 1) { // 1 代表滑鼠滾輪中鍵
+    if (e.button === 1) {
       e.preventDefault();
       e.stopPropagation();
-      if (editingTabId === tabId) return; // 正在重新命名中不動作
+      if (editingTabId === tabId) return;
       if (tabs.length > 1) {
         onCloseTab(tabId);
       }
@@ -200,7 +205,6 @@
 
   function handleTabMouseDown(e: MouseEvent) {
     if (e.button === 1) {
-      // 阻止 Windows/WebView 原生中鍵自動捲動圓形游標
       e.preventDefault();
     }
   }
@@ -208,9 +212,9 @@
 
 <header class="constructivist-topbar">
   <div class="topbar-inner">
-    <!-- 左側：品牌 Logo 快捷中樞 (Hover 展開藏卷洞天與全域捷徑) -->
+    <!-- 左側：品牌快捷中樞 + 柔和分隔線 + 分頁導航 -->
     <div class="deck-left">
-      <BrandQuickMenu 
+      <BrandQuickMenu
         {vimMode}
         {smearEnabled}
         {workbenchWidth}
@@ -236,17 +240,19 @@
         {onOpenSettings}
       />
 
-      <!-- 中間：主頂欄分頁標籤導航 -->
-      <nav 
+      <span class="brand-divider"></span>
+
+      <!-- 中間：寬鬆膠囊式分頁導航 -->
+      <nav
         class="nav-tabs-area {isDeckDragOver ? 'deck-drag-over' : ''}"
         ondragover={(e) => {
           e.preventDefault();
-          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
           isDeckDragOver = true;
         }}
         ondragenter={(e) => {
           e.preventDefault();
-          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
           isDeckDragOver = true;
         }}
         ondragleave={(e) => {
@@ -261,8 +267,12 @@
         }}
       >
         {#each primaryTabs as tab (tab.id)}
-          <div 
-            class="tab-anchor {tab.id === activeTabId ? 'active' : ''} {tab.isAiDraft ? 'has-draft' : ''} {draggedTabId === tab.id ? 'is-dragging' : ''} {dragOverTabId === tab.id ? 'drag-over' : ''}"
+          <div
+            class="tab-pill {tab.id === activeTabId
+              ? 'active'
+              : ''} {tab.isAiDraft ? 'has-draft' : ''} {draggedTabId === tab.id
+              ? 'is-dragging'
+              : ''} {dragOverTabId === tab.id ? 'drag-over' : ''}"
             draggable={editingTabId !== tab.id}
             ondragstart={(e) => handleDragStart(e, tab.id)}
             ondragenter={(e) => handleDragEnter(e, tab.id)}
@@ -279,22 +289,27 @@
             onmousedown={handleTabMouseDown}
             role="button"
             tabindex="0"
-            onkeydown={(e) => e.key === 'Enter' && onSelectTab(tab.id)}
+            onkeydown={(e) => e.key === "Enter" && onSelectTab(tab.id)}
           >
-            <span class="tab-dot {tab.id === activeTabId ? 'active' : ''}"></span>
+            <!-- 僅在當前啟用分頁顯示琥珀金光點，減少非啟用分頁的視覺雜訊 -->
+            {#if tab.id === activeTabId}
+              <span class="active-indicator"></span>
+            {/if}
 
             {#if editingTabId === tab.id}
               <!-- svelte-ignore a11y_autofocus -->
-              <input 
-                type="text" 
+              <input
+                type="text"
                 class="rename-input"
-                bind:value={editInput} 
+                bind:value={editInput}
                 onblur={commitRename}
                 onkeydown={handleKeyDown}
                 autofocus
               />
             {:else}
-              <span class="tab-label" title={tab.title}>{tab.title}</span>
+              <span class="tab-label" title="{tab.title} (雙擊改名 / 中鍵關閉)"
+                >{tab.title}</span
+              >
             {/if}
 
             {#if tab.isAiDraft}
@@ -302,82 +317,87 @@
             {/if}
 
             {#if tabs.length > 1}
-              <button 
-                class="close-action-btn" 
-                onclick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
-                title="收合新簡 (Ctrl+W)"
+              <button
+                class="close-action-btn"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  onCloseTab(tab.id);
+                }}
+                title="收合素簡 (Ctrl+W / 滑鼠中鍵)"
               >
                 ×
               </button>
             {/if}
-
-            <!-- 底部 1px 橘金底線 (Bauhaus Ochre Underline) -->
-            {#if tab.id === activeTabId}
-              <span class="ochre-underline"></span>
-            {/if}
           </div>
         {/each}
 
-        <button class="add-tab-link" onclick={onAddTab} title="新增隨手素簡 (Ctrl+T)">
+        <!-- 極簡化新增按鈕：單分頁時有文字引導，多分頁時化為純粹的 + 號 -->
+        <button
+          class="add-tab-btn"
+          onclick={onAddTab}
+          title="添新素簡 (Ctrl+T)"
+        >
           <span class="plus-symbol">+</span>
-          <span>添新簡</span>
+          {#if tabs.length <= 2}
+            <span class="add-tab-text">新簡</span>
+          {/if}
         </button>
       </nav>
     </div>
 
-    <!-- 右側：SYNC 狀態、模式切換、偏好設定 -->
+    <!-- 右側：溫潤極簡狀態與 AI 創作中樞 -->
     <div class="deck-right">
-      <div class="sync-cluster" title="旗艦級防重開機不滅記憶">
+      <!-- 極簡同步指示：去除外框與生硬的 0.01MS 讀數，僅保留溫潤呼吸燈 -->
+      <div class="sync-whisper" title="本機即時自動封存保護中">
         <span class="sync-dot {isSaved ? 'synced' : 'saving'}"></span>
-        <span class="sync-readout">{isSaved ? 'SYNC // 0.01MS' : 'FLUSH // VAULT'}</span>
+        <span class="sync-text">{isSaved ? "已封存" : "寫入中"}</span>
       </div>
 
-      <!-- 單一藥帖快速匯出與複製 (.md / .txt / 複製 Markdown) -->
-      <ExportNotePopover 
-        {activeTab}
-        {onShowToast}
-        bind:isOpen={isExportOpen}
-      />
+      <!-- 核心創作工具膠囊底座 -->
+      <div class="action-dock">
+        {#if onExecuteRefine}
+          <AlchemyPopover
+            {activeTab}
+            {alchemyCards}
+            {isRefining}
+            bind:isOpen={isAlchemyOpen}
+            {onExecuteRefine}
+            {onSaveAlchemyCards}
+            {onOpenSettings}
+            {onShowToast}
+          />
+        {/if}
 
-      <!-- 意圖煉丹爐：Hover 展開配置、整合核心提煉與自訂新增 -->
-      {#if onExecuteRefine}
-        <AlchemyPopover 
+        {#if onToggleAiChat}
+          <button
+            class="dock-btn {isAiChatOpen ? 'active' : ''}"
+            onclick={onToggleAiChat}
+            title="竹語參謀 (AI 問道對話 Alt+I / Ctrl+J)"
+          >
+            <span class="material-symbols-outlined text-[16px]">forum</span>
+            <span class="btn-label">參謀</span>
+          </button>
+        {/if}
+
+        <ExportNotePopover
           {activeTab}
-          {alchemyCards}
-          {isRefining}
-          bind:isOpen={isAlchemyOpen}
-          {onExecuteRefine}
-          {onSaveAlchemyCards}
-          {onOpenSettings}
           {onShowToast}
+          bind:isOpen={isExportOpen}
         />
-      {/if}
+      </div>
 
-      {#if onToggleAiChat}
-        <button 
-          class="tune-btn ai-chat-btn {isAiChatOpen ? 'active' : ''}" 
-          onclick={onToggleAiChat} 
-          title="竹語參謀 (AI 問道多輪對話 Alt+I / Ctrl+J)"
-        >
-          <span class="material-symbols-outlined text-[16px]">forum</span>
-        </button>
-      {/if}
-
-      <button 
-        class="tune-btn shortcut-btn {isCheatSheetOpen ? 'active' : ''}" 
-        onclick={() => (isCheatSheetOpen = !isCheatSheetOpen)} 
-        title="快捷鍵速查說明指南"
+      <!-- 獨立設定入口 (快捷鍵指南已收攏於左側選單或按 ? 觸發，不再重複佔位) -->
+      <button
+        class="tune-btn"
+        onclick={onOpenSettings}
+        title="偏好設定與 API 金鑰 (Ctrl+K)"
       >
-        <span class="material-symbols-outlined text-[16px]">keyboard</span>
-      </button>
-
-      <button class="tune-btn" onclick={onOpenSettings} title="偏好設定與 API 金鑰">
-        <span class="material-symbols-outlined text-[16px]">tune</span>
+        <span class="material-symbols-outlined text-[17px]">tune</span>
       </button>
     </div>
   </div>
 
-  <ShortcutCheatSheet 
+  <ShortcutCheatSheet
     isOpen={isCheatSheetOpen}
     onClose={() => (isCheatSheetOpen = false)}
     onNavigateToSettings={onOpenKeybindings || onOpenSettings}
@@ -385,13 +405,12 @@
 </header>
 
 <style>
-  /* 56px 高度、深沉背景、構成主義分割線 (精準對齊 code.html 第 2 行) */
   .constructivist-topbar {
-    height: 56px;
-    background: rgba(20, 22, 21, 0.95);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(45, 43, 39, 0.4);
+    height: 54px;
+    background: rgba(18, 19, 18, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.25);
     position: relative;
     z-index: 50;
     user-select: none;
@@ -400,31 +419,36 @@
   .topbar-inner {
     height: 100%;
     width: 100%;
-    padding: 0 16px;
+    padding: 0 18px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid rgba(80, 69, 52, 0.4);
+    gap: 16px;
   }
 
   .deck-left {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 12px;
     flex: 1;
     min-width: 0;
   }
 
+  .brand-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(100, 86, 66, 0.3);
+    flex-shrink: 0;
+  }
 
-
-  /* 分頁導航列 */
+  /* 寬鬆分頁導航列 */
   .nav-tabs-area {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     overflow-x: auto;
     scrollbar-width: none;
-    padding-left: 8px;
+    padding: 4px 2px;
     flex: 1;
   }
 
@@ -433,140 +457,153 @@
   }
 
   .nav-tabs-area.deck-drag-over {
-    background: rgba(212, 155, 53, 0.08);
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px rgba(212, 155, 53, 0.35);
-    transition: background 0.15s ease, box-shadow 0.15s ease;
+    background: rgba(250, 189, 47, 0.06);
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(250, 189, 47, 0.3);
   }
 
-  .tab-anchor {
+  /* 懸浮膠囊式分頁：去除繁瑣外框與底線，改用溫潤底色與無襯線字體 */
+  .tab-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    color: #938c80;
+    gap: 8px;
+    height: 34px;
+    padding: 0 12px;
+    font-size: 13.5px;
+    color: #8c8273;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
     position: relative;
     cursor: pointer;
-    transition: color 0.15s ease;
+    transition: all 0.16s ease;
     white-space: nowrap;
-    border-radius: 3px 3px 0 0;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  .tab-anchor :global(.tab-dot),
-  .tab-anchor :global(.tab-label),
-  .tab-anchor :global(.draft-tag),
-  .tab-anchor :global(.ochre-underline) {
-    pointer-events: none;
-  }
-
-  .tab-anchor :global(.close-action-btn),
-  .tab-anchor :global(.rename-input) {
-    pointer-events: auto;
-  }
-
-  .tab-anchor:hover {
-    color: #dcd7cb;
-  }
-
-  .tab-anchor.active {
-    color: #ece7dc;
-    font-weight: 500;
-  }
-
-  .tab-anchor.is-dragging {
-    opacity: 0.4;
-    cursor: grabbing;
-  }
-
-  .tab-anchor.drag-over {
-    border-left: 2px solid #fabd2f;
-    background: rgba(250, 189, 47, 0.08);
-  }
-
-  .tab-dot {
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: #5b564c;
     flex-shrink: 0;
   }
 
-  .tab-dot.active {
-    width: 6px;
-    height: 6px;
-    background: #d49b35;
-    box-shadow: 0 0 6px rgba(212, 155, 53, 0.7);
+  .tab-pill :global(.active-indicator),
+  .tab-pill :global(.tab-label),
+  .tab-pill :global(.draft-tag) {
+    pointer-events: none;
+  }
+
+  .tab-pill :global(.close-action-btn),
+  .tab-pill :global(.rename-input) {
+    pointer-events: auto;
+  }
+
+  .tab-pill:hover {
+    color: #d5c4a1;
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .tab-pill.active {
+    color: #ebdbb2;
+    background: rgba(250, 189, 47, 0.08);
+    border-color: rgba(250, 189, 47, 0.22);
+    font-weight: 500;
+  }
+
+  .tab-pill.is-dragging {
+    opacity: 0.35;
+    cursor: grabbing;
+  }
+
+  .tab-pill.drag-over {
+    box-shadow: -2px 0 0 #fabd2f;
+    background: rgba(250, 189, 47, 0.12);
+  }
+
+  /* 僅 Active 分頁顯示的琥珀金微光點 */
+  .active-indicator {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #fabd2f;
+    box-shadow: 0 0 6px rgba(250, 189, 47, 0.75);
+    flex-shrink: 0;
   }
 
   .tab-label {
     letter-spacing: 0.02em;
-    max-width: 160px;
+    max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .draft-tag {
-    font-size: 9px;
+    font-size: 10px;
     padding: 0 4px;
-    border-radius: 2px;
-    background: rgba(212, 155, 53, 0.2);
-    color: #d49b35;
-    border: 1px solid #d49b35;
+    border-radius: 3px;
+    background: rgba(250, 189, 47, 0.15);
+    color: #fabd2f;
   }
 
+  /* 關閉按鈕：預設隱藏，Hover 或 Active 時才優雅浮現 */
   .close-action-btn {
     background: transparent;
     border: none;
-    color: #736e63;
-    font-size: 13px;
+    color: #7c7365;
+    font-size: 14px;
+    line-height: 1;
     cursor: pointer;
-    padding: 0 2px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    opacity: 0;
+    margin-left: -2px;
+    transition: all 0.14s ease;
+  }
+
+  .tab-pill:hover .close-action-btn,
+  .tab-pill.active .close-action-btn {
+    opacity: 0.75;
   }
 
   .close-action-btn:hover {
-    color: #c95847;
+    opacity: 1 !important;
+    color: #fb4934;
+    background: rgba(251, 73, 52, 0.16);
   }
 
-  /* 底部 1px 橘金發光標記 */
-  .ochre-underline {
-    position: absolute;
-    bottom: 0;
-    left: 12px;
-    right: 12px;
-    height: 1px;
-    background: rgba(212, 155, 53, 0.85);
-    box-shadow: 0 0 6px rgba(212, 155, 53, 0.8);
-  }
-
-  .add-tab-link {
+  /* 輕量化新增分頁按鈕 */
+  .add-tab-btn {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    padding: 3px 8px;
-    color: #938c80;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.08em;
+    justify-content: center;
+    gap: 4px;
+    height: 32px;
+    padding: 0 10px;
+    color: #7c7365;
+    font-size: 12.5px;
     cursor: pointer;
     background: transparent;
-    border: none;
-    transition: color 0.15s ease;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
   }
 
-  .add-tab-link:hover {
-    color: #dcd7cb;
+  .add-tab-btn:hover {
+    color: #fabd2f;
+    background: rgba(250, 189, 47, 0.07);
   }
 
   .plus-symbol {
-    font-size: 13px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
     line-height: 1;
   }
 
-  /* 右側狀態 */
+  .add-tab-text {
+    font-size: 12px;
+    letter-spacing: 0.03em;
+  }
+
+  /* 右側工具列 */
   .deck-right {
     display: flex;
     align-items: center;
@@ -574,81 +611,112 @@
     flex-shrink: 0;
   }
 
-  .sync-cluster {
+  /* 去框化的呼吸同步狀態 */
+  .sync-whisper {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 2px 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: #938c80;
+    padding: 0 4px;
+    font-size: 11.5px;
+    color: #665c54;
+    letter-spacing: 0.04em;
   }
 
   .sync-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
   }
 
   .sync-dot.synced {
-    background: #c95847;
-    opacity: 0.85;
-    box-shadow: 0 0 6px rgba(201, 88, 71, 0.7);
+    background: #8ec07c;
+    opacity: 0.75;
   }
 
   .sync-dot.saving {
-    background: #d49b35;
-    box-shadow: 0 0 6px rgba(212, 155, 53, 0.7);
-    animation: pulse 0.7s infinite alternate;
+    background: #fabd2f;
+    box-shadow: 0 0 6px rgba(250, 189, 47, 0.7);
+    animation: pulse 0.6s infinite alternate;
   }
 
   @keyframes pulse {
-    from { opacity: 0.3; }
-    to { opacity: 1; }
+    from {
+      opacity: 0.3;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
-  .sync-readout {
-    letter-spacing: 0.08em;
+  /* 右側 AI 與匯出底座 */
+  .action-dock {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(100, 86, 66, 0.22);
+    border-radius: 8px;
+  }
+
+  .dock-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 9px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    color: #a89984;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all 0.14s ease;
+  }
+
+  .dock-btn:hover {
+    color: #fabd2f;
+    background: rgba(250, 189, 47, 0.08);
+  }
+
+  .dock-btn.active {
+    color: #fabd2f;
+    background: rgba(250, 189, 47, 0.14);
+    border-color: rgba(250, 189, 47, 0.3);
+  }
+
+  .btn-label {
+    letter-spacing: 0.02em;
   }
 
   .tune-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
+    width: 32px;
+    height: 32px;
     background: transparent;
-    border: none;
-    color: #868074;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: #7c7365;
     cursor: pointer;
-    transition: color 0.15s;
+    transition: all 0.14s ease;
   }
 
-  .tune-btn:hover,
-  .tune-btn.active {
-    color: #dcd7cb;
-  }
-
-  .shortcut-btn.active {
-    color: #d49b35;
-    background: rgba(212, 155, 53, 0.1);
-    border-radius: 3px;
-  }
-
-  .ai-chat-btn.active {
+  .tune-btn:hover {
     color: #fabd2f;
-    background: rgba(250, 189, 47, 0.12);
-    border-radius: 3px;
+    background: rgba(250, 189, 47, 0.08);
   }
 
   .rename-input {
-    background: #0e0e0e;
-    border: 1px solid #d49b35;
-    color: #ece7dc;
-    font-size: 12px;
-    font-family: 'JetBrains Mono', monospace;
-    padding: 1px 4px;
-    border-radius: 2px;
-    width: 90px;
+    background: rgba(14, 16, 15, 0.95);
+    border: 1px solid #fabd2f;
+    color: #ebdbb2;
+    font-size: 13px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    width: 110px;
     outline: none;
+    box-shadow: 0 0 8px rgba(250, 189, 47, 0.25);
   }
 </style>

@@ -93,7 +93,7 @@
 
   // 1. 畫面形態模式：'modal' (巨幕中控台) 或 'drawer' (側欄模式)
   let displayMode = $state<"modal" | "drawer">("modal");
-  let drawerWidth = $state(600); // 側欄模式寬度
+  let drawerWidth = $state(620);
   let isDraggingResize = $state(false);
 
   // 2. 視圖分頁切換
@@ -119,11 +119,11 @@
   let searchInputRef = $state<HTMLInputElement | null>(null);
   let lastKeyGTime = 0;
 
-  // 6. 當前分頁與 AI 智慧推薦落點狀態
+  // 6. 當前分頁與工作區名稱
   let currentActiveTab = $derived(
     tabs.find((t) => t.id === activeTabId) || null,
   );
-  // 當前連線工作區名稱與全洞天總數計算（供視野與落點說明使用）
+
   const currentVaultName = $derived(
     caves.find((c) => c.path === vaultFolderPath)?.name ||
       vaultFolderPath
@@ -140,19 +140,17 @@
         : 0),
   );
 
-  // 初始化洞天列表
   $effect(() => {
     caves = loadVaultCaves();
   });
 
-  // 當彈窗開啟時，觸發跨洞天背景批次更新（受 TTL 快取過期判定保護，未過期直接沿用快取）
   $effect(() => {
     if (isOpen) {
       onRefreshAllCaves?.(false);
     }
   });
 
-  // 構建藏卷洞天樹狀結構（含已授權洞天與當前未收錄之臨時工作區）
+  // 構建藏卷洞天樹狀結構
   const fullTreeNodes = $derived.by(() => {
     const unrecordedCave: VaultCave | null =
       vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)
@@ -178,7 +176,6 @@
       return [];
     }
 
-    // 依選取的洞天過濾，或全部展示
     if (selectedCavePath) {
       if (unrecordedCave && selectedCavePath === unrecordedCave.path) {
         const filesForUnrecorded =
@@ -194,7 +191,6 @@
       });
     }
 
-    // 諸洞天萬卷全覽模式 (selectedCavePath 為空)：所有洞天聚合展示！
     const nodes = caves.map((cave) => {
       const filesForCave =
         cavesFileCache[cave.path] ||
@@ -211,7 +207,7 @@
     return nodes;
   });
 
-  // 樹狀即時搜尋過濾 (Tree Search)
+  // 樹狀即時搜尋過濾
   const filteredTreeNodes = $derived.by(() => {
     if (!searchQuery.trim()) return fullTreeNodes;
     const results: VaultTreeNode[] = [];
@@ -224,7 +220,7 @@
     return results;
   });
 
-  // 自動展開各洞天根目錄（初次探索時預設展開）
+  // 自動展開各洞天根目錄
   $effect(() => {
     if (fullTreeNodes.length > 0) {
       let hasNewRoots = false;
@@ -244,7 +240,7 @@
     }
   });
 
-  // 計算平面的當前可見節點清單 (游標遍歷依據)
+  // 計算平面的當前可見節點清單
   const visibleNodes = $derived.by(() => {
     const list: VaultTreeNode[] = [];
     function walk(node: VaultTreeNode) {
@@ -263,7 +259,6 @@
     return list;
   });
 
-  // 當可見節點改變且尚未有選取焦點時，自動鎖定首項
   $effect(() => {
     if (visibleNodes.length > 0 && !focusedNodePath) {
       focusedNodePath = visibleNodes[0].path;
@@ -271,7 +266,6 @@
     }
   });
 
-  // 切換資料夾展開/收合
   function handleToggleFolder(node: VaultTreeNode) {
     const nextSet = new Set(expandedPaths);
     if (nextSet.has(node.path)) {
@@ -282,7 +276,6 @@
     expandedPaths = nextSet;
   }
 
-  // 滾動至節點可見區域
   function scrollToNode(path: string) {
     if (typeof document === "undefined") return;
     const el = document.getElementById(
@@ -293,7 +286,6 @@
     }
   }
 
-  // 尋找父資料夾節點 (供 Vim h 鍵返祖使用)
   function findParentNode(
     target: VaultTreeNode,
     roots: VaultTreeNode[],
@@ -310,7 +302,6 @@
     return null;
   }
 
-  // 拓印 Toast 提示
   function showYankToast(msg: string) {
     yankToast = msg;
     if (yankToastTimer) clearTimeout(yankToastTimer);
@@ -319,11 +310,9 @@
     }, 2200);
   }
 
-  // 全域鍵盤監聽處理
   function handleVimKeydown(e: KeyboardEvent) {
     if (!isOpen) return;
 
-    // 若當前焦點在文字輸入框中
     const activeElem = document.activeElement;
     const isInputFocused =
       activeElem &&
@@ -337,7 +326,6 @@
       return;
     }
 
-    // 若說明彈窗開啟中，Escape 關閉說明
     if (isHelpModalOpen) {
       if (e.key === "Escape" || e.key === "?") {
         isHelpModalOpen = false;
@@ -346,7 +334,6 @@
       return;
     }
 
-    // 只在樹狀檢視模式下啟用 h/j/k/l 導航
     if (activeTabMode !== "tree" || visibleNodes.length === 0) {
       if (e.key === "?") {
         e.preventDefault();
@@ -362,7 +349,6 @@
     const currentNode = visibleNodes[currentIndex];
 
     switch (e.key) {
-      // 下移 (Next)
       case "j":
       case "ArrowDown": {
         e.preventDefault();
@@ -373,8 +359,6 @@
         scrollToNode(targetNode.path);
         break;
       }
-
-      // 上移 (Prev)
       case "k":
       case "ArrowUp": {
         e.preventDefault();
@@ -385,19 +369,15 @@
         scrollToNode(targetNode.path);
         break;
       }
-
-      // 深入 / 展開 (In / Expand)
       case "l":
       case "ArrowRight": {
         e.preventDefault();
         if (currentNode.isFolder) {
           if (!expandedPaths.has(currentNode.path)) {
-            // 尚未展開：立即展開
             const nextSet = new Set(expandedPaths);
             nextSet.add(currentNode.path);
             expandedPaths = nextSet;
           } else if (currentNode.children && currentNode.children.length > 0) {
-            // 已展開：步入第一個子節點
             const nextIdx = Math.min(currentIndex + 1, visibleNodes.length - 1);
             const targetNode = visibleNodes[nextIdx];
             focusedNodePath = targetNode.path;
@@ -405,23 +385,18 @@
             scrollToNode(targetNode.path);
           }
         } else {
-          // 為檔案：直接開卷載入
           handleOpenNode(currentNode);
         }
         break;
       }
-
-      // 收合 / 返祖 (Out / Collapse)
       case "h":
       case "ArrowLeft": {
         e.preventDefault();
         if (currentNode.isFolder && expandedPaths.has(currentNode.path)) {
-          // 當前資料夾已展開：立即收合
           const nextSet = new Set(expandedPaths);
           nextSet.delete(currentNode.path);
           expandedPaths = nextSet;
         } else {
-          // 已收合或為檔案：跳至父資料夾
           const parentNode = findParentNode(currentNode, fullTreeNodes);
           if (parentNode) {
             focusedNodePath = parentNode.path;
@@ -431,8 +406,6 @@
         }
         break;
       }
-
-      // 頂峰 (gg)
       case "g": {
         const now = Date.now();
         if (now - lastKeyGTime < 450) {
@@ -449,8 +422,6 @@
         }
         break;
       }
-
-      // 淵底 (G)
       case "G": {
         e.preventDefault();
         if (visibleNodes.length > 0) {
@@ -461,15 +432,11 @@
         }
         break;
       }
-
-      // 探尋搜尋 (/)
       case "/": {
         e.preventDefault();
         searchInputRef?.focus();
         break;
       }
-
-      // 開卷載入 (Enter / o)
       case "o":
       case "Enter": {
         e.preventDefault();
@@ -480,18 +447,14 @@
         }
         break;
       }
-
-      // 拓印路徑 (y)
       case "y": {
         e.preventDefault();
         if (typeof navigator !== "undefined" && navigator.clipboard) {
           navigator.clipboard.writeText(currentNode.path);
-          showYankToast(`📋 已拓印路徑至剪貼簿：${currentNode.name}`);
+          showYankToast(`已拓印路徑：${currentNode.name}`);
         }
         break;
       }
-
-      // 就地封存入庫 (s 或 i)
       case "s":
       case "i": {
         if (currentNode.isFolder && currentActiveTab && onConfirmSave) {
@@ -500,8 +463,6 @@
         }
         break;
       }
-
-      // 開啟心法指南 (?)
       case "?": {
         e.preventDefault();
         isHelpModalOpen = !isHelpModalOpen;
@@ -510,7 +471,6 @@
     }
   }
 
-  // 當前選取洞天或諸洞天全覽之檔案集合（具備去重保護）
   const currentCaveFiles = $derived.by(() => {
     if (selectedCavePath) {
       return (
@@ -518,7 +478,6 @@
         (selectedCavePath === vaultFolderPath ? vaultFiles : [])
       );
     }
-    // 諸洞天萬卷全覽：聚合所有洞天檔案，依路徑去重 (避免重複顯示母子資料夾檔案)
     const fileMap = new Map<string, VaultFileEntry>();
     for (const fileList of Object.values(cavesFileCache)) {
       for (const f of fileList) {
@@ -535,7 +494,6 @@
     );
   });
 
-  // 檔案扁平搜尋 (Fuse)
   const fileFuse = $derived(
     new Fuse(currentCaveFiles, {
       keys: [
@@ -552,7 +510,6 @@
     return fileFuse.search(searchQuery).map((r) => r.item);
   });
 
-  // 分頁搜尋 (Fuse)
   const tabFuse = $derived(
     new Fuse(tabs, {
       keys: [
@@ -568,12 +525,10 @@
     return tabFuse.search(searchQuery).map((r) => r.item);
   });
 
-  // 點選樹狀節點（觸發右欄預覽）
   async function handleSelectNode(node: VaultTreeNode) {
     selectedNode = node;
     focusedNodePath = node.path;
     if (!node.isFolder) {
-      // 載入檔案內容
       isLoadingPreview = true;
       try {
         const content = await readVaultFile(node.path);
@@ -588,7 +543,6 @@
     }
   }
 
-  // 深入導航至子資料夾（展開並選取）
   function handleDrillDownFolder(folderNode: VaultTreeNode) {
     const nextSet = new Set(expandedPaths);
     nextSet.add(folderNode.path);
@@ -597,7 +551,6 @@
     scrollToNode(folderNode.path);
   }
 
-  // 開啟節點入編輯器分頁
   function handleOpenNode(node: VaultTreeNode) {
     if (!node.isFolder) {
       const vf: VaultFileEntry = {
@@ -613,7 +566,6 @@
     }
   }
 
-  // 直接儲存至樹狀上的某個資料夾節點
   async function handleQuickSaveToNode(node: VaultTreeNode) {
     if (!node.isFolder || !currentActiveTab || !onConfirmSave) return;
     const fileName =
@@ -629,12 +581,10 @@
     }
   }
 
-  // 快速新增藏卷洞天
   async function handleAddNewCave() {
     onPickFolder();
   }
 
-  // 移除洞天
   function handleRemoveCave(cavePath: string) {
     if (confirm("確定要從藏卷洞天中除役此目錄嗎？（實體檔案不會被刪除）")) {
       caves = removeVaultCave(cavePath);
@@ -644,13 +594,11 @@
     }
   }
 
-  // 釘選洞天
   function handleTogglePin(cavePath: string) {
     caves = togglePinCave(cavePath);
     onTogglePinFolder?.(cavePath);
   }
 
-  // 全卷導出
   function handleExportAll() {
     const backupData = JSON.stringify(tabs, null, 2);
     const blob = new Blob([backupData], { type: "application/json" });
@@ -670,7 +618,6 @@
     }, 2500);
   }
 
-  // 3.6 軟刪除實體檔案至資源回收桶
   async function handleTrashNode(node: VaultTreeNode) {
     if (node.isFolder) {
       alert("目前僅支援將單一藥帖檔案移至回收桶");
@@ -685,7 +632,7 @@
       previewFileContent = "";
       onRefreshFolder();
       onRefreshAllCaves?.(true);
-      showDrawerToast(`🗑️ 已將《${node.name}》安全移至資源回收桶`);
+      showDrawerToast(`已將《${node.name}》移至資源回收桶`);
     } catch (err: any) {
       alert(`移至回收桶失敗：${err?.message || err}`);
     }
@@ -695,12 +642,11 @@
     if (!timestamp) return "";
     const diff = Math.floor((Date.now() - timestamp) / 1000);
     if (diff < 60) return "剛剛";
-    if (diff < 3600) return `${Math.floor(diff / 60)} 分鐘前`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} 小時前`;
+    if (diff < 3600) return `${Math.floor(diff / 60)} 分前`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} 時前`;
     return new Date(timestamp).toLocaleDateString();
   }
 
-  // 拖曳調整側欄寬度
   function startResize(e: MouseEvent) {
     if (displayMode !== "drawer") return;
     isDraggingResize = true;
@@ -709,7 +655,7 @@
 
     function onMouseMove(moveEvent: MouseEvent) {
       const delta = moveEvent.clientX - startX;
-      drawerWidth = Math.min(Math.max(startWidth + delta, 420), 850);
+      drawerWidth = Math.min(Math.max(startWidth + delta, 440), 860);
     }
 
     function onMouseUp() {
@@ -723,80 +669,67 @@
   }
 </script>
 
-<!-- 監聽全域 Vim 快捷鍵 (頂層放置) -->
 <svelte:window onkeydown={handleVimKeydown} />
 
 {#if isOpen}
-  <!-- 背景遮罩 (點擊收合) -->
+  <!-- 背景遮罩 -->
   <div class="vault-backdrop" onclick={onCloseDrawer} role="presentation"></div>
 
-  <!-- 主體容器：巨幕中控模式 (modal) 或 側欄模式 (drawer) -->
+  <!-- 主體容器 -->
   <div
     class="vault-master-container {displayMode === 'modal'
       ? 'modal-view'
       : 'drawer-view'}"
     style={displayMode === "drawer" ? `width: ${drawerWidth}px;` : ""}
-    aria-label="藏卷洞天·萬卷中控台"
+    aria-label="藏卷洞天"
   >
-    <!-- 頂部標頭與全域動作列 -->
+    <!-- 頂部標頭：精簡洗鍊、將預設落點移至頂部一目了然 -->
     <header class="vault-header">
-      <div class="header-brand-group">
-        <span class="brand-scroll-icon">
-          <svg
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-          >
-            <line x1="7" y1="4" x2="17" y2="4" />
-            <line x1="7" y1="20" x2="17" y2="20" />
-            <path d="M7 4H4.5A1.5 1.5 0 0 0 3 5.5v13A1.5 1.5 0 0 0 4.5 20H7" />
-            <path
-              d="M17 4h2.5A1.5 1.5 0 0 1 21 5.5v13a1.5 1.5 0 0 1-1.5 1.5H17"
-            />
-            <line x1="10" y1="8.5" x2="14" y2="8.5" stroke-width="1.2" />
-            <line x1="10" y1="12" x2="14" y2="12" stroke-width="1.2" />
-            <line x1="10" y1="15.5" x2="13" y2="15.5" stroke-width="1.2" />
-          </svg>
+      <div class="header-left">
+        <span class="brand-glyph">◫</span>
+        <span class="main-title">藏卷洞天</span>
+        <span class="header-divider"></span>
+        <span class="target-capsule" title="新筆記預設存入此目錄">
+          <span class="target-dot"></span>
+          <span class="target-label">預設落點：</span>
+          <strong class="target-vault">{currentVaultName}</strong>
         </span>
-        <div class="brand-text">
-          <span class="main-title">藏卷洞天 · 萬卷中控台</span>
-          <span class="sub-title">御風輕功俯瞰 · 洞天萬卷全覽</span>
-        </div>
       </div>
 
       <div class="header-controls">
-        <!-- 尺寸切換按鈕 -->
-        <button
-          type="button"
-          class="control-btn"
-          onclick={() =>
-            (displayMode = displayMode === "modal" ? "drawer" : "modal")}
-          title={displayMode === "modal"
-            ? "切換為側欄視野"
-            : "展開為巨幕大中控台"}
-        >
-          <span>{displayMode === "modal" ? "◨ 側欄" : "⛶ 巨幕"}</span>
-        </button>
+        <div class="control-dock">
+          <button
+            type="button"
+            class="dock-btn"
+            onclick={() =>
+              (displayMode = displayMode === "modal" ? "drawer" : "modal")}
+            title={displayMode === "modal"
+              ? "切換為側欄視野"
+              : "展開為巨幕中控台"}
+          >
+            <span class="glyph-mono">{displayMode === "modal" ? "◧" : "⛶"}</span
+            >
+            <span>{displayMode === "modal" ? "側欄" : "巨幕"}</span>
+          </button>
+
+          <button
+            type="button"
+            class="dock-btn"
+            onclick={handleExportAll}
+            title="備份導出全卷軸 JSON"
+          >
+            <span class="glyph-mono">⊼</span>
+            <span>全卷備份</span>
+          </button>
+        </div>
 
         <button
           type="button"
-          class="control-btn"
-          onclick={handleExportAll}
-          title="備份導出全卷軸 JSON"
-        >
-          <span>⤓ 導出全卷</span>
-        </button>
-
-        <button
-          type="button"
-          class="control-btn primary"
+          class="primary-action-btn"
           onclick={onAddTab}
           title="新增空白素簡 (Ctrl+T)"
         >
-          <span>+ 展新簡</span>
+          <span>+ 添新素簡</span>
         </button>
 
         <button
@@ -812,80 +745,58 @@
 
     <!-- 核心三欄內容主體 -->
     <div class="vault-body-layout">
-      <!-- 欄 1：藏卷洞天清單 (Vault Caves / Permitted Directories) -->
+      <!-- 欄 1：藏卷洞天清單 (精簡寬鬆側欄) -->
       <aside class="vault-caves-sidebar">
-        <!-- 頂部視野分層區：全域視野 (View Scope) -->
-        <div class="scope-view-section">
-          <div class="scope-label">全域瀏覽視野</div>
+        <!-- 全域聚合入口：濃縮為乾淨的焦點卡片 -->
+        <div class="scope-section">
           <button
             type="button"
-            class="cave-item-btn scope-master-btn {!selectedCavePath
-              ? 'active'
-              : ''}"
+            class="scope-hero-card {!selectedCavePath ? 'active' : ''}"
             onclick={() => (selectedCavePath = "")}
-            title={`同時聚合瀏覽所有已開放之洞天。新檔預設存入：${currentVaultName}`}
+            title={`同時聚合瀏覽所有洞天。新檔預設存入：${currentVaultName}`}
           >
-            <span class="cave-icon">🪐</span>
-            <div class="cave-info">
-              <div class="name-line">
-                <span class="cave-name">諸洞天萬卷全覽</span>
-                {#if isScanningCaves}
-                  <span
-                    class="active-dot scanning"
-                    title="跨洞天卷軸更新彙整中...">⏳ 彙整中</span
-                  >
-                {:else if !selectedCavePath}
-                  <span
-                    class="active-dot scope-active"
-                    title="目前處於全域聚合瀏覽視野">全覽中</span
-                  >
-                {/if}
+            <div class="scope-top">
+              <div class="scope-title-wrap">
+                <span class="scope-glyph">◎</span>
+                <span class="scope-name">諸洞天全覽</span>
               </div>
-              <div class="cave-scope-sub">
-                <div class="scope-stat-line">
-                  已聚合 {totalCavesCount} 洞天 · 共 {currentCaveFiles.length} 卷
-                </div>
-                <div class="scope-target-line">
-                  <span>📍 新檔預設存入：</span><strong class="target-name"
-                    >{currentVaultName}</strong
-                  >
-                </div>
-              </div>
+              {#if isScanningCaves}
+                <span class="scope-badge scanning">彙整中</span>
+              {:else}
+                <span class="scope-count">{currentCaveFiles.length} 卷</span>
+              {/if}
             </div>
+            <span class="scope-desc">聚合 {totalCavesCount} 處開放目錄</span>
           </button>
         </div>
 
-        <!-- 實體洞天庫標頭 (切換工作區 / 開放新洞天) -->
+        <!-- 實體洞天庫標頭 -->
         <div class="sidebar-sec-header">
-          <span class="sec-title" title="點選聚焦／切換工作區"
-            >實體洞天庫 ({caves.length})</span
-          >
+          <span class="sec-title">實體洞天 ({caves.length})</span>
           <div class="cave-header-actions">
-            {#if isScanningCaves}
-              <span class="scanning-badge" title="背景探尋諸洞天中...">⏳</span>
-            {:else if onRefreshAllCaves}
+            {#if onRefreshAllCaves && !isScanningCaves}
               <button
                 type="button"
-                class="mini-refresh-btn"
+                class="icon-ghost-btn"
                 onclick={() => onRefreshAllCaves?.(true)}
-                title="強制重新整理所有洞天掃描（略過快取）"
+                title="重新掃描所有洞天"
               >
-                🔄
+                ↻
               </button>
             {/if}
             <button
               type="button"
-              class="mini-add-btn"
+              class="text-add-btn"
               onclick={handleAddNewCave}
               title="授權開放電腦實體資料夾為新洞天"
             >
-              + 開放洞天
+              + 開放目錄
             </button>
           </div>
         </div>
 
+        <!-- 洞天列表：隱藏冗長路徑，放大主標題與呼吸空間 -->
         <div class="caves-list">
-          <!-- 當前臨時工作區（未收錄至洞天時顯示，提供手動收錄按鈕） -->
           {#if vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)}
             {@const currentName =
               vaultFolderPath
@@ -898,7 +809,7 @@
                 : ''}"
             >
               <div class="temp-workspace-top">
-                <span class="temp-pill-tag">📍 當前臨時工作區</span>
+                <span class="temp-pill-tag">臨時工作區</span>
                 <button
                   type="button"
                   class="btn-adopt-cave"
@@ -907,81 +818,65 @@
                     selectedCavePath = vaultFolderPath;
                     onRefreshAllCaves?.(true);
                   }}
-                  title="將此目錄正式闢建／收錄入藏卷洞天"
                 >
-                  + 收錄入洞天
+                  + 收錄
                 </button>
               </div>
               <button
                 type="button"
                 class="temp-folder-link"
                 onclick={() => (selectedCavePath = vaultFolderPath)}
-                title={`目前工作目錄：${vaultFolderPath}`}
+                title={vaultFolderPath}
               >
-                <span class="cave-icon">📂</span>
-                <div class="cave-info">
-                  <span class="cave-name">{currentName}</span>
-                  <span class="cave-sub" title={vaultFolderPath}
-                    >{vaultFolderPath}</span
-                  >
-                </div>
+                <span class="cave-glyph">◇</span>
+                <span class="cave-name">{currentName}</span>
               </button>
             </div>
           {/if}
 
-          <!-- 個別洞天項目 -->
           {#each caves as cave (cave.path)}
             {@const isCurrentLinked = cave.path === vaultFolderPath}
             <div
-              class="cave-row-container {selectedCavePath === cave.path
+              class="cave-row {selectedCavePath === cave.path
                 ? 'selected'
                 : ''}"
+              title={`${cave.name}\n路徑：${cave.path}${isCurrentLinked ? "\n(當前預設存入工作區)" : ""}`}
             >
               <button
                 type="button"
-                class="cave-item-btn {isCurrentLinked ? 'linked' : ''}"
+                class="cave-item-btn"
                 onclick={() => {
                   selectedCavePath = cave.path;
                   if (cave.path !== vaultFolderPath) {
                     onSwitchFolder?.(cave.path);
                   }
                 }}
-                title={isCurrentLinked
-                  ? `【當前工作區】${cave.name}（新筆記預設存入此目錄）`
-                  : `點擊切換為當前工作區並聚焦此洞天。路徑: ${cave.path}`}
               >
-                <span class="cave-icon">{cave.isPinned ? "📌" : "🏞️"}</span>
-                <div class="cave-info">
-                  <div class="name-line">
-                    <span class="cave-name">{cave.name}</span>
-                    {#if isCurrentLinked}
-                      <span
-                        class="active-dot active-workspace"
-                        title="新筆記預設存入此處，外部檔案熱監聽中"
-                        >當前工作區</span
-                      >
-                    {/if}
-                  </div>
-                  <span class="cave-sub" title={cave.path}>{cave.path}</span>
-                </div>
+                <span class="cave-glyph {cave.isPinned ? 'pinned' : ''}">
+                  {cave.isPinned ? "❖" : "◈"}
+                </span>
+                <span class="cave-name">{cave.name}</span>
+                {#if isCurrentLinked}
+                  <span class="linked-dot" title="當前工作區"></span>
+                {/if}
               </button>
 
               <div class="cave-row-actions">
                 <button
                   type="button"
-                  class="cave-opt-btn {cave.isPinned ? 'pinned' : ''}"
+                  class="cave-opt-btn {cave.isPinned ? 'is-pinned' : ''}"
                   onclick={() => handleTogglePin(cave.path)}
-                  title={cave.isPinned ? "取消釘選" : "釘選為常用洞天"}
+                  title={cave.isPinned ? "取消釘選" : "釘選洞天"}
                 >
-                  📌
+                  ❖
                 </button>
                 <button
                   type="button"
                   class="cave-opt-btn remove"
                   onclick={() => handleRemoveCave(cave.path)}
-                  title="從洞天清單除役"
+                  title="從清單除役"
                 >
-                  ✕
+                  ×
                 </button>
               </div>
             </div>
@@ -995,73 +890,72 @@
                 class="btn-create-first"
                 onclick={handleAddNewCave}
               >
-                📁 選擇電腦資料夾
+                + 選擇電腦資料夾
               </button>
             </div>
           {/if}
         </div>
 
-        <!-- 底部最近開啟與百子櫃草稿快速跳轉 -->
-        <div class="sidebar-bottom-block">
-          <div class="sidebar-sec-header">
-            <span class="sec-title">🕒 墨痕足跡</span>
-            {#if recentFiles.length > 0}
+        <!-- 底部最近開啟足跡 -->
+        {#if recentFiles.length > 0}
+          <div class="sidebar-bottom-block">
+            <div class="sidebar-sec-header">
+              <span class="sec-title">近期足跡</span>
               <button
                 type="button"
                 class="clear-recent-text"
                 onclick={onClearRecent}>清除</button
               >
-            {/if}
+            </div>
+            <div class="recent-scroll-list">
+              {#each recentFiles.slice(0, 4) as rf}
+                <button
+                  type="button"
+                  class="recent-mini-pill"
+                  onclick={() => {
+                    const vf = vaultFiles.find((f) => f.path === rf.path);
+                    if (vf) onOpenVaultFile(vf);
+                    else {
+                      const t = tabs.find((x) => x.filePath === rf.path);
+                      if (t) onSelectTab(t.id);
+                    }
+                  }}
+                  title={rf.path}
+                >
+                  <span class="recent-title">{rf.title}</span>
+                  <span class="recent-time">{formatTime(rf.lastOpened)}</span>
+                </button>
+              {/each}
+            </div>
           </div>
-          <div class="recent-scroll-list">
-            {#each recentFiles.slice(0, 4) as rf}
-              <button
-                type="button"
-                class="recent-mini-pill"
-                onclick={() => {
-                  const vf = vaultFiles.find((f) => f.path === rf.path);
-                  if (vf) onOpenVaultFile(vf);
-                  else {
-                    const t = tabs.find((x) => x.filePath === rf.path);
-                    if (t) onSelectTab(t.id);
-                  }
-                }}
-                title={rf.path}
-              >
-                <span class="recent-title">{rf.title}</span>
-                <span class="recent-time">{formatTime(rf.lastOpened)}</span>
-              </button>
-            {/each}
-          </div>
-        </div>
+        {/if}
 
-        <!-- 側欄最底端：洞天心法與輕功秘笈常駐入口 -->
+        <!-- 側欄底端：心法指南 -->
         <div class="sidebar-footer-bar">
           <button
             type="button"
             class="sidebar-help-btn {isHelpModalOpen ? 'active' : ''}"
             onclick={() => (isHelpModalOpen = !isHelpModalOpen)}
-            title="查看藏卷洞天設計心法與鍵道輕功操作秘笈 (?)"
           >
             <span class="help-label">
-              <span class="help-icon">📜</span>
-              <span>洞天心法與輕功</span>
+              <span class="glyph-mono">☵</span>
+              <span>洞天心法與輕功指南</span>
             </span>
-            <kbd class="help-shortcut-badge">?</kbd>
+            <span class="key-badge">?</span>
           </button>
         </div>
       </aside>
 
-      <!-- 欄 2：樹狀檢索核心舞台 (Hierarchical Tree Search & Navigation) -->
+      <!-- 欄 2：樹狀檢索核心舞台 -->
       <main class="vault-tree-center">
-        <!-- 搜尋與視圖分頁條 -->
+        <!-- 乾淨寬鬆的搜尋與視圖切換條 -->
         <div class="tree-top-toolbar">
           <div class="search-input-wrapper">
-            <span class="search-glyph">🔍</span>
+            <span class="search-glyph">◎</span>
             <input
               type="text"
               class="tree-search-input"
-              placeholder="跨洞天層級搜尋卷軸、子閣或內文關鍵字... (按 / 聚焦，Esc 返回)"
+              placeholder="探尋卷軸、子閣或內文關鍵字..."
               bind:value={searchQuery}
               bind:this={searchInputRef}
             />
@@ -1071,6 +965,8 @@
                 class="clear-query-btn"
                 onclick={() => (searchQuery = "")}>✕</button
               >
+            {:else}
+              <span class="search-key-hint">/</span>
             {/if}
           </div>
 
@@ -1079,25 +975,25 @@
               type="button"
               class="v-tab {activeTabMode === 'tree' ? 'active' : ''}"
               onclick={() => (activeTabMode = "tree")}
-              title="樹狀層級檢索 (自動展開匹配子閣，支援鍵道輕功導航)"
+              title="樹狀層級檢索 (支援 h/j/k/l 鍵道導航)"
             >
-              🌲 洞天層級樹
+              層級
             </button>
             <button
               type="button"
               class="v-tab {activeTabMode === 'flat' ? 'active' : ''}"
               onclick={() => (activeTabMode = "flat")}
-              title="電腦檔案扁平清單"
+              title="扁平檔案清單"
             >
-              📁 檔案清單 ({filteredVaultFiles.length})
+              全卷 <span class="tab-count">{filteredVaultFiles.length}</span>
             </button>
             <button
               type="button"
               class="v-tab {activeTabMode === 'tabs' ? 'active' : ''}"
               onclick={() => (activeTabMode = "tabs")}
-              title="當前百子櫃已開分頁"
+              title="當前已開分頁"
             >
-              📜 已開分頁 ({filteredTabs.length})
+              分頁 <span class="tab-count">{filteredTabs.length}</span>
             </button>
           </div>
         </div>
@@ -1107,7 +1003,7 @@
           {#if activeTabMode === "tree"}
             {#if isScanning}
               <div class="tree-loading-state">
-                <span class="spinner">⏳</span>
+                <span class="glyph-mono">◈</span>
                 <span>正在探尋諸洞天之卷軸結構...</span>
               </div>
             {:else if filteredTreeNodes.length === 0}
@@ -1147,7 +1043,7 @@
               </div>
             {/if}
 
-            <!-- 模式 B：扁平檔案清單 -->
+            <!-- 模式 B：去框化的舒適扁平清單 -->
           {:else if activeTabMode === "flat"}
             <div class="flat-files-list">
               {#each filteredVaultFiles as vf (vf.path)}
@@ -1173,17 +1069,17 @@
                   tabindex="0"
                   onkeydown={(e) => e.key === "Enter" && onOpenVaultFile(vf)}
                 >
-                  <span class="file-glyph"
-                    >{vf.extension === "md" ? "📝" : "📄"}</span
-                  >
+                  <span class="file-glyph">
+                    {vf.extension === "md" ? "◈" : "◇"}
+                  </span>
                   <div class="file-main-info">
                     <div class="name-row">
                       <span class="file-name">{vf.name}</span>
                       {#if isOpened}<span class="badge-opened">已開</span>{/if}
                     </div>
-                    <span class="file-sub-path"
-                      >{vf.rel_path} · {(vf.size / 1024).toFixed(1)} KB</span
-                    >
+                    <span class="file-sub-path">
+                      {vf.rel_path} · {((vf.size || 0) / 1024).toFixed(1)} KB
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -1199,7 +1095,7 @@
               {/each}
             </div>
 
-            <!-- 模式 C：百子櫃已開分頁清單 -->
+            <!-- 模式 C：已開分頁清單 -->
           {:else if activeTabMode === "tabs"}
             <div class="tabs-manage-list">
               {#each filteredTabs as t (t.id)}
@@ -1215,14 +1111,14 @@
                   tabindex="0"
                   onkeydown={(e) => e.key === "Enter" && onSelectTab(t.id)}
                 >
-                  <span class="tab-glyph">📜</span>
+                  <span class="file-glyph">▢</span>
                   <div class="tab-info">
                     <span class="tab-title">{t.title}</span>
-                    <span class="tab-meta"
-                      >{t.language.toUpperCase()} · {t.content.length} 字元 {t.filePath
-                        ? `· 💾 ${t.filePath}`
-                        : "· (未入庫)"}</span
-                    >
+                    <span class="tab-meta">
+                      {t.language.toUpperCase()} · {t.content.length} 字 {t.filePath
+                        ? `· ${t.filePath}`
+                        : "· 未入庫"}
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -1233,7 +1129,7 @@
                     }}
                     title="收合此藥帖"
                   >
-                    ✕
+                    ×
                   </button>
                 </div>
               {/each}
@@ -1242,46 +1138,45 @@
         </div>
       </main>
 
-      <!-- 欄 3：卷軸即時參詳與預覽 (Live Document Preview & Inspection) -->
+      <!-- 欄 3：卷軸即時參詳與預覽 (寬鬆閱讀面板) -->
       <aside class="vault-preview-sidebar">
         {#if selectedNode}
+          <!-- 合併精簡的文稿抬頭 -->
           <div class="preview-header">
-            <span class="preview-glyph"
-              >{selectedNode.isFolder ? "📁" : "📖"}</span
-            >
-            <div class="preview-meta-title">
-              <span class="item-title" title={selectedNode.name}
-                >{selectedNode.name}</span
-              >
-              <span class="item-path" title={selectedNode.path}
-                >{selectedNode.path}</span
-              >
+            <div class="preview-title-row">
+              <span class="preview-glyph">
+                {selectedNode.isFolder ? "◫" : "◈"}
+              </span>
+              <span class="item-title" title={selectedNode.name}>
+                {selectedNode.name}
+              </span>
             </div>
-          </div>
-
-          <div class="preview-stats-row">
-            {#if !selectedNode.isFolder}
-              <span
-                >大小：{((selectedNode.size || 0) / 1024).toFixed(1)} KB</span
-              >
-              <span>格式：{selectedNode.extension?.toUpperCase() || "TXT"}</span
-              >
-            {:else}
-              <span>子閣目錄</span>
-              <span>包含：{selectedNode.children?.length || 0} 個項目</span>
-            {/if}
+            <div class="preview-meta-sub">
+              {#if !selectedNode.isFolder}
+                <span class="meta-tag"
+                  >{selectedNode.extension?.toUpperCase() || "TXT"}</span
+                >
+                <span>{((selectedNode.size || 0) / 1024).toFixed(1)} KB</span>
+                <span class="meta-sep">·</span>
+                <span class="item-path" title={selectedNode.path}
+                  >{selectedNode.rel_path || selectedNode.path}</span
+                >
+              {:else}
+                <span class="meta-tag">子閣目錄</span>
+                <span>共 {selectedNode.children?.length || 0} 項</span>
+              {/if}
+            </div>
           </div>
 
           <!-- 內文預覽區域 -->
           <div class="preview-content-box">
             {#if isLoadingPreview}
-              <div class="loading-preview">⏳ 正在自洞天讀取卷軸內文...</div>
+              <div class="loading-preview">正在讀取卷軸內文...</div>
             {:else if !selectedNode.isFolder}
               <pre class="preview-code-block">{previewFileContent ||
                   selectedNode.preview ||
                   "(此卷軸為空白)"}</pre>
             {:else}
-              <!-- 子閣資料夾瀏覽檢視 (Sub-folder Explorer) -->
               {@const parentNode = findParentNode(selectedNode, fullTreeNodes)}
               <div class="folder-preview-container">
                 {#if parentNode}
@@ -1289,21 +1184,16 @@
                     type="button"
                     class="folder-nav-parent-btn"
                     onclick={() => handleDrillDownFolder(parentNode)}
-                    title="返回上一層：{parentNode.name}"
                   >
-                    <span class="nav-arrow">⮥</span>
-                    <span class="nav-label">返回上一層 ({parentNode.name})</span
-                    >
+                    <span class="nav-arrow">←</span>
+                    <span>返回上層 ({parentNode.name})</span>
                   </button>
                 {/if}
 
                 {#if selectedNode.children && selectedNode.children.length > 0}
                   <div class="folder-children-list">
                     <div class="folder-children-header">
-                      <span
-                        >子閣內藏卷軸與目錄 ({selectedNode.children
-                          .length})</span
-                      >
+                      子閣收納 ({selectedNode.children.length})
                     </div>
                     {#each selectedNode.children as child (child.id || child.path)}
                       {@const isOpened = tabs.some(
@@ -1339,74 +1229,51 @@
                           }
                         }}
                       >
-                        <span class="child-icon"
-                          >{child.isFolder
-                            ? "📁"
-                            : child.extension === "md"
-                              ? "📝"
-                              : "📄"}</span
-                        >
+                        <span class="child-icon">
+                          {child.isFolder ? "◫" : "◈"}
+                        </span>
                         <div class="child-meta">
                           <div class="child-title-row">
-                            <span class="child-name" title={child.name}
-                              >{child.name}</span
-                            >
-                            {#if isOpened}<span class="badge-opened">已開</span
-                              >{/if}
+                            <span class="child-name" title={child.name}>
+                              {child.name}
+                            </span>
+                            {#if isOpened}
+                              <span class="badge-opened">已開</span>
+                            {/if}
                           </div>
                           <span class="child-desc">
                             {#if child.isFolder}
-                              子閣目錄 · 包含 {child.children?.length || 0} 個項目
+                              {child.children?.length || 0} 項
                             {:else}
-                              卷軸筆記 · {((child.size || 0) / 1024).toFixed(1)}
-                              KB
+                              {((child.size || 0) / 1024).toFixed(1)} KB
                             {/if}
                           </span>
                         </div>
-                        <div class="child-actions">
-                          {#if child.isFolder}
-                            <button
-                              type="button"
-                              class="child-action-btn enter-btn"
-                              title="進入此子閣"
-                              onclick={(e) => {
-                                e.stopPropagation();
-                                handleDrillDownFolder(child);
-                              }}
-                            >
-                              進入 ➔
-                            </button>
-                          {:else}
-                            <button
-                              type="button"
-                              class="child-action-btn open-btn"
-                              title="立即載入分頁"
-                              onclick={(e) => {
-                                e.stopPropagation();
-                                handleOpenNode(child);
-                              }}
-                            >
-                              開卷
-                            </button>
-                          {/if}
-                        </div>
+                        <button
+                          type="button"
+                          class="child-action-btn"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            if (child.isFolder) handleDrillDownFolder(child);
+                            else handleOpenNode(child);
+                          }}
+                        >
+                          {child.isFolder ? "進入" : "開卷"}
+                        </button>
                       </div>
                     {/each}
                   </div>
                 {:else}
                   <div class="folder-empty-hint">
-                    <span class="empty-icon">📂</span>
+                    <span class="empty-icon">◇</span>
                     <p class="empty-title">此子閣目前為空目錄</p>
-                    <p class="empty-desc">
-                      此資料夾內尚無任何卷軸筆記或子目錄。
-                    </p>
                   </div>
                 {/if}
               </div>
             {/if}
           </div>
 
-          <!-- 底部動作列（僅卷軸檔案需開卷載入按鈕） -->
+          <!-- 底部動作列 -->
           {#if !selectedNode.isFolder}
             <div class="preview-action-bar">
               <button
@@ -1414,39 +1281,31 @@
                 class="action-btn-main"
                 onclick={() => handleOpenNode(selectedNode!)}
               >
-                📜 立即開卷載入
+                開卷載入 (Enter)
               </button>
               <button
                 type="button"
                 class="action-btn-trash"
                 onclick={() => handleTrashNode(selectedNode!)}
-                title="將此藥帖安全移至系統資源回收桶"
+                title="移至系統資源回收桶"
               >
-                🗑️ 移至回收桶
+                移至回收桶
               </button>
             </div>
           {/if}
         {:else}
-          <!-- 尚未選取任何節點時的歡迎指引 -->
           <div class="preview-empty-state">
-            <span class="empty-zen-icon">📜</span>
+            <span class="empty-zen-icon">◫</span>
             <h3>點選任意卷軸以參詳</h3>
             <p>
-              於中欄層級樹中點選檔案或子閣，即可在此預覽其內文筆記，無需頻繁開啟分頁。
+              於左側層級樹中游移或點選檔案，即可在此靜心預覽內文，無需頻繁開啟分頁。
             </p>
-            <div class="zen-tip-box">
-              <span class="tip-sparkle">💡 洞天心法</span>
-              <p>
-                AI
-                自動推薦之落點已標注黃金光環，點擊推薦欄「一鍵封存」即可瞬間入庫。
-              </p>
-            </div>
           </div>
         {/if}
       </aside>
     </div>
 
-    <!-- 側欄模式專用之拖曳寬度把手 -->
+    <!-- 側欄模式拖曳把手 -->
     {#if displayMode === "drawer"}
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
@@ -1460,14 +1319,14 @@
       ></div>
     {/if}
 
-    <!-- 拓印路徑短暫 Toast 提示 (y 鍵觸發) -->
+    <!-- 拓印 Toast -->
     {#if yankToast}
       <div class="vault-yank-toast">
         <span>{yankToast}</span>
       </div>
     {/if}
 
-    <!-- 洞天心法與鍵道輕功操作秘笈彈窗 (? 鍵觸發) -->
+    <!-- 洞天心法說明彈窗 -->
     {#if isHelpModalOpen}
       <div
         class="help-modal-overlay"
@@ -1485,141 +1344,79 @@
         >
           <div class="help-header">
             <div class="help-title-group">
-              <span class="help-icon">📜</span>
+              <span class="help-icon">☵</span>
               <div>
-                <h3 class="help-title">藏卷洞天 · 心法與操作全綱</h3>
-                <span class="help-sub">御萬卷於方寸 · 參萬化於靈閣</span>
+                <h3 class="help-title">藏卷洞天 · 鍵道輕功指南</h3>
+                <span class="help-sub">雙手不離鍵盤，極速穿梭萬卷</span>
               </div>
             </div>
             <button
               type="button"
-              class="help-close-btn"
+              class="close-btn"
               onclick={() => (isHelpModalOpen = false)}
               title="關閉 (Esc)">✕</button
             >
           </div>
 
           <div class="help-body">
-            <!-- 區塊一：設計邏輯與心法 -->
-            <section class="help-section">
-              <h4 class="sec-headline">
-                🌌 壹、 藏卷洞天設計心法（為何不是傳統專案？）
-              </h4>
-              <div class="philosophy-card">
-                <p>
-                  <strong>打破單一專案工作區的束縛：</strong
-                  >傳統筆記軟體常逼迫使用者一次只能打開單一資料夾，使用者必須手動在樹狀深層翻找位置，徒增心智負擔。
-                </p>
-                <p>
-                  <strong>開放目錄池概念：</strong
-                  >使用者僅需授權電腦中願意開放的本機目錄（例如：<em
-                    >研發洞天</em
-                  >、<em>醫方經閣</em>、<em>隨手草堂</em
-                  >）。其餘的層級歸類，全部交由 <strong>AI 靈識</strong>！
-                </p>
-                <p>
-                  <strong>AI 智慧落點推薦：</strong>當前藥帖若為未存檔散帖，頂部
-                  AI
-                  將自動解析內容語意（程式碼、架構文檔、中醫方劑或會議記錄），秒速在諸洞天中推薦最佳存放目錄與擬定檔名，提供「一鍵封存入庫」。
-                </p>
-              </div>
-            </section>
-
-            <!-- 區塊二：鍵道輕功秘笈 -->
-            <section class="help-section">
-              <h4 class="sec-headline">⚡ 貳、 輕功操作指南 (純鍵盤遊歷)</h4>
-              <p class="sec-desc">
-                在中控台中無需動用滑鼠，雙手不離鍵盤即可極速穿梭樹狀層級並即時參詳右欄內文：
-              </p>
-              <div class="shortcut-table-wrapper">
-                <table class="vim-guide-table">
-                  <thead>
-                    <tr>
-                      <th style="width: 130px;">心法按鍵</th>
-                      <th>身法動作 (輕功導航)</th>
-                      <th>詳細心法</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><kbd>j</kbd> / <kbd>↓</kbd></td>
-                      <td>向下穿梭</td>
-                      <td>游標移至下個節點，右欄卷軸同步即時預覽</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>k</kbd> / <kbd>↑</kbd></td>
-                      <td>向上穿梭</td>
-                      <td>游標移至上個節點，右欄卷軸同步即時預覽</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>h</kbd> / <kbd>←</kbd></td>
-                      <td>收合 / 返祖</td>
-                      <td
-                        >若為已展開之子閣則收合；若已收合或為檔案則直跳父目錄</td
-                      >
-                    </tr>
-                    <tr>
-                      <td><kbd>l</kbd> / <kbd>→</kbd></td>
-                      <td>展開 / 步入</td>
-                      <td
-                        >若為子閣則展開並步入首項；若為檔案則直接開卷載入分頁</td
-                      >
-                    </tr>
-                    <tr>
-                      <td><kbd>o</kbd> / <kbd>Enter</kbd></td>
-                      <td>開卷載入</td>
-                      <td>直接在主要編輯器載入此藥帖（子閣則切換開合）</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>g</kbd> <kbd>g</kbd></td>
-                      <td>直達頂峰</td>
-                      <td>連續按下兩次 g，瞬間回歸洞天樹首</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>G</kbd></td>
-                      <td>直通淵底</td>
-                      <td>移至當前洞天樹最後一個節點</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>/</kbd></td>
-                      <td>探尋過濾</td>
-                      <td>快速聚焦至全洞天樹狀搜尋列</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>y</kbd></td>
-                      <td>拓印路徑</td>
-                      <td>複製當前節點之電腦絕對路徑至剪貼簿</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>s</kbd> / <kbd>i</kbd></td>
-                      <td>就地封存</td>
-                      <td>將當前活躍藥帖存入游標所在子閣資料夾</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>?</kbd></td>
-                      <td>心法指南</td>
-                      <td>隨時開啟或收合本說明秘笈</td>
-                    </tr>
-                    <tr>
-                      <td><kbd>Esc</kbd></td>
-                      <td>退回 / 關閉</td>
-                      <td>自搜尋框退回 Vim 模式，或關閉洞天中控台</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-
-          <div class="help-footer">
-            <span class="footer-hint"
-              >提示：隨時按下 <kbd>?</kbd> 鍵即可開閉此秘笈</span
-            >
-            <button
-              type="button"
-              class="btn-got-it"
-              onclick={() => (isHelpModalOpen = false)}>領會心法 (Esc)</button
-            >
+            <div class="shortcut-table-wrapper">
+              <table class="vim-guide-table">
+                <thead>
+                  <tr>
+                    <th style="width: 120px;">按鍵</th>
+                    <th style="width: 130px;">動作</th>
+                    <th>說明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><kbd>j</kbd> / <kbd>↓</kbd></td>
+                    <td>向下移動</td>
+                    <td>移至下個節點，右欄同步即時預覽</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>k</kbd> / <kbd>↑</kbd></td>
+                    <td>向上移動</td>
+                    <td>移至上個節點，右欄同步即時預覽</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>h</kbd> / <kbd>←</kbd></td>
+                    <td>收合 / 返祖</td>
+                    <td>收合當前已展開子閣，或直接跳回父目錄</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>l</kbd> / <kbd>→</kbd></td>
+                    <td>展開 / 開卷</td>
+                    <td>展開子閣並步入首項；若為檔案則直接載入分頁</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>o</kbd> / <kbd>Enter</kbd></td>
+                    <td>開卷載入</td>
+                    <td>在編輯器開啟此卷軸（子閣則切換開合）</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>g</kbd> <kbd>g</kbd> / <kbd>G</kbd></td>
+                    <td>頂峰 / 淵底</td>
+                    <td>瞬間跳至樹狀列表首項或末項</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>/</kbd></td>
+                    <td>探尋過濾</td>
+                    <td>聚焦至搜尋框進行即時過濾</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>y</kbd></td>
+                    <td>拓印路徑</td>
+                    <td>複製當前節點之絕對路徑至剪貼簿</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>s</kbd> / <kbd>i</kbd></td>
+                    <td>就地封存</td>
+                    <td>將當前編輯器分頁直接存入游標所在的子閣</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -1632,40 +1429,42 @@
   .vault-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.68);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     z-index: 1000;
   }
 
-  /* 主容器：巨幕中控 (modal-view) 或 側欄 (drawer-view) */
+  /* 主容器：統一為 Apothecary Gruvbox 通透深色調 */
   .vault-master-container {
     position: fixed;
-    background: #282828;
-    color: #ebdbb2;
+    background: rgba(20, 22, 21, 0.98);
+    color: #e6dfd5;
     z-index: 1001;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
-    border: 1px solid #3c3836;
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.78),
+      0 0 0 1px rgba(250, 189, 47, 0.08);
+    border: 1px solid rgba(100, 86, 66, 0.4);
     overflow: hidden;
   }
 
-  /* 巨幕中控模式：88vw x 86vh 大視窗居中 */
   .vault-master-container.modal-view {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 90vw;
-    max-width: 1400px;
-    height: 86vh;
+    width: 88vw;
+    max-width: 1360px;
+    height: 84vh;
     border-radius: 12px;
-    animation: modalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   @keyframes modalPop {
     from {
       opacity: 0;
-      transform: translate(-50%, -48%) scale(0.97);
+      transform: translate(-50%, -48%) scale(0.98);
     }
     to {
       opacity: 1;
@@ -1673,12 +1472,14 @@
     }
   }
 
-  /* 側欄模式：貼齊左邊，可自由調寬度 */
   .vault-master-container.drawer-view {
     top: 0;
     left: 0;
     height: 100vh;
     border-radius: 0;
+    border-left: none;
+    border-top: none;
+    border-bottom: none;
     animation: drawerSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -1691,105 +1492,143 @@
     }
   }
 
-  /* 頂部標頭 */
+  .glyph-mono {
+    font-family: "JetBrains Mono", monospace;
+    line-height: 1;
+  }
+
+  /* 頂部標頭：單行寬鬆設計 */
   .vault-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 20px;
-    background: #1d2021;
-    border-bottom: 1px solid #3c3836;
+    height: 56px;
+    padding: 0 20px;
+    background: rgba(16, 18, 17, 0.9);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.25);
+    flex-shrink: 0;
   }
 
-  .header-brand-group {
+  .header-left {
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  .brand-scroll-icon {
-    display: inline-flex;
+  .brand-glyph {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 18px;
     color: #fabd2f;
-    filter: drop-shadow(0 0 6px rgba(250, 189, 47, 0.3));
-  }
-
-  .brand-text {
-    display: flex;
-    flex-direction: column;
   }
 
   .main-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #fabd2f;
-    letter-spacing: 0.5px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ebdbb2;
+    letter-spacing: 0.04em;
   }
 
-  .sub-title {
-    font-size: 11px;
-    color: #a89984;
+  .header-divider {
+    width: 1px;
+    height: 16px;
+    background: rgba(100, 86, 66, 0.3);
+  }
+
+  .target-capsule {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #8c8273;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.025);
+    border-radius: 6px;
+  }
+
+  .target-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #8ec07c;
+  }
+
+  .target-vault {
+    color: #d5c4a1;
+    font-weight: 500;
   }
 
   .header-controls {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .control-btn {
-    background: #3c3836;
-    border: 1px solid #504945;
-    color: #ebdbb2;
-    font-size: 12px;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s;
+  .control-dock {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(100, 86, 66, 0.22);
+    border-radius: 7px;
   }
 
-  .control-btn.help-btn {
+  .dock-btn {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 5px 9px;
-    font-weight: 700;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: #a89984;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all 0.14s ease;
   }
 
-  .control-btn:hover {
-    background: #504945;
-    color: #fbf1c7;
+  .dock-btn:hover {
+    color: #fabd2f;
+    background: rgba(250, 189, 47, 0.08);
   }
 
-  .control-btn.primary {
-    background: rgba(184, 187, 38, 0.2);
-    border-color: #b8bb26;
-    color: #b8bb26;
-    font-weight: 600;
+  .primary-action-btn {
+    height: 32px;
+    padding: 0 12px;
+    background: rgba(250, 189, 47, 0.1);
+    border: 1px solid rgba(250, 189, 47, 0.3);
+    color: #fabd2f;
+    font-size: 12.5px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 
-  .control-btn.primary:hover {
-    background: #b8bb26;
-    color: #1d2021;
+  .primary-action-btn:hover {
+    background: rgba(250, 189, 47, 0.2);
+    border-color: rgba(250, 189, 47, 0.5);
   }
 
   .close-btn {
-    background: none;
+    background: transparent;
     border: none;
-    color: #a89984;
-    font-size: 16px;
+    color: #7c7365;
+    font-size: 15px;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
     cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
-    transition: all 0.15s;
+    transition: all 0.14s ease;
   }
 
   .close-btn:hover {
-    background: rgba(204, 36, 29, 0.2);
+    background: rgba(251, 73, 52, 0.14);
     color: #fb4934;
   }
 
-  /* 核心佈局 */
+  /* 核心三欄佈局 */
   .vault-body-layout {
     flex: 1;
     display: flex;
@@ -1798,27 +1637,103 @@
 
   /* 欄 1：藏卷洞天側欄 */
   .vault-caves-sidebar {
-    width: 260px;
-    background: #1d2021;
-    border-right: 1px solid #3c3836;
+    width: 248px;
+    background: rgba(16, 18, 17, 0.65);
+    border-right: 1px solid rgba(100, 86, 66, 0.22);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+  }
+
+  .scope-section {
+    padding: 12px 12px 6px 12px;
+  }
+
+  .scope-hero-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(100, 86, 66, 0.28);
+    border-radius: 8px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .scope-hero-card:hover {
+    background: rgba(250, 189, 47, 0.06);
+    border-color: rgba(250, 189, 47, 0.3);
+  }
+
+  .scope-hero-card.active {
+    background: rgba(250, 189, 47, 0.09);
+    border-color: rgba(250, 189, 47, 0.4);
+  }
+
+  .scope-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .scope-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .scope-glyph {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 15px;
+    color: #fabd2f;
+  }
+
+  .scope-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #ebdbb2;
+  }
+
+  .scope-hero-card.active .scope-name {
+    color: #fabd2f;
+  }
+
+  .scope-count {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: #8c8273;
+  }
+
+  .scope-badge.scanning {
+    font-size: 10px;
+    color: #fabd2f;
+    background: rgba(250, 189, 47, 0.15);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  .scope-desc {
+    font-size: 11.5px;
+    color: #7c7365;
+    padding-left: 23px;
   }
 
   .sidebar-sec-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 14px;
-    border-bottom: 1px solid #282828;
+    padding: 10px 14px 4px 14px;
   }
 
   .sec-title {
-    font-size: 12px;
-    font-weight: 700;
-    color: #a89984;
-    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 600;
+    color: #7c7365;
+    letter-spacing: 0.06em;
   }
 
   .cave-header-actions {
@@ -1827,186 +1742,78 @@
     gap: 6px;
   }
 
-  .mini-refresh-btn {
-    background: #3c3836;
-    border: 1px solid #504945;
-    color: #ebdbb2;
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 3px;
+  .icon-ghost-btn {
+    background: transparent;
+    border: none;
+    color: #7c7365;
+    font-size: 13px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    padding: 2px 5px;
+    border-radius: 4px;
+    transition: all 0.14s ease;
   }
 
-  .mini-refresh-btn:hover {
-    background: #fabd2f;
-    color: #1d2021;
-  }
-
-  .scanning-badge {
-    font-size: 11px;
+  .icon-ghost-btn:hover {
     color: #fabd2f;
+    background: rgba(250, 189, 47, 0.1);
   }
 
-  .active-dot.scanning {
-    background: rgba(250, 189, 47, 0.2);
-    color: #fabd2f;
-    border: 1px solid rgba(250, 189, 47, 0.4);
-  }
-
-  .active-dot.active-workspace {
-    background: #8ec07c;
-    color: #1d2021;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 9px;
-  }
-
-  .active-dot.scope-active {
-    background: rgba(250, 189, 47, 0.25);
-    color: #fabd2f;
-    border: 1px solid rgba(250, 189, 47, 0.5);
-    font-size: 9px;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 3px;
-  }
-
-  .scope-view-section {
-    padding: 8px;
-    border-bottom: 1px solid #282828;
-    background: rgba(0, 0, 0, 0.12);
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-    width: 100%;
-  }
-
-  .scope-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: #7c6f64;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 0 4px 6px;
-  }
-
-  .scope-master-btn {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid transparent;
-    transition: all 0.15s ease;
-  }
-
-  .scope-master-btn.active {
-    background: rgba(250, 189, 47, 0.12);
-    border-color: rgba(250, 189, 47, 0.35);
-  }
-
-  .cave-scope-sub {
-    font-size: 10px;
-    line-height: 1.45;
-    margin-top: 3px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .scope-stat-line {
-    color: #928374;
-    font-size: 10px;
-  }
-
-  .scope-target-line {
-    color: #ebdbb2;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    font-size: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .scope-target-line .target-name {
-    color: #fabd2f;
-    font-weight: 600;
-  }
-
-  .mini-add-btn {
-    background: #3c3836;
-    border: 1px solid #504945;
-    color: #ebdbb2;
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 3px;
+  .text-add-btn {
+    background: transparent;
+    border: none;
+    color: #a89984;
+    font-size: 11.5px;
     cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.14s ease;
   }
 
-  .mini-add-btn:hover {
-    background: #fabd2f;
-    color: #1d2021;
+  .text-add-btn:hover {
+    color: #fabd2f;
+    background: rgba(250, 189, 47, 0.08);
   }
 
   .caves-list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    padding: 4px 10px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
   }
 
-  /* 臨時工作區專用卡片 */
+  /* 臨時工作區卡片 */
   .temp-workspace-card {
-    background: #282828;
-    border: 1px dashed #d79921;
-    border-radius: 6px;
+    background: rgba(250, 189, 47, 0.05);
+    border: 1px dashed rgba(250, 189, 47, 0.35);
+    border-radius: 7px;
     padding: 8px 10px;
     margin-bottom: 6px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    transition: all 0.15s ease;
-  }
-
-  .temp-workspace-card.selected {
-    background: rgba(215, 153, 33, 0.12);
-    border-color: #fabd2f;
+    gap: 4px;
   }
 
   .temp-workspace-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
   }
 
   .temp-pill-tag {
-    font-size: 10px;
-    font-weight: 700;
+    font-size: 10.5px;
     color: #fabd2f;
-    letter-spacing: 0.5px;
   }
 
   .btn-adopt-cave {
-    background: #3c3836;
-    border: 1px solid #d79921;
+    background: rgba(250, 189, 47, 0.15);
+    border: none;
     color: #fabd2f;
-    font-size: 10px;
-    font-weight: 600;
+    font-size: 11px;
     padding: 2px 7px;
     border-radius: 4px;
     cursor: pointer;
-    transition: all 0.12s;
-    white-space: nowrap;
-  }
-
-  .btn-adopt-cave:hover {
-    background: #fabd2f;
-    color: #1d2021;
-    border-color: #fabd2f;
   }
 
   .temp-folder-link {
@@ -2015,27 +1822,26 @@
     gap: 8px;
     background: none;
     border: none;
-    color: inherit;
+    color: #ebdbb2;
     padding: 2px 0;
     cursor: pointer;
     text-align: left;
-    width: 100%;
   }
 
-  .cave-row-container {
+  /* 單行清爽洞天項目 */
+  .cave-row {
     display: flex;
     align-items: center;
     border-radius: 6px;
-    position: relative;
-    transition: background 0.12s;
+    transition: all 0.14s ease;
   }
 
-  .cave-row-container:hover {
+  .cave-row:hover {
     background: rgba(255, 255, 255, 0.04);
   }
 
-  .cave-row-container.selected {
-    background: rgba(250, 189, 47, 0.12);
+  .cave-row.selected {
+    background: rgba(250, 189, 47, 0.09);
   }
 
   .cave-item-btn {
@@ -2043,68 +1849,47 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
     padding: 8px 10px;
     background: none;
     border: none;
-    color: #ebdbb2;
+    color: #d5c4a1;
     text-align: left;
     cursor: pointer;
-    border-radius: 6px;
   }
 
-  .cave-item-btn.active {
-    background: rgba(250, 189, 47, 0.12);
+  .cave-row.selected .cave-item-btn {
+    color: #fabd2f;
+    font-weight: 500;
   }
 
-  .cave-icon {
-    font-size: 16px;
+  .cave-glyph {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    color: #7c7365;
     flex-shrink: 0;
   }
 
-  .cave-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .name-line {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
+  .cave-glyph.pinned,
+  .cave-row.selected .cave-glyph {
+    color: #fabd2f;
   }
 
   .cave-name {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 13.5px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    min-width: 0;
-    flex-shrink: 1;
+    flex: 1;
   }
 
-  .active-dot {
-    font-size: 9px;
+  .linked-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
     background: #8ec07c;
-    color: #1d2021;
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-weight: 700;
-    white-space: nowrap;
+    box-shadow: 0 0 6px rgba(142, 192, 124, 0.6);
     flex-shrink: 0;
-  }
-
-  .cave-sub {
-    font-size: 10px;
-    color: #928374;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .cave-row-actions {
@@ -2114,21 +1899,22 @@
     padding-right: 6px;
   }
 
-  .cave-row-container:hover .cave-row-actions {
+  .cave-row:hover .cave-row-actions {
     display: flex;
   }
 
   .cave-opt-btn {
     background: none;
     border: none;
-    color: #a89984;
-    font-size: 11px;
+    color: #7c7365;
+    font-size: 12px;
     cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 3px;
+    padding: 3px 5px;
+    border-radius: 4px;
   }
 
-  .cave-opt-btn:hover {
+  .cave-opt-btn:hover,
+  .cave-opt-btn.is-pinned {
     color: #fabd2f;
   }
 
@@ -2139,44 +1925,44 @@
   .empty-caves-notice {
     text-align: center;
     padding: 24px 12px;
-    color: #928374;
-    font-size: 12px;
+    color: #7c7365;
+    font-size: 12.5px;
   }
 
   .btn-create-first {
     margin-top: 8px;
-    background: #fabd2f;
-    border: none;
-    color: #1d2021;
-    font-size: 11px;
-    padding: 4px 10px;
-    border-radius: 4px;
+    background: rgba(250, 189, 47, 0.14);
+    border: 1px solid rgba(250, 189, 47, 0.35);
+    color: #fabd2f;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 6px;
     cursor: pointer;
-    font-weight: 600;
   }
 
+  /* 近期足跡 */
   .sidebar-bottom-block {
-    border-top: 1px solid #282828;
-    padding-bottom: 8px;
+    border-top: 1px solid rgba(100, 86, 66, 0.2);
+    padding-bottom: 6px;
   }
 
   .clear-recent-text {
     background: none;
     border: none;
-    color: #928374;
+    color: #7c7365;
     font-size: 11px;
     cursor: pointer;
   }
 
   .clear-recent-text:hover {
-    color: #ebdbb2;
+    color: #d5c4a1;
   }
 
   .recent-scroll-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 4px 8px;
+    gap: 1px;
+    padding: 2px 10px;
   }
 
   .recent-mini-pill {
@@ -2185,16 +1971,17 @@
     justify-content: space-between;
     background: none;
     border: none;
-    color: #a89984;
-    font-size: 11px;
-    padding: 4px 8px;
-    border-radius: 4px;
+    color: #9c8f7a;
+    font-size: 12.5px;
+    padding: 6px 8px;
+    border-radius: 5px;
     text-align: left;
     cursor: pointer;
+    transition: all 0.12s ease;
   }
 
   .recent-mini-pill:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     color: #fabd2f;
   }
 
@@ -2206,17 +1993,16 @@
   }
 
   .recent-time {
-    font-size: 10px;
-    color: #7c6f64;
-    margin-left: 6px;
+    font-size: 11px;
+    color: #665c54;
+    margin-left: 8px;
     flex-shrink: 0;
   }
 
-  /* 側欄底端心法與輕功秘笈入口 */
+  /* 側欄底端心法按鈕 */
   .sidebar-footer-bar {
-    border-top: 1px solid #282828;
-    padding: 8px 10px;
-    background: #181a1b;
+    border-top: 1px solid rgba(100, 86, 66, 0.2);
+    padding: 10px 12px;
   }
 
   .sidebar-help-btn {
@@ -2224,48 +2010,46 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid #3c3836;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(100, 86, 66, 0.25);
     border-radius: 6px;
-    padding: 6px 10px;
-    color: #a89984;
-    font-size: 11px;
+    padding: 7px 10px;
+    color: #9c8f7a;
+    font-size: 12.5px;
     cursor: pointer;
-    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.15s ease;
   }
 
   .sidebar-help-btn:hover,
   .sidebar-help-btn.active {
-    background: rgba(215, 153, 33, 0.12);
-    border-color: #d79921;
+    background: rgba(250, 189, 47, 0.08);
+    border-color: rgba(250, 189, 47, 0.35);
     color: #fabd2f;
   }
 
   .sidebar-help-btn .help-label {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-weight: 600;
+    gap: 8px;
   }
 
-  .help-shortcut-badge {
-    background: #282828;
-    border: 1px solid #504945;
-    border-radius: 3px;
-    padding: 1px 5px;
-    font-size: 10px;
-    color: #ebdbb2;
-    font-family: inherit;
+  .key-badge {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: #7c7365;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.04);
   }
 
-  /* 欄 2：樹狀檢索核心 */
+  /* 欄 2：樹狀檢索核心舞台 */
   .vault-tree-center {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: #282828;
-    border-right: 1px solid #3c3836;
+    background: transparent;
+    border-right: 1px solid rgba(100, 86, 66, 0.22);
   }
 
   .tree-top-toolbar {
@@ -2273,9 +2057,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 16px;
-    background: #232526;
-    border-bottom: 1px solid #3c3836;
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(100, 86, 66, 0.2);
   }
 
   .search-input-wrapper {
@@ -2287,26 +2070,41 @@
 
   .search-glyph {
     position: absolute;
-    left: 10px;
+    left: 11px;
+    font-family: "JetBrains Mono", monospace;
     font-size: 13px;
-    color: #928374;
+    color: #7c7365;
     pointer-events: none;
   }
 
   .tree-search-input {
     width: 100%;
-    background: #1d2021;
-    border: 1px solid #3c3836;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(100, 86, 66, 0.32);
     color: #ebdbb2;
-    font-size: 13px;
-    padding: 6px 30px 6px 32px;
-    border-radius: 6px;
+    font-size: 13.5px;
+    padding: 7px 32px 7px 32px;
+    border-radius: 7px;
     outline: none;
-    transition: border-color 0.15s;
+    transition: all 0.15s ease;
+  }
+
+  .tree-search-input::placeholder {
+    color: #665c54;
   }
 
   .tree-search-input:focus {
-    border-color: #fabd2f;
+    border-color: rgba(250, 189, 47, 0.55);
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .search-key-hint {
+    position: absolute;
+    right: 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: #665c54;
+    pointer-events: none;
   }
 
   .clear-query-btn {
@@ -2314,7 +2112,7 @@
     right: 8px;
     background: none;
     border: none;
-    color: #928374;
+    color: #7c7365;
     cursor: pointer;
     font-size: 12px;
   }
@@ -2322,35 +2120,48 @@
   .view-mode-tabs {
     display: flex;
     align-items: center;
-    gap: 4px;
-    background: #1d2021;
+    gap: 2px;
+    background: rgba(0, 0, 0, 0.25);
     padding: 3px;
-    border-radius: 6px;
-    border: 1px solid #3c3836;
+    border-radius: 7px;
+    border: 1px solid rgba(100, 86, 66, 0.25);
   }
 
   .v-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     background: none;
     border: none;
-    color: #a89984;
-    font-size: 11px;
-    padding: 4px 8px;
-    border-radius: 4px;
+    color: #8c8273;
+    font-size: 12.5px;
+    padding: 5px 10px;
+    border-radius: 5px;
     cursor: pointer;
-    transition: all 0.12s;
+    transition: all 0.14s ease;
     white-space: nowrap;
   }
 
+  .v-tab:hover {
+    color: #d5c4a1;
+  }
+
   .v-tab.active {
-    background: #3c3836;
+    background: rgba(250, 189, 47, 0.12);
     color: #fabd2f;
-    font-weight: 600;
+    font-weight: 500;
+  }
+
+  .tab-count {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    opacity: 0.75;
   }
 
   .tree-scroll-viewport {
     flex: 1;
     overflow-y: auto;
-    padding: 12px 14px;
+    padding: 12px 16px;
   }
 
   .tree-loading-state,
@@ -2359,10 +2170,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 48px 16px;
-    color: #928374;
-    font-size: 13px;
-    gap: 8px;
+    padding: 56px 16px;
+    color: #7c7365;
+    font-size: 13.5px;
+    gap: 10px;
   }
 
   .reset-search-link {
@@ -2370,44 +2181,52 @@
     border: none;
     color: #fabd2f;
     cursor: pointer;
-    text-decoration: underline;
-    font-size: 12px;
+    font-size: 12.5px;
   }
 
   .tree-nodes-list {
     display: flex;
     flex-direction: column;
+    gap: 1px;
   }
 
-  /* 扁平清單與分頁清單樣式 */
+  /* 去框化的扁平清單與分頁清單 */
   .flat-files-list,
   .tabs-manage-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
   }
 
   .flat-file-row,
   .tab-manage-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    background: #1d2021;
-    border: 1px solid #3c3836;
-    border-radius: 6px;
+    gap: 12px;
+    padding: 9px 12px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
     cursor: pointer;
-    transition: background 0.12s;
+    transition: all 0.14s ease;
   }
 
   .flat-file-row:hover,
   .tab-manage-row:hover {
-    background: #32302f;
+    background: rgba(255, 255, 255, 0.035);
   }
 
-  .flat-file-row.selected {
-    border-color: #fabd2f;
-    background: rgba(250, 189, 47, 0.1);
+  .flat-file-row.selected,
+  .tab-manage-row.active-tab {
+    background: rgba(250, 189, 47, 0.08);
+    border-color: rgba(250, 189, 47, 0.25);
+  }
+
+  .file-glyph {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: #fabd2f;
+    flex-shrink: 0;
   }
 
   .file-main-info,
@@ -2419,41 +2238,59 @@
     gap: 2px;
   }
 
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .file-name,
   .tab-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #ebdbb2;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #e6dfd5;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  .flat-file-row:hover .file-name,
+  .tab-manage-row:hover .tab-title {
+    color: #fabd2f;
+  }
+
   .file-sub-path,
   .tab-meta {
-    font-size: 11px;
-    color: #928374;
+    font-size: 11.5px;
+    color: #7c7365;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .badge-opened {
-    font-size: 10px;
-    background: rgba(131, 165, 152, 0.2);
-    color: #83a598;
-    padding: 1px 4px;
-    border-radius: 3px;
+    font-size: 10.5px;
+    background: rgba(142, 192, 124, 0.14);
+    color: #8ec07c;
+    padding: 1px 6px;
+    border-radius: 4px;
   }
 
   .btn-open-direct {
-    background: #3c3836;
-    border: 1px solid #504945;
-    color: #ebdbb2;
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 4px;
+    background: rgba(250, 189, 47, 0.1);
+    border: 1px solid rgba(250, 189, 47, 0.25);
+    color: #fabd2f;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 5px;
     cursor: pointer;
+    opacity: 0;
+    transition: all 0.14s ease;
+  }
+
+  .flat-file-row:hover .btn-open-direct,
+  .flat-file-row.selected .btn-open-direct {
+    opacity: 1;
   }
 
   .btn-open-direct:hover {
@@ -2464,170 +2301,162 @@
   .btn-tab-close {
     background: none;
     border: none;
-    color: #928374;
+    color: #7c7365;
     cursor: pointer;
-    font-size: 12px;
-    padding: 4px;
+    font-size: 15px;
+    padding: 4px 6px;
+    border-radius: 4px;
   }
 
   .btn-tab-close:hover {
     color: #fb4934;
+    background: rgba(251, 73, 52, 0.12);
   }
 
-  /* 欄 3：卷軸即時參詳預覽 */
+  /* 欄 3：卷軸即時參詳預覽 (寬鬆舒適閱讀區) */
   .vault-preview-sidebar {
-    width: 360px;
-    background: #1d2021;
+    width: 380px;
+    background: rgba(16, 18, 17, 0.45);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
   }
 
   .preview-header {
+    padding: 16px 20px 12px 20px;
+    border-bottom: 1px solid rgba(100, 86, 66, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .preview-title-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid #282828;
+    gap: 8px;
   }
 
   .preview-glyph {
-    font-size: 20px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 16px;
     color: #fabd2f;
   }
 
-  .preview-meta-title {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
   .item-title {
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 15px;
+    font-weight: 600;
     color: #ebdbb2;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  .preview-meta-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: #7c7365;
+    min-width: 0;
+  }
+
+  .meta-tag {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    color: #d49b35;
+    background: rgba(212, 155, 53, 0.12);
+    padding: 1px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
   .item-path {
-    font-size: 10px;
-    color: #928374;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .preview-stats-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 16px;
-    background: #282828;
-    font-size: 11px;
-    color: #a89984;
-    border-bottom: 1px solid #3c3836;
-  }
-
   .preview-content-box {
     flex: 1;
     overflow-y: auto;
-    padding: 14px 16px;
-    background: #181a1b;
+    padding: 20px;
   }
 
   .loading-preview {
-    font-size: 12px;
-    color: #fabd2f;
+    font-size: 13px;
+    color: #8c8273;
     text-align: center;
-    padding: 32px 0;
+    padding: 40px 0;
   }
 
   .preview-code-block {
     margin: 0;
     font-family: inherit;
-    font-size: 12px;
-    line-height: 1.6;
+    font-size: 13.5px;
+    line-height: 1.75;
     color: #d5c4a1;
     white-space: pre-wrap;
-    word-break: break-all;
+    word-break: break-word;
   }
 
-  /* 子閣資料夾瀏覽樣式 */
+  /* 子閣資料夾瀏覽 */
   .folder-preview-container {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    height: 100%;
   }
 
   .folder-nav-parent-btn {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #202224;
-    border: 1px dashed #504945;
-    color: #ebdbb2;
-    padding: 7px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(100, 86, 66, 0.28);
+    color: #d5c4a1;
+    padding: 8px 12px;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 12.5px;
     cursor: pointer;
-    transition: all 0.15s ease;
-    text-align: left;
+    transition: all 0.14s ease;
   }
 
   .folder-nav-parent-btn:hover {
-    background: #2d3032;
-    border-color: #fabd2f;
-    color: #fabd2f;
-  }
-
-  .folder-nav-parent-btn .nav-arrow {
-    font-size: 13px;
+    border-color: rgba(250, 189, 47, 0.4);
     color: #fabd2f;
   }
 
   .folder-children-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 3px;
   }
 
   .folder-children-header {
     font-size: 11px;
     font-weight: 600;
-    color: #928374;
-    padding: 2px 4px;
-    letter-spacing: 0.5px;
+    color: #7c7365;
+    padding: 4px 6px;
   }
 
   .folder-child-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 12px;
-    background: #202224;
-    border: 1px solid #2d3032;
+    padding: 8px 10px;
+    background: transparent;
     border-radius: 6px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.14s ease;
   }
 
   .folder-child-item:hover {
-    background: #2a2c2e;
-    border-color: #504945;
-    transform: translateX(2px);
-  }
-
-  .folder-child-item.is-folder:hover {
-    border-color: #fabd2f;
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .folder-child-item .child-icon {
-    font-size: 15px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: #fabd2f;
     flex-shrink: 0;
   }
 
@@ -2636,7 +2465,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
   }
 
   .folder-child-item .child-title-row {
@@ -2646,9 +2475,8 @@
   }
 
   .folder-child-item .child-name {
-    font-size: 12px;
-    font-weight: 500;
-    color: #ebdbb2;
+    font-size: 13px;
+    color: #e6dfd5;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2656,106 +2484,84 @@
 
   .folder-child-item .child-desc {
     font-size: 11px;
-    color: #928374;
-  }
-
-  .folder-child-item .child-actions {
-    flex-shrink: 0;
+    color: #7c7365;
   }
 
   .child-action-btn {
-    background: #32302f;
-    border: 1px solid #504945;
-    color: #ebdbb2;
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(100, 86, 66, 0.3);
+    color: #b8ac99;
+    font-size: 11.5px;
+    padding: 3px 9px;
+    border-radius: 5px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.14s ease;
   }
 
   .child-action-btn:hover {
-    background: #fabd2f;
-    color: #1d2021;
-    border-color: #fabd2f;
-  }
-
-  .child-action-btn.enter-btn:hover {
-    background: #83a598;
-    color: #1d2021;
-    border-color: #83a598;
+    background: rgba(250, 189, 47, 0.14);
+    color: #fabd2f;
+    border-color: rgba(250, 189, 47, 0.4);
   }
 
   .folder-empty-hint {
-    padding: 32px 16px;
+    padding: 40px 16px;
     text-align: center;
-    color: #928374;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
+    color: #7c7365;
   }
 
   .folder-empty-hint .empty-icon {
-    font-size: 32px;
-    opacity: 0.6;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 24px;
+    color: #665c54;
   }
 
   .folder-empty-hint .empty-title {
     font-size: 13px;
-    font-weight: 600;
-    color: #d5c4a1;
-    margin: 0;
+    margin-top: 8px;
   }
 
-  .folder-empty-hint .empty-desc {
-    font-size: 12px;
-    margin: 0;
-    line-height: 1.5;
-  }
-
+  /* 預覽底部動作列 */
   .preview-action-bar {
-    padding: 12px 16px;
-    background: #1d2021;
-    border-top: 1px solid #282828;
+    padding: 12px 20px;
+    border-top: 1px solid rgba(100, 86, 66, 0.2);
     display: flex;
     gap: 8px;
   }
 
   .action-btn-main {
     flex: 1;
-    background: #fabd2f;
-    border: none;
-    color: #1d2021;
-    font-size: 12px;
-    font-weight: 700;
+    background: rgba(250, 189, 47, 0.14);
+    border: 1px solid rgba(250, 189, 47, 0.38);
+    color: #fabd2f;
+    font-size: 13px;
+    font-weight: 500;
     padding: 8px 14px;
     border-radius: 6px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.15s ease;
   }
 
   .action-btn-main:hover {
-    background: #d79921;
+    background: #fabd2f;
+    color: #1d2021;
   }
 
   .action-btn-trash {
-    background: rgba(204, 36, 29, 0.12);
-    border: 1px solid rgba(204, 36, 29, 0.3);
-    color: #fb4934;
-    font-size: 12px;
-    font-weight: 600;
+    background: transparent;
+    border: 1px solid rgba(100, 86, 66, 0.28);
+    color: #8c8273;
+    font-size: 12.5px;
     padding: 8px 12px;
     border-radius: 6px;
     cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
+    transition: all 0.15s ease;
   }
 
   .action-btn-trash:hover {
-    background: #cc241d;
-    color: #fbf1c7;
-    border-color: #cc241d;
+    background: rgba(251, 73, 52, 0.12);
+    color: #fb4934;
+    border-color: rgba(251, 73, 52, 0.35);
   }
 
   .preview-empty-state {
@@ -2764,49 +2570,30 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 32px 24px;
+    padding: 32px;
     text-align: center;
-    color: #928374;
+    color: #7c7365;
   }
 
   .empty-zen-icon {
-    font-size: 36px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 28px;
+    color: #fabd2f;
+    opacity: 0.45;
     margin-bottom: 12px;
-    opacity: 0.6;
   }
 
   .preview-empty-state h3 {
     margin: 0 0 8px 0;
     font-size: 14px;
-    color: #ebdbb2;
+    font-weight: 500;
+    color: #d5c4a1;
   }
 
   .preview-empty-state p {
-    font-size: 12px;
-    line-height: 1.6;
-    margin: 0 0 20px 0;
-  }
-
-  .zen-tip-box {
-    background: rgba(250, 189, 47, 0.08);
-    border: 1px dashed rgba(250, 189, 47, 0.3);
-    border-radius: 6px;
-    padding: 10px 14px;
-    text-align: left;
-  }
-
-  .tip-sparkle {
-    font-size: 11px;
-    font-weight: 700;
-    color: #fabd2f;
-    display: block;
-    margin-bottom: 4px;
-  }
-
-  .zen-tip-box p {
+    font-size: 12.5px;
+    line-height: 1.65;
     margin: 0;
-    font-size: 11px;
-    color: #a89984;
   }
 
   /* 側欄拖曳調整條 */
@@ -2814,7 +2601,7 @@
     position: absolute;
     top: 0;
     right: 0;
-    width: 6px;
+    width: 5px;
     height: 100%;
     cursor: col-resize;
     background: transparent;
@@ -2823,117 +2610,64 @@
 
   .drawer-resize-handle:hover,
   .drawer-resize-handle.dragging {
-    background: #fabd2f;
+    background: rgba(250, 189, 47, 0.6);
   }
 
-  /* 側欄模式 (drawer-view) 下的自適應佈局微調 */
   .vault-master-container.drawer-view .vault-preview-sidebar {
-    display: none; /* 側欄模式下自動隱藏右欄預覽，專注樹狀瀏覽與操作 */
+    display: none;
   }
 
   .vault-master-container.drawer-view .vault-caves-sidebar {
-    width: 200px;
+    width: 210px;
   }
 
-  /* 心法按鈕特殊高亮 */
-  .control-btn.help-btn {
-    border-color: #fabd2f;
-    color: #fabd2f;
-    font-weight: 600;
-  }
-
-  .control-btn.help-btn:hover,
-  .control-btn.help-btn.active {
-    background: #fabd2f;
-    color: #1d2021;
-    box-shadow: 0 0 10px rgba(250, 189, 47, 0.4);
-  }
-
-  /* 拓印 Toast 浮動氣泡 */
+  /* 拓印 Toast */
   .vault-yank-toast {
     position: absolute;
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    background: #fabd2f;
-    color: #1d2021;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 700;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    background: rgba(22, 24, 23, 0.96);
+    border: 1px solid rgba(250, 189, 47, 0.45);
+    color: #fabd2f;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
     z-index: 1050;
-    animation: toastPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: none;
-  }
-
-  @keyframes toastPop {
-    from {
-      opacity: 0;
-      transform: translate(-50%, 10px) scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, 0) scale(1);
-    }
   }
 
   /* 洞天心法說明彈窗 */
   .help-modal-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(0, 0, 0, 0.72);
     backdrop-filter: blur(6px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1060;
-    animation: fadeIn 0.15s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
   }
 
   .help-modal-card {
     width: 90%;
-    max-width: 680px;
-    max-height: 82vh;
-    background: #1d2021;
-    border: 1px solid #d79921;
-    box-shadow:
-      0 16px 48px rgba(0, 0, 0, 0.8),
-      0 0 20px rgba(250, 189, 47, 0.15);
+    max-width: 600px;
+    background: rgba(22, 24, 23, 0.98);
+    border: 1px solid rgba(100, 86, 66, 0.45);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
     border-radius: 10px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  @keyframes scaleIn {
-    from {
-      opacity: 0;
-      transform: scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
   }
 
   .help-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 20px;
-    background: #282828;
-    border-bottom: 1px solid #3c3836;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(100, 86, 66, 0.25);
   }
 
   .help-title-group {
@@ -2943,155 +2677,64 @@
   }
 
   .help-icon {
-    font-size: 24px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 20px;
     color: #fabd2f;
   }
 
   .help-title {
     margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-    color: #fabd2f;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #ebdbb2;
   }
 
   .help-sub {
-    font-size: 11px;
-    color: #a89984;
-  }
-
-  .help-close-btn {
-    background: none;
-    border: none;
-    color: #a89984;
-    font-size: 16px;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
-  }
-
-  .help-close-btn:hover {
-    color: #fb4934;
+    font-size: 12px;
+    color: #8c8273;
   }
 
   .help-body {
-    flex: 1;
+    padding: 16px 20px 22px 20px;
     overflow-y: auto;
-    padding: 18px 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .help-section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .sec-headline {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 700;
-    color: #ebdbb2;
-    border-left: 3px solid #fabd2f;
-    padding-left: 8px;
-  }
-
-  .sec-desc {
-    margin: 0;
-    font-size: 12px;
-    color: #a89984;
-    line-height: 1.5;
-  }
-
-  .philosophy-card {
-    background: #282828;
-    border: 1px solid #3c3836;
-    border-radius: 6px;
-    padding: 12px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 12px;
-    line-height: 1.6;
-    color: #d5c4a1;
-  }
-
-  .philosophy-card strong {
-    color: #fabd2f;
   }
 
   .shortcut-table-wrapper {
-    border: 1px solid #3c3836;
-    border-radius: 6px;
+    border: 1px solid rgba(100, 86, 66, 0.28);
+    border-radius: 8px;
     overflow: hidden;
   }
 
   .vim-guide-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 13px;
     text-align: left;
   }
 
   .vim-guide-table th {
-    background: #282828;
-    color: #a89984;
-    padding: 8px 12px;
-    font-weight: 600;
-    border-bottom: 1px solid #3c3836;
+    background: rgba(255, 255, 255, 0.03);
+    color: #8c8273;
+    padding: 9px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    border-bottom: 1px solid rgba(100, 86, 66, 0.25);
   }
 
   .vim-guide-table td {
-    padding: 7px 12px;
-    border-bottom: 1px solid #282828;
-    color: #ebdbb2;
-  }
-
-  .vim-guide-table tr:hover td {
-    background: rgba(255, 255, 255, 0.03);
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(100, 86, 66, 0.14);
+    color: #d5c4a1;
   }
 
   kbd {
     display: inline-block;
     padding: 2px 6px;
-    font-family: monospace;
+    font-family: "JetBrains Mono", monospace;
     font-size: 11px;
-    font-weight: 700;
     color: #fabd2f;
-    background: #32302f;
-    border: 1px solid #504945;
+    background: rgba(250, 189, 47, 0.1);
+    border: 1px solid rgba(250, 189, 47, 0.25);
     border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  }
-
-  .help-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-    background: #282828;
-    border-top: 1px solid #3c3836;
-  }
-
-  .footer-hint {
-    font-size: 11px;
-    color: #928374;
-  }
-
-  .btn-got-it {
-    background: #fabd2f;
-    border: none;
-    color: #1d2021;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 6px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .btn-got-it:hover {
-    background: #d79921;
   }
 </style>

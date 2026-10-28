@@ -480,13 +480,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(14, 15, 16, 0.82);
+    background: rgba(10, 12, 11, 0.72);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* 鬆弛自然彈窗卡片：以微光半透明羽化線代替硬實線，增加懸浮呼吸空間 */
+  /* 鬆弛自然彈窗卡片：Apothecary Gruvbox 百子櫃懸浮質感 */
   .modal-card {
     position: relative;
     width: 94%;
@@ -494,15 +494,17 @@
     height: 84vh;
     display: flex;
     flex-direction: column;
-    background: #18191a;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(22, 24, 23, 0.97);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(100, 86, 66, 0.45);
     border-radius: 14px;
     box-shadow: 
-      0 24px 64px rgba(0, 0, 0, 0.6),
-      0 4px 16px rgba(0, 0, 0, 0.35);
+      0 24px 64px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(250, 189, 47, 0.08);
     overflow: hidden;
     animation: scaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-    color: #d4cebe;
+    color: #e6dfd5;
     font-family: inherit;
     outline: none;
   }
@@ -512,8 +514,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    background: #1c1d1f;
+    border-bottom: 1px solid rgba(100, 86, 66, 0.25);
+    background: rgba(16, 18, 17, 0.85);
   }
 
   .header-title-box {
@@ -528,33 +530,33 @@
     justify-content: center;
     width: 38px;
     height: 38px;
-    background: rgba(207, 152, 74, 0.1);
-    border: 1px solid rgba(207, 152, 74, 0.25);
+    background: rgba(250, 189, 47, 0.12);
+    border: 1px solid rgba(250, 189, 47, 0.28);
     border-radius: 10px;
   }
 
   :global(.badge-icon-sparkle) {
-    color: #cf984a;
+    color: #fabd2f;
   }
 
   .title-text {
     margin: 0;
     font-size: 1.08rem;
     font-weight: 600;
-    color: #ede7dc;
+    color: #ebdbb2;
     letter-spacing: 0.5px;
   }
 
   .subtitle-text {
     margin: 3px 0 0 0;
     font-size: 0.78rem;
-    color: #8f897c;
+    color: #8c8273;
   }
 
   .close-btn {
     background: transparent;
     border: none;
-    color: #8f897c;
+    color: #8c8273;
     cursor: pointer;
     padding: 8px;
     border-radius: 8px;
@@ -566,7 +568,7 @@
 
   .close-btn:hover {
     background: rgba(255, 255, 255, 0.06);
-    color: #ede7dc;
+    color: #fabd2f;
   }
 
   /* 狀態彩帶：柔和低調 */
@@ -575,8 +577,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 24px;
-    background: #1b1c1e;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(0, 0, 0, 0.22);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.2);
     gap: 14px;
     font-size: 0.78rem;
   }
@@ -589,14 +591,14 @@
   }
 
   .ribbon-label {
-    color: #7a756b;
+    color: #7c7365;
   }
 
   .scope-chip {
-    padding: 4px 10px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    color: #a69f90;
+    padding: 4px 11px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(100, 86, 66, 0.25);
+    color: #a89984;
     font-size: 0.75rem;
     border-radius: 6px;
     cursor: pointer;
@@ -604,14 +606,14 @@
   }
 
   .scope-chip:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #d4cebe;
+    background: rgba(255, 255, 255, 0.07);
+    color: #ebdbb2;
   }
 
   .scope-chip.active {
-    background: rgba(207, 152, 74, 0.18);
-    border-color: rgba(207, 152, 74, 0.4);
-    color: #cf984a;
+    background: rgba(250, 189, 47, 0.14);
+    border-color: rgba(250, 189, 47, 0.38);
+    color: #fabd2f;
     font-weight: 600;
   }
 
@@ -624,24 +626,24 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(207, 152, 74, 0.08);
+    background: rgba(250, 189, 47, 0.08);
     padding: 4px 12px;
     border-radius: 16px;
-    border: 1px solid rgba(207, 152, 74, 0.2);
+    border: 1px solid rgba(250, 189, 47, 0.22);
   }
 
   :global(.ai-sparkle-dot) {
-    color: #cf984a;
+    color: #fabd2f;
     flex-shrink: 0;
   }
 
   .ai-label {
-    color: #cf984a;
+    color: #fabd2f;
     font-weight: 600;
   }
 
   .ai-detail {
-    color: #bfb8a8;
+    color: #bdae93;
   }
 
   /* 雙欄主體 */
@@ -654,10 +656,10 @@
   /* 左側提案清單欄：放寬至 37%，給予文字與選單充分空間 */
   .proposal-pane {
     width: 37%;
-    border-right: 1px solid rgba(255, 255, 255, 0.04);
+    border-right: 1px solid rgba(100, 86, 66, 0.25);
     display: flex;
     flex-direction: column;
-    background: #191a1b;
+    background: rgba(18, 20, 19, 0.7);
   }
 
   .pane-header {
@@ -665,8 +667,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 18px;
-    background: #1c1d1f;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(16, 18, 17, 0.85);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.2);
   }
 
   .pane-title {
@@ -675,17 +677,18 @@
     gap: 8px;
     font-size: 0.82rem;
     font-weight: 600;
-    color: #bfb8a8;
+    color: #d5c4a1;
   }
 
   .selected-pill {
-    padding: 2px 7px;
-    background: rgba(207, 152, 74, 0.12);
-    border: 1px solid rgba(207, 152, 74, 0.25);
+    padding: 2px 8px;
+    background: rgba(250, 189, 47, 0.12);
+    border: 1px solid rgba(250, 189, 47, 0.25);
     border-radius: 10px;
-    color: #cf984a;
+    color: #fabd2f;
     font-size: 0.7rem;
     font-weight: normal;
+    font-family: "JetBrains Mono", monospace;
   }
 
   .pane-actions {
@@ -698,7 +701,7 @@
   .text-link {
     background: transparent;
     border: none;
-    color: #71908d;
+    color: #8ec07c;
     cursor: pointer;
     padding: 0;
     display: flex;
@@ -708,12 +711,11 @@
   }
 
   .text-link:hover {
-    color: #8a9a6e;
-    text-decoration: underline;
+    color: #fabd2f;
   }
 
   .divider {
-    color: #52565b;
+    color: #504945;
   }
 
   .proposal-list {
@@ -730,8 +732,9 @@
     display: flex;
     flex-direction: column;
     padding: 12px 15px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(100, 86, 66, 0.25);
+    border-left: 3px solid transparent;
     border-radius: 9px;
     cursor: pointer;
     transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
@@ -740,14 +743,15 @@
   }
 
   .proposal-card:hover {
-    border-color: rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.045);
+    border-color: rgba(250, 189, 47, 0.28);
+    background: rgba(255, 255, 255, 0.05);
     transform: translateY(-1px);
   }
 
   .proposal-card.checked {
-    border-color: rgba(207, 152, 74, 0.38);
-    background: rgba(207, 152, 74, 0.07);
+    border-color: rgba(250, 189, 47, 0.35);
+    border-left-color: #fabd2f;
+    background: rgba(250, 189, 47, 0.07);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
   }
 
@@ -763,11 +767,11 @@
   }
 
   :global(.chk-icon-active) {
-    color: #cf984a;
+    color: #fabd2f;
   }
 
   :global(.chk-icon-idle) {
-    color: #52565b;
+    color: #504945;
   }
 
   .proposal-info {
@@ -787,11 +791,12 @@
   .proposal-name {
     font-size: 0.86rem;
     font-weight: 500;
-    color: #d4cebe;
+    color: #e6dfd5;
+    letter-spacing: 0.02em;
   }
 
   .proposal-card.checked .proposal-name {
-    color: #ede7dc;
+    color: #fabd2f;
     font-weight: 600;
   }
 
@@ -803,49 +808,50 @@
 
   /* 標籤降噪：純粹無邊框微透質感，不搶奪焦點 */
   .badge {
-    padding: 1px 7px;
-    border-radius: 5px;
+    padding: 1.5px 7px;
+    border-radius: 4px;
     font-size: 0.68rem;
     font-weight: 500;
     white-space: nowrap;
     border: none;
+    font-family: "JetBrains Mono", monospace;
   }
 
   .badge.ai-rec {
-    background: rgba(207, 152, 74, 0.15);
-    color: #cf984a;
+    background: rgba(250, 189, 47, 0.14);
+    color: #fabd2f;
   }
 
   .badge.warning {
-    background: rgba(199, 120, 64, 0.15);
-    color: #c77840;
+    background: rgba(254, 128, 25, 0.14);
+    color: #fe8019;
   }
 
   .badge.info {
-    background: rgba(113, 144, 141, 0.15);
-    color: #71908d;
+    background: rgba(142, 192, 124, 0.14);
+    color: #8ec07c;
   }
 
   .badge.success {
-    background: rgba(138, 154, 110, 0.15);
-    color: #8a9a6e;
+    background: rgba(184, 187, 38, 0.14);
+    color: #b8bb26;
   }
 
   .badge.tip {
-    background: rgba(176, 124, 145, 0.15);
-    color: #b07c91;
+    background: rgba(211, 134, 155, 0.14);
+    color: #d3869b;
   }
 
   .proposal-desc {
     font-size: 0.75rem;
-    color: #8f897c;
+    color: #8c8273;
     line-height: 1.45;
   }
 
   .sub-option {
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px dashed rgba(255, 255, 255, 0.06);
+    border-top: 1px dashed rgba(100, 86, 66, 0.25);
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -1282,19 +1288,19 @@
     font-style: italic;
   }
 
-  /* 底部操作列：舒展寬敞 */
+  /* 底部操作列：虛線分割與大方呼吸感 */
   .modal-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 14px 24px;
-    background: #1c1d1f;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(16, 18, 17, 0.85);
+    border-top: 1px dashed rgba(100, 86, 66, 0.25);
   }
 
   .footer-left-hint {
-    font-size: 0.74rem;
-    color: #7a756b;
+    font-size: 0.76rem;
+    color: #7c7365;
   }
 
   .footer-actions {
@@ -1317,39 +1323,40 @@
 
   .footer-btn.secondary {
     background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.08);
-    color: #d4cebe;
+    border-color: rgba(100, 86, 66, 0.3);
+    color: #ebdbb2;
   }
 
   .footer-btn.secondary:hover {
     background: rgba(255, 255, 255, 0.08);
-    color: #ede7dc;
+    color: #fabd2f;
   }
 
   .footer-btn.copy-btn {
-    background: rgba(113, 144, 141, 0.12);
-    border-color: rgba(113, 144, 141, 0.25);
-    color: #71908d;
+    background: rgba(142, 192, 124, 0.12);
+    border-color: rgba(142, 192, 124, 0.28);
+    color: #8ec07c;
   }
 
   .footer-btn.copy-btn:hover {
-    background: rgba(113, 144, 141, 0.22);
-    border-color: rgba(113, 144, 141, 0.45);
-    color: #ede7dc;
+    background: rgba(142, 192, 124, 0.22);
+    border-color: rgba(142, 192, 124, 0.45);
+    color: #b8bb26;
   }
 
   .footer-btn.apply-btn {
-    background: #cf984a;
-    border-color: #cf984a;
+    background: #fabd2f;
+    border-color: #fabd2f;
     color: #18191a;
     font-weight: 600;
-    box-shadow: 0 2px 10px rgba(207, 152, 74, 0.25);
+    box-shadow: 0 2px 10px rgba(250, 189, 47, 0.28);
   }
 
   .footer-btn.apply-btn:hover {
-    background: #b87e35;
-    border-color: #b87e35;
-    box-shadow: 0 3px 12px rgba(207, 152, 74, 0.35);
+    background: #ffd666;
+    border-color: #ffd666;
+    box-shadow: 0 3px 14px rgba(250, 189, 47, 0.4);
+    transform: translateY(-1px);
   }
 
   .footer-btn.apply-btn.disabled {
@@ -1357,8 +1364,9 @@
     cursor: not-allowed;
     background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.08);
-    color: #7a756b;
+    color: #7c7365;
     box-shadow: none;
+    transform: none;
   }
 
   @keyframes fadeIn {

@@ -411,8 +411,9 @@
     position: fixed;
     inset: 0;
     z-index: 9998;
-    background: rgba(10, 10, 12, 0.78);
-    backdrop-filter: blur(5px);
+    background: rgba(10, 12, 11, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -425,15 +426,19 @@
     max-width: 1240px;
     height: 85vh;
     max-height: 880px;
-    background: #1d2021;
-    border: 1px solid #3c3836;
-    border-radius: 8px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+    background: rgba(22, 24, 23, 0.97);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(100, 86, 66, 0.45);
+    border-radius: 12px;
+    box-shadow:
+      0 24px 64px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(250, 189, 47, 0.08);
     display: flex;
     flex-direction: column;
-    color: #ebdbb2;
+    color: #e6dfd5;
     overflow: hidden;
-    animation: zoomIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: zoomIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   @keyframes zoomIn {
@@ -450,19 +455,19 @@
   /* 頂部 Header */
   .card-header {
     height: 52px;
-    background: #18191a;
-    border-bottom: 1px solid #32353a;
+    background: rgba(16, 18, 17, 0.85);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.25);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
+    padding: 0 18px;
     user-select: none;
   }
 
   .header-left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
 
   :global(.accent-icon) {
@@ -472,22 +477,23 @@
   .title-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
 
   .main-title {
     font-size: 14px;
     font-weight: 600;
-    color: #fbf1c7;
+    color: #ebdbb2;
+    letter-spacing: 0.02em;
   }
 
   .file-name {
-    font-size: 12px;
-    color: #83a598;
-    background: #282828;
-    padding: 2px 8px;
+    font-size: 11.5px;
+    color: #8ec07c;
+    background: rgba(142, 192, 124, 0.1);
+    padding: 2.5px 8px;
     border-radius: 4px;
-    font-family: monospace;
+    font-family: "JetBrains Mono", monospace;
   }
 
   .header-actions {
@@ -497,57 +503,63 @@
   }
 
   .action-btn {
-    background: #282828;
-    border: 1px solid #504945;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(100, 86, 66, 0.3);
     color: #ebdbb2;
     font-size: 12px;
     padding: 6px 12px;
-    border-radius: 4px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     gap: 6px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.15s ease;
   }
 
   .action-btn:hover:not(:disabled) {
-    background: #3c3836;
-    border-color: #665c54;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(250, 189, 47, 0.35);
+    color: #fabd2f;
   }
 
   .action-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.35;
     cursor: not-allowed;
   }
 
   .label-btn {
-    border-color: #d79921;
+    border-color: rgba(250, 189, 47, 0.35);
     color: #fabd2f;
+    background: rgba(250, 189, 47, 0.08);
   }
 
   .label-btn:hover {
-    background: rgba(250, 189, 47, 0.12);
+    background: rgba(250, 189, 47, 0.18);
+    border-color: rgba(250, 189, 47, 0.5);
   }
 
   .revert-btn {
-    background: #b57614;
+    background: #fabd2f;
     border-color: #fabd2f;
-    color: #fbf1c7;
+    color: #18191a;
     font-weight: 600;
+    box-shadow: 0 2px 8px rgba(250, 189, 47, 0.25);
   }
 
   .revert-btn:hover:not(:disabled) {
-    background: #d79921;
-    box-shadow: 0 0 10px rgba(250, 189, 47, 0.3);
+    background: #ffd666;
+    border-color: #ffd666;
+    box-shadow: 0 3px 12px rgba(250, 189, 47, 0.4);
+    transform: translateY(-1px);
   }
 
   .close-btn {
     background: none;
     border: none;
-    color: #928374;
+    color: #8c8273;
     cursor: pointer;
     padding: 6px;
-    border-radius: 4px;
+    border-radius: 5px;
     display: flex;
     align-items: center;
     transition: all 0.15s;
@@ -555,12 +567,12 @@
   }
 
   .close-btn:hover {
-    background: #3c3836;
-    color: #ebdbb2;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fabd2f;
   }
 
   :global(.text-green) {
-    color: #b8bb26;
+    color: #8ec07c;
   }
 
   /* 核心雙欄主體 */
@@ -574,47 +586,48 @@
   .timeline-pane {
     width: 290px;
     min-width: 260px;
-    background: #141617;
-    border-right: 1px solid #282828;
+    background: rgba(18, 20, 19, 0.7);
+    border-right: 1px solid rgba(100, 86, 66, 0.25);
     display: flex;
     flex-direction: column;
   }
 
   .pane-header {
-    height: 36px;
-    background: #18191a;
-    border-bottom: 1px solid #282828;
+    height: 38px;
+    background: rgba(16, 18, 17, 0.85);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.2);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 12px;
+    padding: 0 14px;
     font-size: 12px;
     font-weight: 600;
-    color: #a89984;
+    color: #d5c4a1;
   }
 
   .refresh-hint {
     font-size: 11px;
-    color: #928374;
+    color: #7c7365;
     font-weight: normal;
   }
 
   .timeline-list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    padding: 10px 8px;
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
 
   .timeline-item {
-    background: #1d2021;
-    border: 1px solid #282828;
-    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(100, 86, 66, 0.22);
+    border-left: 3px solid transparent;
+    border-radius: 8px;
     padding: 10px 12px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.15s ease;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -622,14 +635,14 @@
   }
 
   .timeline-item:hover {
-    background: #282828;
-    border-color: #504945;
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(250, 189, 47, 0.3);
   }
 
   .timeline-item.active {
-    background: #2d261e;
-    border-color: #fabd2f;
-    box-shadow: inset 3px 0 0 #fabd2f;
+    background: rgba(250, 189, 47, 0.08);
+    border-color: rgba(250, 189, 47, 0.35);
+    border-left-color: #fabd2f;
   }
 
   .item-top {
