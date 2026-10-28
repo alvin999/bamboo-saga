@@ -67,11 +67,15 @@ jobs:
             > *Scatter thoughts on bamboo slips; forge an immortal saga with AI.*
             
             ### ✨ 本次更新亮點 (Highlights)
-            * 🎨 **百子櫃東方工藝與現代通透呼吸感 (Apothecary Gruvbox UI Redesign)**：全站彈窗（命令中樞、模糊搜尋、歷史時間軸、文字工具箱、全功能設定中樞）全面重塑，導入高通透毛玻璃、琥珀金動態指示條、去框化鍵位徽章與寬鬆單行清單排版。
-            * 🛡️ **原生資源回收桶與安全覆蓋快照 (Native Recycle Bin & Safe Backups)**：檔案刪除直通作業系統資源回收桶（Windows / macOS / Linux 原生橋接），避免手滑誤刪；覆蓋存檔前自動保留安全快照。
-            * 📑 **輕量雙向維基連結與中鍵分頁手勢 (Wikilinks & Tab Gestures)**：全面支援 `[[雙括號]]` 即時自動補全與 Ctrl+Click 跳轉，分頁標籤支援滑鼠中鍵極速關閉。
-            * ⚙️ **膠囊式全功能設定中樞 (Capsule Settings Hub)**：將 API 金鑰庫、按鍵偏好、版面配置、OneDrive 與跨平台系統整合重塑為現代膠囊分頁，操作直覺靈動。
-            * ⚡ **雙引擎 AI 煉丹與機敏隱私防護 (Sanitizer Guard)**：完善純本機憑證保險庫持久化（OS Native DPAPI / Web Crypto），雲端 AI 傳送前自動脫敏保護。
+            * ⌨️ **編輯器原生 Tab 鍵縮排支援 (Tab Indentation)**：在程式碼編輯器中全面支援標準 `Tab` 鍵插入縮排（預設 2 空格）與選取區域縮排，不再發生焦點逸出問題。
+            * 🛠️ **文字工具箱與 Diff 視圖全面輕量化 (Text Tools & Diff Refinement)**：
+              - 工具列與標頭改採更緊湊之極簡 Gruvbox 暖灰風格，大幅釋放垂直視野。
+              - 簡化雙欄文字差異對齊視圖（Split Diff），優化增刪色塊與行號對比度。
+              - 操作日誌與確認套用按鈕整併至底部狀態列，一氣呵成。
+            * 🤖 **AI 煉丹側邊抽屜與對話體驗優化 (AI Drawer & Security Scheme)**：
+              - AI 顧問抽屜全面套用百子櫃美學與通透間距。
+              - 憑證安全持久化方案由傳統單選圓鈕升級為卡片式互動元件，直覺好點選。
+            * 🏷️ **快速選單提示精準化 (Brand Quick Menu)**：更新「行處理解藥包」功能標籤與快捷鍵指示，提升易用性。
 
             ### 📥 各平台安裝說明 (Installation Guide)
             * **🪟 Windows (10 / 11)**：下載最新版 `bamboo-saga_*_x64-setup.exe` 雙擊安裝。若遇 SmartScreen 提示，點擊「其他資訊」➔「仍要執行」即可。
