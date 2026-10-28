@@ -67,11 +67,11 @@ jobs:
             > *Scatter thoughts on bamboo slips; forge an immortal saga with AI.*
             
             ### ✨ 本次更新亮點 (Highlights)
-            * 🎨 **暗房暖炭低疲勞美學 (Warm Charcoal Darkroom)**：全面優化全域色彩系統，採用極致溫潤的暖炭黑底與琥珀金微光；柔化 CodeMirror 6 語法高亮對比度，大幅緩解長時間撰寫手稿的眼部疲勞。
-            * 🛠️ **多功能文字工具箱排版升級 (Text Tools Modal)**：擴大視窗呼吸感與行間距，重塑雙欄 Diff 比對視圖與清洗工具排列，精簡徽章干擾，提供更純粹的文字處理體驗。
-            * 🔄 **在線升級雷達 (Release Radar)**：於「系統設定」分頁正式整合 GitHub Releases 即時更新檢查器，一鍵掌握最新版本動態與跨平台發佈資訊。
-            * 🛡️ **Windows NSIS 輕量封裝**：Windows 發行版本全面採用現代化 NSIS 獨立安裝程式，免除 UAC 權限困擾，隨開隨用更流暢。
-            * ☁️ **全平台 OneDrive 備份完善**：持續強化跨平台（Windows / macOS / Linux）雲端自動鏡像備份之穩固性。
+            * 🎨 **百子櫃東方工藝與現代通透呼吸感 (Apothecary Gruvbox UI Redesign)**：全站彈窗（命令中樞、模糊搜尋、歷史時間軸、文字工具箱、全功能設定中樞）全面重塑，導入高通透毛玻璃、琥珀金動態指示條、去框化鍵位徽章與寬鬆單行清單排版。
+            * 🛡️ **原生資源回收桶與安全覆蓋快照 (Native Recycle Bin & Safe Backups)**：檔案刪除直通作業系統資源回收桶（Windows / macOS / Linux 原生橋接），避免手滑誤刪；覆蓋存檔前自動保留安全快照。
+            * 📑 **輕量雙向維基連結與中鍵分頁手勢 (Wikilinks & Tab Gestures)**：全面支援 `[[雙括號]]` 即時自動補全與 Ctrl+Click 跳轉，分頁標籤支援滑鼠中鍵極速關閉。
+            * ⚙️ **膠囊式全功能設定中樞 (Capsule Settings Hub)**：將 API 金鑰庫、按鍵偏好、版面配置、OneDrive 與跨平台系統整合重塑為現代膠囊分頁，操作直覺靈動。
+            * ⚡ **雙引擎 AI 煉丹與機敏隱私防護 (Sanitizer Guard)**：完善純本機憑證保險庫持久化（OS Native DPAPI / Web Crypto），雲端 AI 傳送前自動脫敏保護。
 
             ### 📥 各平台安裝說明 (Installation Guide)
             * **🪟 Windows (10 / 11)**：下載最新版 `bamboo-saga_*_x64-setup.exe` 雙擊安裝。若遇 SmartScreen 提示，點擊「其他資訊」➔「仍要執行」即可。

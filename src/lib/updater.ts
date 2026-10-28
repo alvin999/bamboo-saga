@@ -12,11 +12,11 @@ export interface VersionCheckResult {
   publishedAt: string;
 }
 
-export const CURRENT_VERSION = 'v0.1.1';
+export const CURRENT_VERSION = 'v0.1.2';
 export const GITHUB_REPO = 'alvin999/bamboo-saga';
 
 /**
- * 比較兩組 SemVer 版本號 (例如 0.1.0 與 0.1.1)
+ * 比較兩組 SemVer 版本號 (例如 0.1.1 與 0.1.2)
  * @returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal
  */
 export function compareSemver(v1: string, v2: string): number {

@@ -765,7 +765,7 @@ fn backup_vault_to_onedrive(
         "daily_tag": daily_tag,
         "weekly_tag": weekly_tag,
         "monthly_tag": monthly_tag,
-        "app_version": "0.1.1"
+        "app_version": "0.1.2"
     });
     let manifest_path = backup_root.join("backup_manifest.json");
     let _ = fs::write(&manifest_path, manifest.to_string());
