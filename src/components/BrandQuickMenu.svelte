@@ -140,8 +140,11 @@
       onmouseleave={handleMouseLeave}
     >
       <div class="menu-header">
-        <span class="hud-tag">SAGA // QUICK HUB</span>
-        <span class="header-desc">廣零散 · 萬卷捷徑掌心印</span>
+        <div class="header-left">
+          <span class="hud-tag">SAGA // QUICK HUB</span>
+          <span class="header-desc">廣零散 · 萬卷捷徑掌心印</span>
+        </div>
+        <span class="vault-tag">[00 // CONTROL-VAULT]</span>
       </div>
 
       <!-- 分組 1：卷軸與檔案 -->
@@ -156,7 +159,7 @@
           onclick={() => handleAction(onToggleFileBrowser)}
         >
           <div class="item-left">
-            <span class="item-icon">📜</span>
+            <span class="item-glyph glyph-primary">◫</span>
             <div class="item-info">
               <span class="item-name">藏卷洞天 · 萬卷中控台</span>
               <span class="item-tip">瀏覽已收錄目錄與檔案總管抽屜</span>
@@ -170,9 +173,7 @@
           onclick={() => handleAction(onAddTab)}
         >
           <div class="item-left">
-            <span class="item-icon">
-              <img src="/bamboo.svg" alt="素簡" class="menu-bamboo-icon" />
-            </span>
+            <span class="item-glyph glyph-primary">▢</span>
             <div class="item-info">
               <span class="item-name">添新素簡</span>
               <span class="item-tip">開闢隨手空白筆記與代碼分頁</span>
@@ -187,7 +188,7 @@
             onclick={() => handleAction(onManualSave)}
           >
             <div class="item-left">
-              <span class="item-icon">💾</span>
+              <span class="item-glyph glyph-secondary">◈</span>
               <div class="item-info">
                 <span class="item-name">封存卷軸 · 儲存檔案</span>
                 <span class="item-tip">立即將當前內容寫入實體磁碟</span>
@@ -203,7 +204,7 @@
             onclick={() => handleAction(onSaveAs)}
           >
             <div class="item-left">
-              <span class="item-icon">📦</span>
+              <span class="item-glyph glyph-warm">❖</span>
               <div class="item-info">
                 <span class="item-name">AI 智薦歸檔 · 另存新卷</span>
                 <span class="item-tip">語義分析智能歸類磁碟路徑</span>
@@ -219,7 +220,7 @@
             onclick={() => handleAction(onOpenFuzzy)}
           >
             <div class="item-left">
-              <span class="item-icon">🔍</span>
+              <span class="item-glyph glyph-primary">◎</span>
               <div class="item-info">
                 <span class="item-name">萬卷全搜</span>
                 <span class="item-tip">模糊檢索全域檔案與近期卷軸</span>
@@ -235,7 +236,7 @@
             onclick={() => handleAction(onOpenTextTools)}
           >
             <div class="item-left">
-              <span class="item-icon">🧹</span>
+              <span class="item-glyph glyph-primary">◬</span>
               <div class="item-info">
                 <span class="item-name">行處理解藥包 · 文本排版</span>
                 <span class="item-tip">批次行去重、快速排序與結構排版工具</span>
@@ -251,7 +252,7 @@
             onclick={() => handleAction(onOpenExport)}
           >
             <div class="item-left">
-              <span class="item-icon">📥</span>
+              <span class="item-glyph glyph-secondary">⊼</span>
               <div class="item-info">
                 <span class="item-name">藥帖匯出 · 下載與複製</span>
                 <span class="item-tip">匯出當前手稿為 .md / .txt 或複製乾淨內容</span>
@@ -277,7 +278,7 @@
             onclick={() => handleAction(onOpenHistory)}
           >
             <div class="item-left">
-              <span class="item-icon">⏳</span>
+              <span class="item-glyph glyph-primary">⏱</span>
               <div class="item-info">
                 <span class="item-name">卷軸歷史時光機</span>
                 <span class="item-tip">本機快照時間軸與版本 Diff 比對</span>
@@ -293,7 +294,7 @@
             onclick={() => handleAction(onOpenBackup)}
           >
             <div class="item-left">
-              <span class="item-icon">☁️</span>
+              <span class="item-glyph glyph-secondary">☁</span>
               <div class="item-info">
                 <span class="item-name">雲端法印 (OneDrive 備份)</span>
                 <span class="item-tip">
@@ -310,11 +311,11 @@
 
       <div class="menu-divider"></div>
 
-      <!-- 分組 3：劍道與禪風工作台 -->
+      <!-- 分組 3：創渡與禪風工作台 -->
       <div class="menu-section">
         <div class="section-title">
           <span class="sec-dot"></span>
-          <span>劍道與禪風工作台</span>
+          <span>創渡與禪風工作台</span>
         </div>
 
         {#if onToggleVim}
@@ -323,7 +324,7 @@
             onclick={() => handleAction(onToggleVim)}
           >
             <div class="item-left">
-              <span class="item-icon">⚔️</span>
+              <span class="item-glyph glyph-primary">⚔</span>
               <div class="item-info">
                 <span class="item-name">Vim 劍道模式</span>
                 <span class="item-tip">切換極速鍵道 Normal / Insert 模式</span>
@@ -341,13 +342,13 @@
             onclick={() => handleAction(onToggleSmear)}
           >
             <div class="item-left">
-              <span class="item-icon">🖌️</span>
+              <span class="item-glyph glyph-warm">☄</span>
               <div class="item-info">
                 <span class="item-name">墨韻殘影 (Smear Cursor)</span>
                 <span class="item-tip">光標拖尾水墨動態渲染特效</span>
               </div>
             </div>
-            <span class="status-pill {smearEnabled ? 'active' : 'idle'}">
+            <span class="status-pill {smearEnabled ? 'warm' : 'idle'}">
               {smearEnabled ? 'ON' : 'OFF'}
             </span>
           </button>
@@ -359,7 +360,7 @@
             onclick={() => handleAction(onToggleWorkbenchWidth)}
           >
             <div class="item-left">
-              <span class="item-icon">📐</span>
+              <span class="item-glyph glyph-primary">⊿</span>
               <div class="item-info">
                 <span class="item-name">工作台畫布寬度</span>
                 <span class="item-tip">居中禪風 (960px) 與全螢幕滿版切換</span>
@@ -377,7 +378,7 @@
             onclick={() => handleAction(onToggleZenFocus)}
           >
             <div class="item-left">
-              <span class="item-icon">🎋</span>
+              <span class="item-glyph glyph-secondary">竹</span>
               <div class="item-info">
                 <span class="item-name">竹林靜心 · 沉浸專注</span>
                 <span class="item-tip">隱藏全域邊界，只留一卷清幽筆墨</span>
@@ -393,7 +394,7 @@
             onclick={() => handleAction(onToggleTypewriter)}
           >
             <div class="item-left">
-              <span class="item-icon">📜</span>
+              <span class="item-glyph glyph-muted">⌨</span>
               <div class="item-info">
                 <span class="item-name">打字機捲動模式</span>
                 <span class="item-tip">視線垂直居中保持，行走字間自然呼吸</span>
@@ -421,7 +422,7 @@
             onclick={() => handleAction(onOpenCheatSheet)}
           >
             <div class="item-left">
-              <span class="item-icon">📖</span>
+              <span class="item-glyph glyph-primary">☵</span>
               <div class="item-info">
                 <span class="item-name">鍵道輕功速查指南</span>
                 <span class="item-tip">全系統快捷鍵與操作秘笈</span>
@@ -437,7 +438,7 @@
             onclick={() => handleAction(onOpenSettings)}
           >
             <div class="item-left">
-              <span class="item-icon">⚙️</span>
+              <span class="item-glyph glyph-primary">⚙</span>
               <div class="item-info">
                 <span class="item-name">靈石金鑰與偏好設定</span>
                 <span class="item-tip">AI 煉丹模型與 API 金鑰保險庫</span>
@@ -530,22 +531,22 @@
 
   .brand-cluster:hover .menu-indicator,
   .menu-indicator.expanded {
-    color: #d49b35;
+    color: #fabd2f;
     transform: translateY(1px);
   }
 
-  /* 下拉快顯面板 */
+  /* 下拉快顯面板 (兼具 Apothecary Gruvbox 東方藥理與通透呼吸感) */
   .quick-menu-dropdown {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
-    width: 320px;
+    width: 326px;
     background: rgba(20, 22, 21, 0.96);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(80, 69, 52, 0.55);
+    border: 1px solid rgba(80, 69, 52, 0.5);
     border-radius: 6px;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(212, 155, 53, 0.15);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.68), 0 0 0 1px rgba(250, 189, 47, 0.12);
     padding: 10px;
     z-index: 100;
     display: flex;
@@ -557,7 +558,7 @@
   @keyframes menuFadeIn {
     from {
       opacity: 0;
-      transform: translateY(-6px);
+      transform: translateY(-5px);
     }
     to {
       opacity: 1;
@@ -569,15 +570,22 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 6px 6px 6px;
-    border-bottom: 1px solid rgba(80, 69, 52, 0.3);
+    padding: 4px 6px 8px 6px;
+    border-bottom: 1px solid rgba(80, 69, 52, 0.35);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .hud-tag {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
+    font-size: 9.5px;
     color: #fabd2f;
     letter-spacing: 0.08em;
+    font-weight: 600;
     background: rgba(250, 189, 47, 0.12);
     padding: 2px 5px;
     border-radius: 3px;
@@ -586,7 +594,18 @@
 
   .header-desc {
     font-size: 10px;
-    color: #938c80;
+    color: #9c8f7a;
+  }
+
+  .vault-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    padding: 1.5px 4.5px;
+    border-radius: 3px;
+    background: #181a18;
+    color: #d4c5ad;
+    border: 1px solid rgba(80, 69, 52, 0.4);
+    letter-spacing: 0.06em;
   }
 
   .menu-section {
@@ -598,10 +617,11 @@
   .section-title {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
-    font-weight: 600;
-    color: #938c80;
+    font-weight: 500;
+    color: #9c8f7a;
     padding: 4px 6px 2px 6px;
     letter-spacing: 0.06em;
   }
@@ -610,8 +630,8 @@
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: #d49b35;
-    opacity: 0.8;
+    background: #fabd2f;
+    opacity: 0.65;
   }
 
   .menu-item {
@@ -623,26 +643,23 @@
     background: transparent;
     border: 1px solid transparent;
     border-radius: 4px;
-    color: #ece7dc;
+    color: #e4e2e1;
     cursor: pointer;
     text-align: left;
     transition: all 0.14s ease;
   }
 
   .menu-item:hover {
-    background: rgba(212, 155, 53, 0.1);
-    border-color: rgba(212, 155, 53, 0.35);
+    background: rgba(250, 189, 47, 0.09);
+    border-color: rgba(250, 189, 47, 0.3);
+  }
+
+  .menu-item:hover .item-name {
     color: #fabd2f;
   }
 
-  .menu-item.highlight {
-    background: rgba(212, 155, 53, 0.06);
-    border-color: rgba(212, 155, 53, 0.2);
-  }
-
-  .menu-item.highlight:hover {
-    background: rgba(212, 155, 53, 0.16);
-    border-color: rgba(212, 155, 53, 0.45);
+  .menu-item:hover .item-glyph {
+    transform: scale(1.12);
   }
 
   .item-left {
@@ -652,27 +669,40 @@
     min-width: 0;
   }
 
-  .item-icon {
-    font-size: 14px;
-    line-height: 1;
-    flex-shrink: 0;
+  /* 自由呼吸的古典符號 (Monospace Apothecary Glyphs - 無生硬外框) */
+  .item-glyph {
+    width: 18px;
+    height: 18px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: transform 0.15s ease, color 0.15s ease;
   }
 
-  .menu-bamboo-icon {
-    width: 15px;
-    height: 15px;
-    border-radius: 3px;
-    vertical-align: middle;
-    display: inline-block;
+  .item-glyph.glyph-primary {
+    color: #fabd2f;
+  }
+
+  .item-glyph.glyph-secondary {
+    color: #cacd39;
+  }
+
+  .item-glyph.glyph-warm {
+    color: #ffdfa4;
+  }
+
+  .item-glyph.glyph-muted {
+    color: #a89984;
   }
 
   .item-info {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 1.5px;
     min-width: 0;
   }
 
@@ -680,22 +710,26 @@
     font-size: 12px;
     font-weight: 500;
     line-height: 1.25;
+    color: #e4e2e1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.12s ease;
   }
 
+  /* 副標採用無襯線比例字體與自然字距，輕盈好閱讀 */
   .item-tip {
     font-size: 10px;
     color: #8c8579;
-    line-height: 1.2;
+    line-height: 1.25;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.12s ease;
   }
 
   .menu-item:hover .item-tip {
-    color: #a89f91;
+    color: #d4c5ad;
   }
 
   .key-badge {
@@ -722,22 +756,17 @@
     border: 1px solid transparent;
   }
 
-  .status-pill.active {
-    background: rgba(142, 192, 124, 0.15);
-    color: #8ec07c;
-    border-color: rgba(142, 192, 124, 0.35);
-  }
-
+  .status-pill.active,
   .status-pill.ok {
     background: rgba(142, 192, 124, 0.15);
     color: #8ec07c;
     border-color: rgba(142, 192, 124, 0.35);
   }
 
-  .status-pill.idle {
-    background: rgba(147, 140, 128, 0.12);
-    color: #938c80;
-    border-color: rgba(147, 140, 128, 0.25);
+  .status-pill.warm {
+    background: rgba(250, 189, 47, 0.14);
+    color: #fabd2f;
+    border-color: rgba(250, 189, 47, 0.32);
   }
 
   .status-pill.neutral {
@@ -746,9 +775,15 @@
     border-color: rgba(212, 155, 53, 0.3);
   }
 
+  .status-pill.idle {
+    background: rgba(147, 140, 128, 0.12);
+    color: #938c80;
+    border-color: rgba(147, 140, 128, 0.25);
+  }
+
   .menu-divider {
     height: 1px;
-    background: rgba(80, 69, 52, 0.35);
-    margin: 2px 4px;
+    background: rgba(80, 69, 52, 0.32);
+    margin: 3px 4px;
   }
 </style>
