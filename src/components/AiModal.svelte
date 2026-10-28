@@ -792,19 +792,14 @@
             <span class="scheme-title">金鑰本機安全持久化機制</span>
           </div>
           <div class="scheme-options-grid">
-            <label
+            <button
+              type="button"
               class="scheme-option-item {inputSecurityMode ===
               'scheme_3_os_native'
                 ? 'selected'
                 : ''}"
+              onclick={() => (inputSecurityMode = "scheme_3_os_native")}
             >
-              <input
-                type="radio"
-                name="sec_scheme"
-                value="scheme_3_os_native"
-                checked={inputSecurityMode === "scheme_3_os_native"}
-                onchange={() => (inputSecurityMode = "scheme_3_os_native")}
-              />
               <div class="scheme-item-content">
                 <div class="scheme-item-header">
                   <span class="scheme-item-name">作業系統原生認證保險庫</span>
@@ -814,21 +809,16 @@
                   >透過 OS 原生憑證安全庫綁定電腦登入帳號，不落地純文字。</span
                 >
               </div>
-            </label>
+            </button>
 
-            <label
+            <button
+              type="button"
               class="scheme-option-item {inputSecurityMode ===
               'scheme_2_web_crypto'
                 ? 'selected'
                 : ''}"
+              onclick={() => (inputSecurityMode = "scheme_2_web_crypto")}
             >
-              <input
-                type="radio"
-                name="sec_scheme"
-                value="scheme_2_web_crypto"
-                checked={inputSecurityMode === "scheme_2_web_crypto"}
-                onchange={() => (inputSecurityMode = "scheme_2_web_crypto")}
-              />
               <div class="scheme-item-content">
                 <div class="scheme-item-header">
                   <span class="scheme-item-name"
@@ -839,7 +829,7 @@
                   >本機硬體加速加密密文隔離，即使開啟本地儲存檔案亦為密文。</span
                 >
               </div>
-            </label>
+            </button>
           </div>
 
           <div class="onedrive-isolation-notice">
