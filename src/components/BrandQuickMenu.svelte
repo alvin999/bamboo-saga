@@ -232,11 +232,12 @@
           <button
             class="menu-item"
             onclick={() => handleAction(onOpenTextTools)}
-            title="批次行去重、快速排序與結構排版工具"
+            title="0 延遲本機清理：剔除重複行、清除多餘空行、A-Z 排序與首尾去空白"
           >
             <div class="item-left">
               <span class="item-glyph glyph-primary">◬</span>
               <span class="item-name">行處理解藥包</span>
+              <span class="item-sub-hint">去重 · 排序 </span>
             </div>
             <span class="key-badge">Ctrl+Shift+T</span>
           </button>

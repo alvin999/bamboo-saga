@@ -1,23 +1,21 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount } from "svelte";
   import {
-    Sparkles,
     Check,
     Copy,
     X,
     CheckSquare,
     Square,
-    Layers,
     Columns,
-    Maximize2
-  } from 'lucide-svelte';
+    Maximize2,
+  } from "lucide-svelte";
   import {
     generateActionProposals,
     applySelectedProposals,
-    type TextActionProposal
-  } from '../lib/editor/textProcessor';
-  import { computeSideBySideDiff } from '../lib/editor/diffEngine';
-  import type { SideBySideDiffResult } from '../types/history';
+    type TextActionProposal,
+  } from "../lib/editor/textProcessor";
+  import { computeSideBySideDiff } from "../lib/editor/diffEngine";
+  import type { SideBySideDiffResult } from "../types/history";
 
   interface TextToolsModalProps {
     isOpen: boolean;
@@ -30,36 +28,28 @@
 
   let {
     isOpen = false,
-    content = '',
-    selectedText = '',
+    content = "",
+    selectedText = "",
     onApply,
     onClose,
-    onShowToast = () => {}
+    onShowToast = () => {},
   }: TextToolsModalProps = $props();
 
-  // 作用範圍切換：整份手稿 或 僅選取範圍
-  let targetScope = $state<'selection' | 'full'>('full');
+  let targetScope = $state<"selection" | "full">("full");
+  let compareLayout = $state<"split" | "single">("split");
 
-  // 右側對照檢視排版：雙欄對照 (split) 或 單欄成果 (single)
-  let compareLayout = $state<'split' | 'single'>('split');
-
-  // 當前原始輸入字串
   let originalRawText = $derived(
-    targetScope === 'selection' && selectedText ? selectedText : content
+    targetScope === "selection" && selectedText ? selectedText : content,
   );
 
-  // 提案清單
   let proposals = $state<TextActionProposal[]>([]);
-  // 子選項設定
   let duplicateCaseSensitive = $state(true);
-  let sortOrder = $state<'asc' | 'desc'>('asc');
+  let sortOrder = $state<"asc" | "desc">("asc");
 
-  // 調理成果預覽與變更歷程
-  let previewText = $state('');
+  let previewText = $state("");
   let changeSummary = $state<string[]>([]);
   let copySuccess = $state(false);
 
-  // 左右成對比對結果 (復用 diffEngine，天然實現左右像素級同步連動滾動)
   let sideBySideResult = $state<SideBySideDiffResult>({
     rows: [],
     additions: 0,
@@ -67,17 +57,15 @@
     hasChanges: false,
   });
 
-  // 選取的提案數量
   let selectedCount = $derived(proposals.filter((p) => p.selected).length);
+  let hasRecommendations = $derived(proposals.some((p) => p.recommended));
 
-  // 執行診斷並產生提案清單
   function refreshProposalsAndPreview() {
     const raw = originalRawText;
     proposals = generateActionProposals(raw);
     recalculatePreview();
   }
 
-  // 依據當前勾選的提案計算即時成果與左右對照
   function recalculatePreview() {
     const raw = originalRawText;
     const res = applySelectedProposals(raw, proposals, {
@@ -89,54 +77,52 @@
     sideBySideResult = computeSideBySideDiff(raw, previewText);
   }
 
-  // 元件掛載時執行一次性初始化，確保零卡頓
   onMount(() => {
     if (selectedText && selectedText.trim().length > 0) {
-      targetScope = 'selection';
+      targetScope = "selection";
     } else {
-      targetScope = 'full';
+      targetScope = "full";
     }
     refreshProposalsAndPreview();
   });
 
-  // 切換單一提案勾選狀態
   function toggleProposal(index: number) {
     proposals[index].selected = !proposals[index].selected;
     recalculatePreview();
   }
 
-  // 全部勾選 / 全部取消
   function setSelectAll(value: boolean) {
     proposals.forEach((p) => (p.selected = value));
     recalculatePreview();
   }
 
-  // 重設回 AI 初始推薦
-  function resetToAiRecommendations() {
+  function resetToRecommendations() {
     proposals.forEach((p) => (p.selected = p.recommended));
     recalculatePreview();
-    onShowToast('✨ 已恢復為預設推薦勾選');
+    onShowToast("已恢復為預設推薦勾選");
   }
 
-  // 切換作用範圍 (全文 / 選取)
-  function handleScopeChange(scope: 'full' | 'selection') {
+  function handleScopeChange(scope: "full" | "selection") {
     targetScope = scope;
     refreshProposalsAndPreview();
   }
 
-  // 套用所選項至手稿
   function handleApply() {
     if (selectedCount === 0) {
-      onShowToast('⚠️ 請至少勾選一項要應用的調理建議');
+      onShowToast("請至少勾選一項要應用的調理建議");
       return;
     }
 
-    const logDesc = changeSummary.length > 0 ? changeSummary.join('、') : '完成格式調理';
-    if (targetScope === 'selection' && selectedText) {
+    const logDesc =
+      changeSummary.length > 0 ? changeSummary.join("、") : "完成格式調理";
+    if (targetScope === "selection" && selectedText) {
       const fullText = content;
       const idx = fullText.indexOf(selectedText);
       if (idx !== -1) {
-        const newFull = fullText.slice(0, idx) + previewText + fullText.slice(idx + selectedText.length);
+        const newFull =
+          fullText.slice(0, idx) +
+          previewText +
+          fullText.slice(idx + selectedText.length);
         onApply(newFull, logDesc);
       } else {
         onApply(previewText, logDesc);
@@ -147,16 +133,15 @@
     onClose();
   }
 
-  // 複製預覽結果
   async function handleCopy() {
     if (!previewText) return;
     try {
       await navigator.clipboard.writeText(previewText);
       copySuccess = true;
-      onShowToast('📋 已複製成果內容至剪貼簿');
+      onShowToast("已複製調理成果至剪貼簿");
       setTimeout(() => (copySuccess = false), 2000);
     } catch {
-      onShowToast('⚠️ 複製失敗');
+      onShowToast("複製失敗");
     }
   }
 </script>
@@ -165,7 +150,7 @@
   <div
     class="modal-backdrop"
     onclick={onClose}
-    onkeydown={(e) => e.key === 'Escape' && onClose()}
+    onkeydown={(e) => e.key === "Escape" && onClose()}
     role="presentation"
     tabindex="-1"
   >
@@ -177,70 +162,113 @@
       aria-modal="true"
       tabindex="0"
     >
-      <!-- 頂部標題列 -->
-      <div class="modal-header">
-        <div class="header-title-box">
-          <div class="icon-badge">
-            <Sparkles size={20} class="badge-icon-sparkle" />
+      <!-- 頂部單行精簡標頭：整合作用範圍與視圖切換，移除原本佔空間的第二層狀態列 -->
+      <header class="modal-header">
+        <div class="header-left">
+          <span class="brand-glyph">◬</span>
+          <h2 class="title-text">行處理解藥包</h2>
+          <span class="header-divider"></span>
+
+          <!-- 作用範圍切換膠囊 -->
+          <div class="scope-dock">
+            <button
+              type="button"
+              class="dock-btn {targetScope === 'full' ? 'active' : ''}"
+              onclick={() => handleScopeChange("full")}
+            >
+              全文 ({content.split("\n").length} 行)
+            </button>
+            <button
+              type="button"
+              class="dock-btn {targetScope === 'selection' ? 'active' : ''}"
+              disabled={!selectedText || selectedText.trim().length === 0}
+              onclick={() => handleScopeChange("selection")}
+            >
+              選取範圍 {selectedText
+                ? `(${selectedText.split("\n").length} 行)`
+                : "(無)"}
+            </button>
           </div>
-          <div>
-            <h2 class="title-text">智慧文字調理工坊</h2>
-            <p class="subtitle-text">自動診斷手稿瑕疵，自由勾選應用項目，雙欄即時對照檢閱</p>
+        </div>
+
+        <div class="header-right">
+          <div class="scope-dock">
+            <button
+              type="button"
+              class="dock-btn {compareLayout === 'split' ? 'active' : ''}"
+              onclick={() => (compareLayout = "split")}
+            >
+              <Columns size={12} />
+              <span>雙欄對照</span>
+            </button>
+            <button
+              type="button"
+              class="dock-btn {compareLayout === 'single' ? 'active' : ''}"
+              onclick={() => (compareLayout = "single")}
+            >
+              <Maximize2 size={12} />
+              <span>純成果</span>
+            </button>
           </div>
-        </div>
 
-        <button class="close-btn" onclick={onClose} aria-label="關閉">
-          <X size={18} />
-        </button>
-      </div>
-
-      <!-- 範圍與診斷提示列 -->
-      <div class="status-ribbon">
-        <div class="scope-picker">
-          <span class="ribbon-label">作用範圍：</span>
           <button
-            class="scope-chip {targetScope === 'full' ? 'active' : ''}"
-            onclick={() => handleScopeChange('full')}
+            type="button"
+            class="close-btn"
+            onclick={onClose}
+            aria-label="關閉 (Esc)"
           >
-            全文 ({content.split('\n').length} 行)
-          </button>
-          <button
-            class="scope-chip {targetScope === 'selection' ? 'active' : ''}"
-            disabled={!selectedText || selectedText.trim().length === 0}
-            onclick={() => handleScopeChange('selection')}
-          >
-            選取區塊 {selectedText ? `(${selectedText.split('\n').length} 行)` : '(無選取)'}
+            <X size={16} />
           </button>
         </div>
+      </header>
 
-        <div class="diagnosis-summary-capsule">
-          <Sparkles size={14} class="ai-sparkle-dot" />
-          <span class="ai-label">診斷摘要：</span>
-          <span class="ai-detail">共探勘出 {proposals.length} 項優化建議，已勾選 {selectedCount} 項</span>
-        </div>
-      </div>
-
-      <!-- 雙欄主體：左側提案勾選清單，右側煉丹爐雙欄對照 -->
+      <!-- 雙欄主體 -->
       <div class="modal-body-split">
-        <!-- 左側：提案審查與勾選清單 -->
-        <div class="proposal-pane">
-          <div class="pane-header">
+        <!-- 左欄：調理處方勾選清單 -->
+        <aside class="proposal-pane">
+          <div class="pane-toolbar">
             <div class="pane-title">
-              <Layers size={15} />
-              <span>請勾選要應用的項目</span>
-              <span class="selected-pill">{selectedCount} / {proposals.length} 項</span>
+              <span>調理處方</span>
+              <span class="selected-pill"
+                >{selectedCount} / {proposals.length}</span
+              >
             </div>
             <div class="pane-actions">
-              <button class="text-link" onclick={() => setSelectAll(true)}>全選</button>
-              <span class="divider">/</span>
-              <button class="text-link" onclick={() => setSelectAll(false)}>全不選</button>
-              <span class="divider">•</span>
-              <button class="text-link" onclick={resetToAiRecommendations}>
-                <Sparkles size={12} />
-                <span>推薦</span>
-              </button>
+              <button
+                type="button"
+                class="text-link"
+                onclick={() => setSelectAll(true)}>全選</button
+              >
+              <span class="divider">·</span>
+              <button
+                type="button"
+                class="text-link"
+                onclick={() => setSelectAll(false)}>清空</button
+              >
+              <span class="divider">·</span>
+              <button
+                type="button"
+                class="text-link"
+                onclick={resetToRecommendations}>預設推薦</button
+              >
             </div>
           </div>
+
+          <!-- 輕量情境引導 -->
+          <div class="use-case-strip">
+            <span class="use-case-tag">適用：貼上雜亂網頁文字</span>
+            <span class="use-case-sep">·</span>
+            <span class="use-case-tag">清單去重與排序</span>
+            <span class="use-case-sep">·</span>
+            <span class="use-case-tag">壓縮多餘空行</span>
+          </div>
+
+          {#if !hasRecommendations}
+            <div class="clean-state-banner">
+              <span class="clean-icon">✦</span>
+              <span>當前文稿整齊無明顯贅餘，可點選下方項目進行自訂排序或格式調整</span>
+            </div>
+          {/if}
 
           <div class="proposal-list">
             {#each proposals as item, index}
@@ -255,9 +283,9 @@
                 <div class="card-left">
                   <div class="checkbox-visual">
                     {#if item.selected}
-                      <CheckSquare size={18} class="chk-icon-active" />
+                      <CheckSquare size={16} class="chk-icon-active" />
                     {:else}
-                      <Square size={18} class="chk-icon-idle" />
+                      <Square size={16} class="chk-icon-idle" />
                     {/if}
                   </div>
 
@@ -266,7 +294,7 @@
                       <span class="proposal-name">{item.title}</span>
                       <div class="badge-cluster">
                         {#if item.recommended}
-                          <span class="badge ai-rec">建議</span>
+                          <span class="badge ai-rec">推薦</span>
                         {/if}
                         <span class="badge {item.badgeType}">{item.badge}</span>
                       </div>
@@ -275,8 +303,7 @@
                   </div>
                 </div>
 
-                <!-- 專屬微調子開關 -->
-                {#if item.selected && item.id === 'dedup'}
+                {#if item.selected && item.id === "dedup"}
                   <div
                     class="sub-option"
                     onclick={(e) => e.stopPropagation()}
@@ -294,72 +321,61 @@
                   </div>
                 {/if}
 
-                {#if item.selected && item.id === 'sort'}
+                {#if item.selected && item.id === "sort"}
                   <div
                     class="sub-option"
                     onclick={(e) => e.stopPropagation()}
                     onkeydown={(e) => e.stopPropagation()}
                     role="presentation"
                   >
-                    <span class="sub-label">排序方向：</span>
+                    <span class="sub-label">排序：</span>
                     <select
                       class="sub-select"
                       bind:value={sortOrder}
                       onchange={recalculatePreview}
                     >
-                      <option value="asc">升冪 (A → Z, 1 → 9)</option>
-                      <option value="desc">降冪 (Z → A, 9 → 1)</option>
+                      <option value="asc">升冪 (A → Z)</option>
+                      <option value="desc">降冪 (Z → A)</option>
                     </select>
                   </div>
                 {/if}
               </div>
             {/each}
           </div>
-        </div>
+        </aside>
 
-        <!-- 右側：沿用煉丹爐經典雙欄對比檢視 (Split View) -->
-        <div class="preview-pane">
-          <div class="preview-top-toolbar">
-            <span class="toolbar-hint">即時對照檢視</span>
-            <div class="layout-toggle-group">
-              <button
-                class="layout-btn {compareLayout === 'split' ? 'active' : ''}"
-                onclick={() => (compareLayout = 'split')}
-                title="雙欄對照"
-              >
-                <Columns size={13} />
-                <span>雙欄對照</span>
-              </button>
-              <button
-                class="layout-btn {compareLayout === 'single' ? 'active' : ''}"
-                onclick={() => (compareLayout = 'single')}
-                title="僅顯示成果"
-              >
-                <Maximize2 size={13} />
-                <span>成果</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="diff-split-view {compareLayout === 'single' ? 'is-single' : ''}">
-            {#if compareLayout === 'split'}
-              <!-- 雙欄成對連動對照檢視：共享同一垂直滾動容器，天然實現 100% 左右像素級同步連動 -->
+        <!-- 右欄：即時對照檢視 -->
+        <main class="preview-pane">
+          <div
+            class="diff-split-view {compareLayout === 'single'
+              ? 'is-single'
+              : ''}"
+          >
+            {#if compareLayout === "split"}
               <div class="split-side-by-side-container">
                 <div class="split-column-headers">
                   <div class="column-header left">
-                    <span class="hud-pill">ORIGINAL</span>
+                    <span class="glyph-mono">▢</span>
                     <span class="pane-title-text">原始手稿</span>
-                    <span class="line-stat">{originalRawText.split('\n').length} 行</span>
+                    <span class="line-stat"
+                      >{originalRawText.split("\n").length} 行</span
+                    >
                   </div>
                   <div class="column-header right">
-                    <span class="hud-pill accent">REFINED</span>
-                    <span class="pane-title-text">調理成果</span>
+                    <span class="glyph-mono accent-glyph">◈</span>
+                    <span class="pane-title-text accent-text">調理成果</span>
                     <div class="header-diff-stat">
                       {#if sideBySideResult.hasChanges}
-                        <span class="stat-badge add">+{sideBySideResult.additions}</span>
-                        <span class="stat-badge del">-{sideBySideResult.deletions}</span>
+                        <span class="stat-badge add"
+                          >+{sideBySideResult.additions}</span
+                        >
+                        <span class="stat-badge del"
+                          >-{sideBySideResult.deletions}</span
+                        >
                       {/if}
-                      <span class="line-stat">{previewText.split('\n').length} 行</span>
+                      <span class="line-stat"
+                        >{previewText.split("\n").length} 行</span
+                      >
                     </div>
                   </div>
                 </div>
@@ -368,38 +384,49 @@
                   <div class="split-diff-content">
                     {#each sideBySideResult.rows as row, idx (idx)}
                       <div class="split-diff-row">
-                        <!-- 左欄：原始手稿 (舊) -->
+                        <!-- 左欄：原始 -->
                         <div class="split-cell left {row.left.type}">
-                          <div class="col-num">{row.left.lineNumber !== undefined ? row.left.lineNumber : ''}</div>
-                          <div class="col-indicator">{row.left.type === 'removed' ? '-' : ' '}</div>
-                          {#if row.left.type === 'removed' && (!row.left.text || row.left.text.trim() === '')}
+                          <div class="col-num">
+                            {row.left.lineNumber !== undefined
+                              ? row.left.lineNumber
+                              : ""}
+                          </div>
+                          <div class="col-indicator">
+                            {row.left.type === "removed" ? "-" : " "}
+                          </div>
+                          {#if row.left.type === "removed" && (!row.left.text || row.left.text.trim() === "")}
                             <div class="col-text empty-line-box">
-                              <span class="empty-line-badge">↵ [無效空白行]</span>
+                              <span class="empty-line-badge">↵ 空白行</span>
                             </div>
                           {:else}
-                            <pre class="col-text">{row.left.text || ' '}</pre>
+                            <pre class="col-text">{row.left.text || " "}</pre>
                           {/if}
                         </div>
-                        <!-- 右欄：調理成果 (新) -->
+
+                        <!-- 右欄：成果 -->
                         <div class="split-cell right {row.right.type}">
-                          <div class="col-num">{row.right.lineNumber !== undefined ? row.right.lineNumber : ''}</div>
-                          <div class="col-indicator">{row.right.type === 'added' ? '+' : ' '}</div>
-                          {#if row.right.type === 'empty'}
+                          <div class="col-num">
+                            {row.right.lineNumber !== undefined
+                              ? row.right.lineNumber
+                              : ""}
+                          </div>
+                          <div class="col-indicator">
+                            {row.right.type === "added" ? "+" : " "}
+                          </div>
+                          {#if row.right.type === "empty"}
                             <div class="col-text empty-placeholder-box">
-                              {#if row.left.type === 'removed' && (!row.left.text || row.left.text.trim() === '')}
-                                <span class="empty-row-hint">⊘ 此處空行已清除並緊湊接齊</span>
-                              {:else if row.left.type === 'removed'}
-                                <span class="empty-row-hint">⊘ 此行已移除</span>
-                              {:else}
-                                <span class="empty-row-hint">///</span>
+                              {#if row.left.type === "removed"}
+                                <span class="empty-row-hint">已收合</span>
                               {/if}
                             </div>
-                          {:else if row.right.type === 'added' && (!row.right.text || row.right.text.trim() === '')}
+                          {:else if row.right.type === "added" && (!row.right.text || row.right.text.trim() === "")}
                             <div class="col-text empty-line-box">
-                              <span class="empty-line-badge add">↵ [新增空白行]</span>
+                              <span class="empty-line-badge add"
+                                >↵ 新增空行</span
+                              >
                             </div>
                           {:else}
-                            <pre class="col-text">{row.right.text || ' '}</pre>
+                            <pre class="col-text">{row.right.text || " "}</pre>
                           {/if}
                         </div>
                       </div>
@@ -408,66 +435,68 @@
                 </div>
               </div>
             {:else}
-              <!-- 單欄成果預覽 -->
-              <div class="diff-pane ai-pane">
-                <div class="pane-header ai-header">
-                  <span class="hud-pill accent">REFINED</span>
-                  <span class="pane-title-text">調理成果</span>
-                  <span class="line-stat">{previewText.split('\n').length} 行</span>
+              <div class="diff-pane">
+                <div class="column-header right single-header">
+                  <span class="glyph-mono accent-glyph">◈</span>
+                  <span class="pane-title-text accent-text">調理成果預覽</span>
+                  <span class="line-stat"
+                    >{previewText.split("\n").length} 行</span
+                  >
                 </div>
                 <div class="pane-content">
-                  <pre class="readonly-text refined">{previewText}</pre>
+                  <pre class="readonly-text">{previewText}</pre>
                 </div>
               </div>
             {/if}
           </div>
-
-          <!-- 調理歷程橫條 -->
-          <div class="change-log-footer">
-            <span class="log-label">套用後將執行的改變：</span>
-            {#if changeSummary.length > 0}
-              <div class="log-tags">
-                {#each changeSummary as log}
-                  <span class="log-pill">{log}</span>
-                {/each}
-              </div>
-            {:else}
-              <span class="log-none">未勾選任何建議項目 (手稿將維持原樣)</span>
-            {/if}
-          </div>
-        </div>
+        </main>
       </div>
 
-      <!-- 底部操作列 -->
-      <div class="modal-footer">
-        <div class="footer-left-hint">
-          <span>提示：套用將自動於本機時光機 (IndexedDB) 建立備份，隨時可還原。</span>
+      <!-- 底部操作列：整合變更摘要與執行按鈕 -->
+      <footer class="modal-footer">
+        <div class="footer-left-log">
+          {#if changeSummary.length > 0}
+            <span class="log-label">變更摘要：</span>
+            <div class="log-tags">
+              {#each changeSummary as log}
+                <span class="log-pill">{log}</span>
+              {/each}
+            </div>
+          {:else}
+            <span class="log-none">尚未勾選處方，手稿將維持原樣</span>
+          {/if}
         </div>
+
         <div class="footer-actions">
-          <button class="footer-btn secondary" onclick={onClose}>
-            <span>取消</span>
+          <button type="button" class="footer-btn secondary" onclick={onClose}>
+            取消
           </button>
-          <button class="footer-btn copy-btn" onclick={handleCopy}>
+          <button
+            type="button"
+            class="footer-btn copy-btn"
+            onclick={handleCopy}
+          >
             {#if copySuccess}
-              <Check size={16} class="check-icon" />
-              <span>已複製！</span>
+              <Check size={14} />
+              <span>已複製</span>
             {:else}
-              <Copy size={16} />
+              <Copy size={14} />
               <span>複製成果</span>
             {/if}
           </button>
           <button
-            class="footer-btn apply-btn {selectedCount === 0 ? 'disabled' : ''}"
+            type="button"
+            class="footer-btn apply-btn"
             disabled={selectedCount === 0}
             onclick={handleApply}
           >
-            <Check size={16} />
+            <Check size={14} />
             <span>
-              {selectedCount > 0 ? `套用所選的 ${selectedCount} 項建議` : '請至少勾選一項'}
+              {selectedCount > 0 ? `套用 (${selectedCount})` : "請勾選項目"}
             </span>
           </button>
         </div>
-      </div>
+      </footer>
     </div>
   </div>
 {/if}
@@ -480,234 +509,233 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(10, 12, 11, 0.72);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    animation: fadeIn 0.16s ease-out;
   }
 
-  /* 鬆弛自然彈窗卡片：Apothecary Gruvbox 百子櫃懸浮質感 */
+  .glyph-mono {
+    font-family: "JetBrains Mono", monospace;
+    line-height: 1;
+  }
+
+  /* 主卡片：Apothecary Gruvbox 寬鬆通透質感 */
   .modal-card {
     position: relative;
-    width: 94%;
-    max-width: 1140px;
-    height: 84vh;
+    width: 90vw;
+    max-width: 1040px;
+    height: 82vh;
     display: flex;
     flex-direction: column;
-    background: rgba(22, 24, 23, 0.97);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(100, 86, 66, 0.45);
-    border-radius: 14px;
-    box-shadow: 
-      0 24px 64px rgba(0, 0, 0, 0.8),
+    background: rgba(20, 22, 21, 0.98);
+    border: 1px solid rgba(100, 86, 66, 0.4);
+    border-radius: 12px;
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.78),
       0 0 0 1px rgba(250, 189, 47, 0.08);
     overflow: hidden;
     animation: scaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
     color: #e6dfd5;
-    font-family: inherit;
     outline: none;
   }
 
+  /* 頂部單行標頭 */
   .modal-header {
+    height: 54px;
+    padding: 0 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 24px;
     border-bottom: 1px solid rgba(100, 86, 66, 0.25);
-    background: rgba(16, 18, 17, 0.85);
+    background: rgba(16, 18, 17, 0.9);
+    flex-shrink: 0;
   }
 
-  .header-title-box {
+  .header-left,
+  .header-right {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
   }
 
-  .icon-badge {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    background: rgba(250, 189, 47, 0.12);
-    border: 1px solid rgba(250, 189, 47, 0.28);
-    border-radius: 10px;
-  }
-
-  :global(.badge-icon-sparkle) {
+  .brand-glyph {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 17px;
     color: #fabd2f;
   }
 
   .title-text {
     margin: 0;
-    font-size: 1.08rem;
+    font-size: 15px;
     font-weight: 600;
     color: #ebdbb2;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.03em;
   }
 
-  .subtitle-text {
-    margin: 3px 0 0 0;
-    font-size: 0.78rem;
+  .header-divider {
+    width: 1px;
+    height: 16px;
+    background: rgba(100, 86, 66, 0.3);
+  }
+
+  .scope-dock {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(100, 86, 66, 0.25);
+    border-radius: 7px;
+  }
+
+  .dock-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: transparent;
+    border: none;
     color: #8c8273;
+    font-size: 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.14s ease;
+  }
+
+  .dock-btn:hover:not(:disabled) {
+    color: #d5c4a1;
+  }
+
+  .dock-btn.active {
+    background: rgba(250, 189, 47, 0.12);
+    color: #fabd2f;
+    font-weight: 500;
+  }
+
+  .dock-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
 
   .close-btn {
     background: transparent;
     border: none;
-    color: #8c8273;
+    color: #7c7365;
     cursor: pointer;
-    padding: 8px;
-    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s;
+    transition: all 0.14s ease;
   }
 
   .close-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #fabd2f;
-  }
-
-  /* 狀態彩帶：柔和低調 */
-  .status-ribbon {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 24px;
-    background: rgba(0, 0, 0, 0.22);
-    border-bottom: 1px solid rgba(100, 86, 66, 0.2);
-    gap: 14px;
-    font-size: 0.78rem;
-  }
-
-  .scope-picker {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .ribbon-label {
-    color: #7c7365;
-  }
-
-  .scope-chip {
-    padding: 4px 11px;
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid rgba(100, 86, 66, 0.25);
-    color: #a89984;
-    font-size: 0.75rem;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .scope-chip:hover {
-    background: rgba(255, 255, 255, 0.07);
-    color: #ebdbb2;
-  }
-
-  .scope-chip.active {
-    background: rgba(250, 189, 47, 0.14);
-    border-color: rgba(250, 189, 47, 0.38);
-    color: #fabd2f;
-    font-weight: 600;
-  }
-
-  .scope-chip:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-  }
-
-  .diagnosis-summary-capsule {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(250, 189, 47, 0.08);
-    padding: 4px 12px;
-    border-radius: 16px;
-    border: 1px solid rgba(250, 189, 47, 0.22);
-  }
-
-  :global(.ai-sparkle-dot) {
-    color: #fabd2f;
-    flex-shrink: 0;
-  }
-
-  .ai-label {
-    color: #fabd2f;
-    font-weight: 600;
-  }
-
-  .ai-detail {
-    color: #bdae93;
+    background: rgba(251, 73, 52, 0.14);
+    color: #fb4934;
   }
 
   /* 雙欄主體 */
   .modal-body-split {
     display: flex;
     flex: 1;
-    overflow: hidden;
+    min-height: 0;
   }
 
-  /* 左側提案清單欄：放寬至 37%，給予文字與選單充分空間 */
+  /* 左欄：處方清單 */
   .proposal-pane {
-    width: 37%;
-    border-right: 1px solid rgba(100, 86, 66, 0.25);
+    width: 340px;
+    border-right: 1px solid rgba(100, 86, 66, 0.22);
     display: flex;
     flex-direction: column;
-    background: rgba(18, 20, 19, 0.7);
+    background: rgba(16, 18, 17, 0.55);
+    flex-shrink: 0;
   }
 
-  .pane-header {
+  .pane-toolbar {
+    height: 38px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 18px;
-    background: rgba(16, 18, 17, 0.85);
-    border-bottom: 1px solid rgba(100, 86, 66, 0.2);
+    padding: 0 16px;
+    border-bottom: 1px solid rgba(100, 86, 66, 0.18);
+  }
+
+  .use-case-strip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    background: rgba(250, 189, 47, 0.04);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.15);
+    font-size: 11px;
+    color: #8c8273;
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+
+  .use-case-tag {
+    flex-shrink: 0;
+  }
+
+  .use-case-sep {
+    color: rgba(100, 86, 66, 0.4);
+    user-select: none;
+  }
+
+  .clean-state-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(142, 192, 124, 0.05);
+    border-bottom: 1px solid rgba(142, 192, 124, 0.15);
+    font-size: 11px;
+    color: #8ec07c;
+    line-height: 1.4;
+  }
+
+  .clean-icon {
+    font-size: 11px;
+    color: #8ec07c;
+    flex-shrink: 0;
+    margin-top: 1px;
   }
 
   .pane-title {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.82rem;
+    font-size: 12px;
     font-weight: 600;
-    color: #d5c4a1;
+    color: #8c8273;
   }
 
   .selected-pill {
-    padding: 2px 8px;
-    background: rgba(250, 189, 47, 0.12);
-    border: 1px solid rgba(250, 189, 47, 0.25);
-    border-radius: 10px;
+    padding: 1px 6px;
+    background: rgba(250, 189, 47, 0.1);
+    border-radius: 4px;
     color: #fabd2f;
-    font-size: 0.7rem;
-    font-weight: normal;
+    font-size: 11px;
     font-family: "JetBrains Mono", monospace;
   }
 
   .pane-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.75rem;
+    gap: 6px;
+    font-size: 11.5px;
   }
 
   .text-link {
     background: transparent;
     border: none;
-    color: #8ec07c;
+    color: #9c8f7a;
     cursor: pointer;
     padding: 0;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    transition: color 0.15s;
+    transition: color 0.14s ease;
   }
 
   .text-link:hover {
@@ -719,46 +747,42 @@
   }
 
   .proposal-list {
-    padding: 14px 16px;
+    padding: 12px;
     overflow-y: auto;
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
   }
 
-  /* 提案卡片：舒展內距、柔邊、懸浮輕盈質感 */
+  /* 處方卡片：清爽低干擾 */
   .proposal-card {
     display: flex;
     flex-direction: column;
-    padding: 12px 15px;
-    background: rgba(255, 255, 255, 0.025);
-    border: 1px solid rgba(100, 86, 66, 0.25);
-    border-left: 3px solid transparent;
-    border-radius: 9px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(100, 86, 66, 0.22);
+    border-radius: 8px;
     cursor: pointer;
-    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.15s ease;
     user-select: none;
     outline: none;
   }
 
   .proposal-card:hover {
-    border-color: rgba(250, 189, 47, 0.28);
-    background: rgba(255, 255, 255, 0.05);
-    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(250, 189, 47, 0.3);
   }
 
   .proposal-card.checked {
-    border-color: rgba(250, 189, 47, 0.35);
-    border-left-color: #fabd2f;
+    border-color: rgba(250, 189, 47, 0.38);
     background: rgba(250, 189, 47, 0.07);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
   }
 
   .card-left {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: 10px;
   }
 
   .checkbox-visual {
@@ -771,288 +795,166 @@
   }
 
   :global(.chk-icon-idle) {
-    color: #504945;
+    color: #665c54;
   }
 
   .proposal-info {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     flex: 1;
+    min-width: 0;
   }
 
   .proposal-title-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
   }
 
   .proposal-name {
-    font-size: 0.86rem;
+    font-size: 13.5px;
     font-weight: 500;
     color: #e6dfd5;
-    letter-spacing: 0.02em;
   }
 
   .proposal-card.checked .proposal-name {
     color: #fabd2f;
-    font-weight: 600;
   }
 
   .badge-cluster {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
+    flex-shrink: 0;
   }
 
-  /* 標籤降噪：純粹無邊框微透質感，不搶奪焦點 */
   .badge {
-    padding: 1.5px 7px;
+    padding: 1px 6px;
     border-radius: 4px;
-    font-size: 0.68rem;
-    font-weight: 500;
-    white-space: nowrap;
-    border: none;
+    font-size: 10.5px;
     font-family: "JetBrains Mono", monospace;
+    background: rgba(255, 255, 255, 0.05);
+    color: #9c8f7a;
   }
 
-  .badge.ai-rec {
-    background: rgba(250, 189, 47, 0.14);
+  .badge.ai-rec,
+  .badge.warning {
+    background: rgba(250, 189, 47, 0.12);
     color: #fabd2f;
   }
 
-  .badge.warning {
-    background: rgba(254, 128, 25, 0.14);
-    color: #fe8019;
-  }
-
-  .badge.info {
-    background: rgba(142, 192, 124, 0.14);
+  .badge.info,
+  .badge.success {
+    background: rgba(142, 192, 124, 0.12);
     color: #8ec07c;
   }
 
-  .badge.success {
-    background: rgba(184, 187, 38, 0.14);
-    color: #b8bb26;
-  }
-
-  .badge.tip {
-    background: rgba(211, 134, 155, 0.14);
-    color: #d3869b;
-  }
-
   .proposal-desc {
-    font-size: 0.75rem;
-    color: #8c8273;
+    font-size: 12px;
+    color: #7c7365;
     line-height: 1.45;
   }
 
   .sub-option {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px dashed rgba(100, 86, 66, 0.25);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(100, 86, 66, 0.22);
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
   }
 
-  .sub-label {
-    font-size: 0.72rem;
-    color: #7a756b;
-  }
-
+  .sub-label,
   .sub-checkbox {
+    font-size: 11.5px;
+    color: #9c8f7a;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.72rem;
-    color: #8f897c;
+    gap: 5px;
     cursor: pointer;
   }
 
+  .sub-checkbox input {
+    accent-color: #fabd2f;
+  }
+
   .sub-select {
-    padding: 3px 8px;
-    background: #1f2022;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #d4cebe;
-    font-size: 0.72rem;
+    padding: 2px 8px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(100, 86, 66, 0.35);
+    color: #ebdbb2;
+    font-size: 11.5px;
     border-radius: 5px;
     outline: none;
   }
 
-  /* 右側：煉丹爐雙欄對比檢視 (Split View) */
+  /* 右欄：即時對照區 */
   .preview-pane {
-    width: 63%;
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    background: #18191a;
-  }
-
-  .preview-top-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    background: #1b1c1e;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  }
-
-  .toolbar-hint {
-    font-size: 0.75rem;
-    color: #7a756b;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .layout-toggle-group {
-    display: flex;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 6px;
-    padding: 2px;
-    gap: 2px;
-  }
-
-  .layout-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
     background: transparent;
-    border: none;
-    color: #8f897c;
-    font-size: 0.72rem;
-    padding: 3px 9px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s;
   }
 
-  .layout-btn:hover {
-    color: #d4cebe;
-  }
-
-  .layout-btn.active {
-    background: rgba(255, 255, 255, 0.08);
-    color: #cf984a;
-    font-weight: 500;
-  }
-
-  /* 雙欄結構：精準對齊極簡禪風 */
   .diff-split-view {
     display: flex;
     flex: 1;
-    width: 100%;
-    overflow: hidden;
-    gap: 1px;
-    background: rgba(255, 255, 255, 0.03);
+    min-height: 0;
   }
 
-  .diff-split-view.is-single .diff-pane {
-    flex: 1;
-  }
-
+  .split-side-by-side-container,
   .diff-pane {
     flex: 1;
     display: flex;
     flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .origin-pane {
-    background: #151617;
-    border-right: 1px solid rgba(255, 255, 255, 0.03);
-  }
-
-  .ai-pane {
-    background: #18191a;
-  }
-
-  .pane-header {
-    height: 34px;
-    background: #1b1c1e;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 14px;
-    font-size: 11px;
-    color: #8f897c;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .ai-header {
-    color: #cf984a;
-  }
-
-  .pane-title-text {
-    font-weight: 500;
-    color: #d4cebe;
-  }
-
-  .ai-header .pane-title-text {
-    color: #cf984a;
-  }
-
-  .line-stat {
-    margin-left: auto;
-    font-size: 10px;
-    color: #7a756b;
-  }
-
-  .hud-pill {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #8f897c;
-    font-weight: 600;
-  }
-
-  .hud-pill.accent {
-    background: rgba(207, 152, 74, 0.15);
-    color: #cf984a;
-    border: 1px solid rgba(207, 152, 74, 0.3);
-  }
-
-  /* 左右雙欄成對同步連動容器 */
-  .split-side-by-side-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-    background: #18191a;
+    min-height: 0;
   }
 
   .split-column-headers {
     display: flex;
-    height: 34px;
-    background: #1b1c1e;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    user-select: none;
+    height: 38px;
+    background: rgba(16, 18, 17, 0.45);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.18);
     flex-shrink: 0;
   }
 
   .column-header {
     flex: 1 1 50%;
-    width: 50%;
-    max-width: 50%;
     min-width: 0;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 14px;
-    font-size: 11px;
-    box-sizing: border-box;
-    font-family: 'JetBrains Mono', monospace;
-    color: #8f897c;
+    padding: 0 16px;
+    font-size: 12px;
+    color: #8c8273;
   }
 
   .column-header.left {
-    border-right: 1px solid rgba(255, 255, 255, 0.04);
+    border-right: 1px solid rgba(100, 86, 66, 0.18);
+  }
+
+  .single-header {
+    height: 38px;
+    flex: none;
+    background: rgba(16, 18, 17, 0.45);
+    border-bottom: 1px solid rgba(100, 86, 66, 0.18);
+  }
+
+  .accent-glyph,
+  .accent-text {
+    color: #fabd2f;
+    font-weight: 500;
+  }
+
+  .line-stat {
+    margin-left: auto;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: #665c54;
   }
 
   .header-diff-stat {
@@ -1063,45 +965,42 @@
   }
 
   .stat-badge {
+    font-family: "JetBrains Mono", monospace;
     padding: 1px 6px;
     border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
+    font-size: 10.5px;
   }
 
   .stat-badge.add {
-    background: rgba(138, 154, 110, 0.18);
-    color: #8a9a6e;
+    background: rgba(142, 192, 124, 0.14);
+    color: #8ec07c;
   }
 
   .stat-badge.del {
-    background: rgba(191, 88, 77, 0.18);
-    color: #bf584d;
+    background: rgba(251, 73, 52, 0.14);
+    color: #fb4934;
   }
 
-  /* 雙欄對齊比對內容 (天然支援 100% 左右滾動同步) */
+  /* Diff 內容檢視器 */
   .diff-viewer {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    font-family: 'Consolas', 'Fira Code', 'JetBrains Mono', monospace;
-    font-size: 12.5px;
-    line-height: 22px;
-    background: #18191a;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    line-height: 24px;
   }
 
   .split-diff-content {
     display: flex;
     flex-direction: column;
     width: 100%;
-    min-width: 100%;
   }
 
   .split-diff-row {
     display: flex;
-    min-height: 22px;
+    min-height: 24px;
     width: 100%;
-    transition: background 0.05s;
     align-items: stretch;
   }
 
@@ -1115,33 +1014,24 @@
     max-width: 50%;
     min-width: 0;
     display: flex;
-    position: relative;
-    box-sizing: border-box;
-    padding: 2px 0;
+    padding: 1px 0;
   }
 
   .split-cell.left {
-    border-right: 1px solid rgba(255, 255, 255, 0.04);
+    border-right: 1px solid rgba(100, 86, 66, 0.15);
   }
 
   .split-cell.added {
-    background: rgba(138, 154, 110, 0.12);
+    background: rgba(142, 192, 124, 0.09);
   }
 
   .split-cell.removed {
-    background: rgba(191, 88, 77, 0.12);
+    background: rgba(251, 73, 52, 0.09);
   }
 
   .split-cell.empty {
-    background: repeating-linear-gradient(
-      -45deg,
-      rgba(24, 25, 26, 0.95),
-      rgba(24, 25, 26, 0.95) 8px,
-      rgba(31, 32, 34, 0.95) 8px,
-      rgba(31, 32, 34, 0.95) 16px
-    );
+    background: rgba(0, 0, 0, 0.2);
     user-select: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
   }
 
   .empty-line-box,
@@ -1151,44 +1041,29 @@
   }
 
   .empty-line-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 10px;
-    font-family: 'JetBrains Mono', monospace;
-    color: #bf584d;
-    background: rgba(191, 88, 77, 0.12);
-    border: 1px dashed rgba(191, 88, 77, 0.35);
+    font-size: 10.5px;
+    color: #fb4934;
+    background: rgba(251, 73, 52, 0.12);
     border-radius: 4px;
     padding: 0 6px;
-    user-select: none;
     line-height: 18px;
   }
 
   .empty-line-badge.add {
-    color: #8a9a6e;
-    background: rgba(138, 154, 110, 0.12);
-    border-color: rgba(138, 154, 110, 0.35);
+    color: #8ec07c;
+    background: rgba(142, 192, 124, 0.12);
   }
 
   .empty-row-hint {
     font-size: 11px;
-    font-family: inherit;
-    font-style: italic;
-    color: #7a756b;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    user-select: none;
-    line-height: 18px;
+    color: #504945;
   }
 
   .col-num {
-    width: 38px;
-    min-width: 38px;
-    padding: 0 8px 0 0;
+    width: 36px;
+    padding-right: 8px;
     text-align: right;
-    color: #52565b;
+    color: #504945;
     user-select: none;
     font-size: 11px;
     flex-shrink: 0;
@@ -1196,10 +1071,8 @@
 
   .col-indicator {
     width: 16px;
-    min-width: 16px;
     text-align: center;
     user-select: none;
-    font-weight: bold;
     font-size: 12px;
     flex-shrink: 0;
   }
@@ -1208,11 +1081,10 @@
     flex: 1;
     min-width: 0;
     margin: 0;
-    padding: 0 10px 0 0;
+    padding-right: 12px;
     white-space: pre-wrap;
     word-break: break-word;
-    overflow-wrap: anywhere;
-    color: #d4cebe;
+    color: #d5c4a1;
     font-family: inherit;
     font-size: inherit;
     line-height: inherit;
@@ -1220,50 +1092,53 @@
 
   .split-cell.added .col-indicator,
   .split-cell.added .col-text {
-    color: #8a9a6e;
+    color: #8ec07c;
   }
 
   .split-cell.removed .col-indicator,
   .split-cell.removed .col-text {
-    color: #bf584d;
-    opacity: 0.9;
+    color: #fb4934;
   }
 
   .pane-content {
     flex: 1;
     overflow: auto;
-    position: relative;
-    padding: 16px 20px;
+    padding: 20px;
   }
 
   .readonly-text {
     margin: 0;
-    padding: 0;
-    font-family: 'JetBrains Mono', Consolas, monospace;
-    font-size: 0.82rem;
-    line-height: 1.7;
-    color: #8f897c;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: #d5c4a1;
     white-space: pre-wrap;
-    word-break: break-all;
+    word-break: break-word;
   }
 
-  .readonly-text.refined {
-    color: #d4cebe;
+  /* 底部單行操作與摘要列 */
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: rgba(16, 18, 17, 0.9);
+    border-top: 1px solid rgba(100, 86, 66, 0.22);
+    gap: 16px;
+    flex-shrink: 0;
   }
 
-  .change-log-footer {
+  .footer-left-log {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 18px;
-    background: #1b1c1e;
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
-    font-size: 0.75rem;
+    font-size: 12px;
     overflow-x: auto;
+    min-width: 0;
   }
 
   .log-label {
-    color: #7a756b;
+    color: #7c7365;
     flex-shrink: 0;
   }
 
@@ -1276,97 +1151,73 @@
 
   .log-pill {
     padding: 2px 8px;
-    background: rgba(138, 154, 110, 0.12);
-    border: 1px solid rgba(138, 154, 110, 0.25);
+    background: rgba(142, 192, 124, 0.1);
+    border: 1px solid rgba(142, 192, 124, 0.25);
     border-radius: 4px;
-    color: #8a9a6e;
-    font-size: 0.7rem;
+    color: #8ec07c;
+    font-size: 11.5px;
   }
 
   .log-none {
-    color: #686c72;
-    font-style: italic;
-  }
-
-  /* 底部操作列：虛線分割與大方呼吸感 */
-  .modal-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 24px;
-    background: rgba(16, 18, 17, 0.85);
-    border-top: 1px dashed rgba(100, 86, 66, 0.25);
-  }
-
-  .footer-left-hint {
-    font-size: 0.76rem;
-    color: #7c7365;
+    color: #665c54;
   }
 
   .footer-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+    flex-shrink: 0;
   }
 
   .footer-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 9px 18px;
-    border-radius: 8px;
-    font-size: 0.84rem;
+    height: 34px;
+    padding: 0 14px;
+    border-radius: 6px;
+    font-size: 13px;
     cursor: pointer;
-    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.15s ease;
     border: 1px solid transparent;
   }
 
   .footer-btn.secondary {
-    background: rgba(255, 255, 255, 0.04);
+    background: transparent;
     border-color: rgba(100, 86, 66, 0.3);
-    color: #ebdbb2;
+    color: #9c8f7a;
   }
 
   .footer-btn.secondary:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fabd2f;
+    color: #ebdbb2;
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .footer-btn.copy-btn {
-    background: rgba(142, 192, 124, 0.12);
-    border-color: rgba(142, 192, 124, 0.28);
+    background: rgba(142, 192, 124, 0.1);
+    border-color: rgba(142, 192, 124, 0.3);
     color: #8ec07c;
   }
 
   .footer-btn.copy-btn:hover {
-    background: rgba(142, 192, 124, 0.22);
-    border-color: rgba(142, 192, 124, 0.45);
-    color: #b8bb26;
+    background: rgba(142, 192, 124, 0.2);
   }
 
   .footer-btn.apply-btn {
+    background: rgba(250, 189, 47, 0.14);
+    border-color: rgba(250, 189, 47, 0.4);
+    color: #fabd2f;
+    font-weight: 500;
+  }
+
+  .footer-btn.apply-btn:hover:not(:disabled) {
     background: #fabd2f;
-    border-color: #fabd2f;
-    color: #18191a;
-    font-weight: 600;
-    box-shadow: 0 2px 10px rgba(250, 189, 47, 0.28);
+    color: #1d2021;
   }
 
-  .footer-btn.apply-btn:hover {
-    background: #ffd666;
-    border-color: #ffd666;
-    box-shadow: 0 3px 14px rgba(250, 189, 47, 0.4);
-    transform: translateY(-1px);
-  }
-
-  .footer-btn.apply-btn.disabled {
-    opacity: 0.4;
+  .footer-btn.apply-btn:disabled {
+    opacity: 0.35;
     cursor: not-allowed;
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.08);
-    color: #7c7365;
-    box-shadow: none;
-    transform: none;
   }
 
   @keyframes fadeIn {
