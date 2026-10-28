@@ -91,7 +91,6 @@
     onConfirmSave,
   }: FileBrowserDrawerProps = $props();
 
-
   // 1. 畫面形態模式：'modal' (巨幕中控台) 或 'drawer' (側欄模式)
   let displayMode = $state<"modal" | "drawer">("modal");
   let drawerWidth = $state(600); // 側欄模式寬度
@@ -127,12 +126,18 @@
   // 當前連線工作區名稱與全洞天總數計算（供視野與落點說明使用）
   const currentVaultName = $derived(
     caves.find((c) => c.path === vaultFolderPath)?.name ||
-    vaultFolderPath.split(/[/|\\]/).filter(Boolean).pop() ||
-    "當前目錄"
+      vaultFolderPath
+        .split(/[/|\\]/)
+        .filter(Boolean)
+        .pop() ||
+      "當前目錄",
   );
 
   const totalCavesCount = $derived(
-    caves.length + (vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath) ? 1 : 0)
+    caves.length +
+      (vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)
+        ? 1
+        : 0),
   );
 
   // 初始化洞天列表
@@ -166,7 +171,8 @@
 
     if (caves.length === 0) {
       if (unrecordedCave) {
-        const filesForUnrecorded = cavesFileCache[unrecordedCave.path] || vaultFiles;
+        const filesForUnrecorded =
+          cavesFileCache[unrecordedCave.path] || vaultFiles;
         return [buildCaveTree(filesForUnrecorded, unrecordedCave)];
       }
       return [];
@@ -175,24 +181,30 @@
     // 依選取的洞天過濾，或全部展示
     if (selectedCavePath) {
       if (unrecordedCave && selectedCavePath === unrecordedCave.path) {
-        const filesForUnrecorded = cavesFileCache[unrecordedCave.path] || vaultFiles;
+        const filesForUnrecorded =
+          cavesFileCache[unrecordedCave.path] || vaultFiles;
         return [buildCaveTree(filesForUnrecorded, unrecordedCave)];
       }
       const targetCaves = caves.filter((c) => c.path === selectedCavePath);
       return targetCaves.map((cave) => {
-        const filesForCave = cavesFileCache[cave.path] || (cave.path === vaultFolderPath ? vaultFiles : []);
+        const filesForCave =
+          cavesFileCache[cave.path] ||
+          (cave.path === vaultFolderPath ? vaultFiles : []);
         return buildCaveTree(filesForCave, cave);
       });
     }
 
     // 諸洞天萬卷全覽模式 (selectedCavePath 為空)：所有洞天聚合展示！
     const nodes = caves.map((cave) => {
-      const filesForCave = cavesFileCache[cave.path] || (cave.path === vaultFolderPath ? vaultFiles : []);
+      const filesForCave =
+        cavesFileCache[cave.path] ||
+        (cave.path === vaultFolderPath ? vaultFiles : []);
       return buildCaveTree(filesForCave, cave);
     });
 
     if (unrecordedCave) {
-      const filesForUnrecorded = cavesFileCache[unrecordedCave.path] || vaultFiles;
+      const filesForUnrecorded =
+        cavesFileCache[unrecordedCave.path] || vaultFiles;
       nodes.unshift(buildCaveTree(filesForUnrecorded, unrecordedCave));
     }
 
@@ -501,7 +513,10 @@
   // 當前選取洞天或諸洞天全覽之檔案集合（具備去重保護）
   const currentCaveFiles = $derived.by(() => {
     if (selectedCavePath) {
-      return cavesFileCache[selectedCavePath] || (selectedCavePath === vaultFolderPath ? vaultFiles : []);
+      return (
+        cavesFileCache[selectedCavePath] ||
+        (selectedCavePath === vaultFolderPath ? vaultFiles : [])
+      );
     }
     // 諸洞天萬卷全覽：聚合所有洞天檔案，依路徑去重 (避免重複顯示母子資料夾檔案)
     const fileMap = new Map<string, VaultFileEntry>();
@@ -515,7 +530,9 @@
     if (fileMap.size === 0) {
       return vaultFiles;
     }
-    return Array.from(fileMap.values()).sort((a, b) => (b.modified || 0) - (a.modified || 0));
+    return Array.from(fileMap.values()).sort(
+      (a, b) => (b.modified || 0) - (a.modified || 0),
+    );
   });
 
   // 檔案扁平搜尋 (Fuse)
@@ -746,22 +763,11 @@
         </span>
         <div class="brand-text">
           <span class="main-title">藏卷洞天 · 萬卷中控台</span>
-          <span class="sub-title">御風輕功樹覽 · 諸洞天萬卷全覽</span>
+          <span class="sub-title">御風輕功俯瞰 · 洞天萬卷全覽</span>
         </div>
       </div>
 
       <div class="header-controls">
-        <!-- 心法說明與快捷鍵指南按鈕 (右上角簡化為問號，hover 展開洞天心法) -->
-        <button
-          type="button"
-          class="control-btn help-btn {isHelpModalOpen ? 'active' : ''}"
-          onclick={() => (isHelpModalOpen = !isHelpModalOpen)}
-          title="查看藏卷洞天設計心法與鍵道輕功操作秘笈 (?)"
-        >
-          <span class="help-qmark">?</span>
-          <span class="help-hover-text">洞天心法</span>
-        </button>
-
         <!-- 尺寸切換按鈕 -->
         <button
           type="button"
@@ -813,7 +819,9 @@
           <div class="scope-label">全域瀏覽視野</div>
           <button
             type="button"
-            class="cave-item-btn scope-master-btn {!selectedCavePath ? 'active' : ''}"
+            class="cave-item-btn scope-master-btn {!selectedCavePath
+              ? 'active'
+              : ''}"
             onclick={() => (selectedCavePath = "")}
             title={`同時聚合瀏覽所有已開放之洞天。新檔預設存入：${currentVaultName}`}
           >
@@ -822,15 +830,25 @@
               <div class="name-line">
                 <span class="cave-name">諸洞天萬卷全覽</span>
                 {#if isScanningCaves}
-                  <span class="active-dot scanning" title="跨洞天卷軸更新彙整中...">⏳ 彙整中</span>
+                  <span
+                    class="active-dot scanning"
+                    title="跨洞天卷軸更新彙整中...">⏳ 彙整中</span
+                  >
                 {:else if !selectedCavePath}
-                  <span class="active-dot scope-active" title="目前處於全域聚合瀏覽視野">全覽中</span>
+                  <span
+                    class="active-dot scope-active"
+                    title="目前處於全域聚合瀏覽視野">全覽中</span
+                  >
                 {/if}
               </div>
               <div class="cave-scope-sub">
-                <div class="scope-stat-line">已聚合 {totalCavesCount} 洞天 · 共 {currentCaveFiles.length} 卷</div>
+                <div class="scope-stat-line">
+                  已聚合 {totalCavesCount} 洞天 · 共 {currentCaveFiles.length} 卷
+                </div>
                 <div class="scope-target-line">
-                  <span>📍 新檔預設存入：</span><strong class="target-name">{currentVaultName}</strong>
+                  <span>📍 新檔預設存入：</span><strong class="target-name"
+                    >{currentVaultName}</strong
+                  >
                 </div>
               </div>
             </div>
@@ -839,7 +857,9 @@
 
         <!-- 實體洞天庫標頭 (切換工作區 / 開放新洞天) -->
         <div class="sidebar-sec-header">
-          <span class="sec-title" title="點選聚焦／切換工作區">實體洞天庫 ({caves.length})</span>
+          <span class="sec-title" title="點選聚焦／切換工作區"
+            >實體洞天庫 ({caves.length})</span
+          >
           <div class="cave-header-actions">
             {#if isScanningCaves}
               <span class="scanning-badge" title="背景探尋諸洞天中...">⏳</span>
@@ -865,7 +885,6 @@
         </div>
 
         <div class="caves-list">
-
           <!-- 當前臨時工作區（未收錄至洞天時顯示，提供手動收錄按鈕） -->
           {#if vaultFolderPath && !caves.some((c) => c.path === vaultFolderPath)}
             {@const currentName =
@@ -936,7 +955,9 @@
                   <div class="name-line">
                     <span class="cave-name">{cave.name}</span>
                     {#if isCurrentLinked}
-                      <span class="active-dot active-workspace" title="新筆記預設存入此處，外部檔案熱監聽中"
+                      <span
+                        class="active-dot active-workspace"
+                        title="新筆記預設存入此處，外部檔案熱監聽中"
                         >當前工作區</span
                       >
                     {/if}
@@ -1012,6 +1033,22 @@
               </button>
             {/each}
           </div>
+        </div>
+
+        <!-- 側欄最底端：洞天心法與輕功秘笈常駐入口 -->
+        <div class="sidebar-footer-bar">
+          <button
+            type="button"
+            class="sidebar-help-btn {isHelpModalOpen ? 'active' : ''}"
+            onclick={() => (isHelpModalOpen = !isHelpModalOpen)}
+            title="查看藏卷洞天設計心法與鍵道輕功操作秘笈 (?)"
+          >
+            <span class="help-label">
+              <span class="help-icon">📜</span>
+              <span>洞天心法與輕功</span>
+            </span>
+            <kbd class="help-shortcut-badge">?</kbd>
+          </button>
         </div>
       </aside>
 
@@ -1255,19 +1292,27 @@
                     title="返回上一層：{parentNode.name}"
                   >
                     <span class="nav-arrow">⮥</span>
-                    <span class="nav-label">返回上一層 ({parentNode.name})</span>
+                    <span class="nav-label">返回上一層 ({parentNode.name})</span
+                    >
                   </button>
                 {/if}
 
                 {#if selectedNode.children && selectedNode.children.length > 0}
                   <div class="folder-children-list">
                     <div class="folder-children-header">
-                      <span>子閣內藏卷軸與目錄 ({selectedNode.children.length})</span>
+                      <span
+                        >子閣內藏卷軸與目錄 ({selectedNode.children
+                          .length})</span
+                      >
                     </div>
                     {#each selectedNode.children as child (child.id || child.path)}
-                      {@const isOpened = tabs.some((t) => t.filePath === child.path)}
+                      {@const isOpened = tabs.some(
+                        (t) => t.filePath === child.path,
+                      )}
                       <div
-                        class="folder-child-item {child.isFolder ? 'is-folder' : 'is-file'}"
+                        class="folder-child-item {child.isFolder
+                          ? 'is-folder'
+                          : 'is-file'}"
                         onclick={() => {
                           if (child.isFolder) {
                             handleDrillDownFolder(child);
@@ -1294,17 +1339,27 @@
                           }
                         }}
                       >
-                        <span class="child-icon">{child.isFolder ? "📁" : (child.extension === "md" ? "📝" : "📄")}</span>
+                        <span class="child-icon"
+                          >{child.isFolder
+                            ? "📁"
+                            : child.extension === "md"
+                              ? "📝"
+                              : "📄"}</span
+                        >
                         <div class="child-meta">
                           <div class="child-title-row">
-                            <span class="child-name" title={child.name}>{child.name}</span>
-                            {#if isOpened}<span class="badge-opened">已開</span>{/if}
+                            <span class="child-name" title={child.name}
+                              >{child.name}</span
+                            >
+                            {#if isOpened}<span class="badge-opened">已開</span
+                              >{/if}
                           </div>
                           <span class="child-desc">
                             {#if child.isFolder}
                               子閣目錄 · 包含 {child.children?.length || 0} 個項目
                             {:else}
-                              卷軸筆記 · {((child.size || 0) / 1024).toFixed(1)} KB
+                              卷軸筆記 · {((child.size || 0) / 1024).toFixed(1)}
+                              KB
                             {/if}
                           </span>
                         </div>
@@ -1342,7 +1397,9 @@
                   <div class="folder-empty-hint">
                     <span class="empty-icon">📂</span>
                     <p class="empty-title">此子閣目前為空目錄</p>
-                    <p class="empty-desc">此資料夾內尚無任何卷軸筆記或子目錄。</p>
+                    <p class="empty-desc">
+                      此資料夾內尚無任何卷軸筆記或子目錄。
+                    </p>
                   </div>
                 {/if}
               </div>
@@ -1699,29 +1756,6 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .help-qmark {
-    font-weight: 700;
-    font-size: 13px;
-    line-height: 1;
-  }
-
-  .help-hover-text {
-    max-width: 0;
-    opacity: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    transition: max-width 0.22s ease, opacity 0.18s ease, margin 0.18s ease;
-    margin-left: 0;
-    font-size: 11px;
-    font-weight: 600;
-  }
-
-  .control-btn.help-btn:hover .help-hover-text {
-    max-width: 80px;
-    opacity: 1;
-    margin-left: 5px;
-  }
-
   .control-btn:hover {
     background: #504945;
     color: #fbf1c7;
@@ -1899,7 +1933,6 @@
     color: #fabd2f;
     font-weight: 600;
   }
-
 
   .mini-add-btn {
     background: #3c3836;
@@ -2177,6 +2210,52 @@
     color: #7c6f64;
     margin-left: 6px;
     flex-shrink: 0;
+  }
+
+  /* 側欄底端心法與輕功秘笈入口 */
+  .sidebar-footer-bar {
+    border-top: 1px solid #282828;
+    padding: 8px 10px;
+    background: #181a1b;
+  }
+
+  .sidebar-help-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #3c3836;
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #a89984;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .sidebar-help-btn:hover,
+  .sidebar-help-btn.active {
+    background: rgba(215, 153, 33, 0.12);
+    border-color: #d79921;
+    color: #fabd2f;
+  }
+
+  .sidebar-help-btn .help-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+  }
+
+  .help-shortcut-badge {
+    background: #282828;
+    border: 1px solid #504945;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 10px;
+    color: #ebdbb2;
+    font-family: inherit;
   }
 
   /* 欄 2：樹狀檢索核心 */

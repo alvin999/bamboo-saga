@@ -49,17 +49,17 @@ export function buildVimOverrideKeymap(
         }
         const endLine = view.state.doc.line(endLineNum);
         // 重要：使用 side: -1 保證行尾亦能精準取得幾何邊界，並以行首 (side: 1) 與游標雙重兜底
-        const geo = view.coordsAtPos(endLine.to, -1) || 
-                    view.coordsAtPos(endLine.from, 1) || 
-                    view.coordsAtPos(sel.head, -1) ||
-                    view.coordsAtPos(sel.head, 1);
+        const geo = view.coordsAtPos(endLine.to, -1) ||
+          view.coordsAtPos(endLine.from, 1) ||
+          view.coordsAtPos(sel.head, -1) ||
+          view.coordsAtPos(sel.head, 1);
         if (geo) {
           const editorRect = view.dom?.getBoundingClientRect();
           const dialogWidth = Math.min(680, window.innerWidth - 32);
           const x = editorRect ? editorRect.left + (editorRect.width - dialogWidth) / 2 : geo.left;
           coords = { x: Math.max(16, x), y: geo.bottom + 8 };
         }
-      } catch (e) {}
+      } catch (e) { }
       callbacks?.onOpenInlinePrompt?.(coords);
       return true;
     },
@@ -220,7 +220,7 @@ export function buildVimOverrideKeymap(
       const now = Date.now();
       if (now - lastWarningTime > 2000) {
         lastWarningTime = now;
-        callbacks?.onImeWarning?.('⚠️ 目前處於中文輸入模式，請按「i」切換為 Vim 輸入模式再鍵入中文。');
+        callbacks?.onImeWarning?.('⚠️ 目前處於中文輸入模式。');
       }
     };
 
