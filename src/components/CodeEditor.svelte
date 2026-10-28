@@ -3,7 +3,7 @@
   import { EditorState, Compartment } from '@codemirror/state';
   import type { Extension } from '@codemirror/state';
   import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection } from '@codemirror/view';
-  import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+  import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
   import { foldGutter, foldKeymap } from '@codemirror/language';
   import { vim } from '@replit/codemirror-vim';
   import type { SupportedLanguage, CursorPosition, VimKeyOverrides } from '../types/tab';
@@ -13,6 +13,7 @@
   import { buildVimOverrideKeymap } from '../lib/editor/vimOverrides';
   import { createWikiLinkPlugin, createWikiLinkCompletionSource, type WikiLinkCandidate } from '../lib/editor/wikiLinks';
   import { autocompletion } from '@codemirror/autocomplete';
+  import { diagnoseText } from '../lib/editor/textProcessor';
 
   let {
     content = '',
@@ -40,7 +41,8 @@
     onSelectionChange,
     onOpenInlinePrompt,
     onOpenWikiLink,
-    onRegisterApi
+    onRegisterApi,
+    onPasteSuggestion
   } = $props<{
     content: string;
     language: SupportedLanguage;
@@ -61,6 +63,7 @@
     onOpenInlinePrompt?: (coords?: { x: number; y: number } | null) => void;
     onOpenWikiLink?: (target: string) => void;
     onRegisterApi?: (handle: { getParagraphScreenCoords: () => { x: number; y: number } | null; scrollToMakeRoom: () => void }) => void;
+    onPasteSuggestion?: (msg: string) => void;
   }>();
 
   let editorHost: HTMLDivElement;
@@ -199,6 +202,7 @@
           ...foldKeymap,
           ...defaultKeymap,
           ...historyKeymap,
+          indentWithTab,
         ]),
         gruvboxExtension,
         languageCompartment.of(getLanguageExtension(language)),
@@ -211,6 +215,25 @@
           override: [createWikiLinkCompletionSource(() => wikiLinkCandidates)],
         }),
         updateListener,
+        EditorView.domEventHandlers({
+          paste(event) {
+            try {
+              const text = event.clipboardData?.getData('text/plain');
+              if (text) {
+                const lines = text.split('\n');
+                if (lines.length >= 20) {
+                  const diag = diagnoseText(text);
+                  if (diag.hasDuplicates || diag.hasBlankLines || diag.hasUntrimmedWhitespace) {
+                    onPasteSuggestion?.('偵測到貼上內容含有多餘空行/重複項，按 Ctrl+Shift+T 一鍵清理');
+                  }
+                }
+              }
+            } catch (err) {
+              // 貼上監聽採被動守護，不阻斷正常貼上
+            }
+            return false;
+          },
+        }),
         EditorView.lineWrapping,
       ],
     });

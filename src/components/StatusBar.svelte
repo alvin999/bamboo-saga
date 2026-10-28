@@ -1,6 +1,20 @@
 <script lang="ts">
   import type { SupportedLanguage, CursorPosition } from '../types/tab';
 
+  interface StatusBarProps {
+    content?: string;
+    language?: SupportedLanguage;
+    cursor?: CursorPosition;
+    vimMode?: boolean;
+    onLanguageChange: (lang: SupportedLanguage) => void;
+    onToggleVim?: () => void;
+    onOpenHistory?: () => void;
+    onOpenFuzzy?: () => void;
+    onOpenBackup?: () => void;
+    selectionText?: string;
+    onOpenTextTools?: () => void;
+  }
+
   let {
     content = '',
     language = 'plaintext' as SupportedLanguage,
@@ -10,18 +24,14 @@
     onToggleVim,
     onOpenHistory,
     onOpenFuzzy,
-    onOpenBackup
-  } = $props<{
-    content: string;
-    language: SupportedLanguage;
-    cursor: CursorPosition;
-    vimMode: boolean;
-    onLanguageChange: (lang: SupportedLanguage) => void;
-    onToggleVim?: () => void;
-    onOpenHistory?: () => void;
-    onOpenFuzzy?: () => void;
-    onOpenBackup?: () => void;
-  }>();
+    onOpenBackup,
+    selectionText = '',
+    onOpenTextTools
+  }: StatusBarProps = $props();
+
+  const selectedLineCount = $derived(
+    selectionText && selectionText.trim().length > 0 ? selectionText.split('\n').length : 0
+  );
 
   const charCount = $derived(content.length);
   const lineCount = $derived(content.split('\n').length);
@@ -32,7 +42,7 @@
   <div class="status-left">
     <button 
       class="mode-tag font-mono {vimMode ? 'active' : ''}" 
-      onclick={onToggleVim}
+      onclick={() => onToggleVim?.()}
       title="點擊切換 Vim 編輯模式"
     >
       {vimMode ? 'MODE // VIM-HYBRID' : 'MODE // STD-EDIT'}
@@ -70,6 +80,21 @@
       <span>ONEDRIVE</span>
     </button>
   </div>
+
+  <!-- 中央動態情境輔助：反白選取超過 3 行時自動浮現快捷清理按鈕 -->
+  {#if selectedLineCount >= 3 && onOpenTextTools}
+    <div class="status-center-action">
+      <button
+        type="button"
+        class="clean-selection-btn font-mono"
+        onclick={onOpenTextTools}
+        title="將已選取的 {selectedLineCount} 行載入行處理解藥包 (Ctrl+Shift+T)"
+      >
+        <span class="btn-glyph">◬</span>
+        <span class="btn-text">清理選取行 ({selectedLineCount}行 去重/排序)</span>
+      </button>
+    </div>
+  {/if}
 
   <!-- 右側：座標、字數、語言選擇與編碼 (精準對齊 code.html 第 92 行) -->
   <div class="status-right font-mono">
@@ -206,6 +231,58 @@
     color: #fabd2f;
     border-color: rgba(250, 189, 47, 0.35);
     background: rgba(250, 189, 47, 0.08);
+  }
+
+  /* 中央動態清理選取行按鈕 */
+  .status-center-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.18s ease;
+  }
+
+  .clean-selection-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(250, 189, 47, 0.12);
+    border: 1px solid rgba(250, 189, 47, 0.4);
+    color: #fabd2f;
+    border-radius: 4px;
+    padding: 1px 9px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.14s ease;
+    box-shadow: 0 0 8px rgba(250, 189, 47, 0.15);
+  }
+
+  .clean-selection-btn:hover {
+    background: #fabd2f;
+    color: #1d2021;
+    border-color: #fabd2f;
+    box-shadow: 0 0 12px rgba(250, 189, 47, 0.35);
+    transform: translateY(-0.5px);
+  }
+
+  .btn-glyph {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .btn-text {
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .history-icon, .fuzzy-icon, .backup-icon {

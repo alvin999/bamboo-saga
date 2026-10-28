@@ -1377,7 +1377,7 @@
 
   // VIM / STD MODE 自動即時持久化切換
   function handleToggleVimMode(explicitMode?: boolean) {
-    appState.vimMode = explicitMode !== undefined ? explicitMode : !appState.vimMode;
+    appState.vimMode = typeof explicitMode === 'boolean' ? explicitMode : !appState.vimMode;
     saveVaultState(appState, true);
     showToast(appState.vimMode ? '⌨️ 編輯模式已切換為：VIM (VIM-HYBRID)' : '📝 編輯模式已切換為：STD (標準編輯)');
   }
@@ -1715,6 +1715,7 @@
             onImeWarning={handleImeWarning}
             onAddTab={addTab}
             onCloseTab={() => activeTab && closeTab(activeTab.id)}
+            onPasteSuggestion={(msg: string) => showToast(msg)}
           />
         </div>
       {/if}
@@ -1739,6 +1740,8 @@
         aiModalTab = 'onedrive';
         isAiModalOpen = true;
       }}
+      selectionText={currentSelectionText}
+      onOpenTextTools={() => (isTextToolsOpen = true)}
     />
 
     <!-- 本機歷史紀錄與 Diff 對比對話盒 (Alt+H) -->
