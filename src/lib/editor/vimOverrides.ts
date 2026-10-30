@@ -110,6 +110,34 @@ export function buildVimOverrideKeymap(
     },
   });
 
+  // 0.4 Ctrl + U: 強制轉交給 Vim (<C-u> 向上捲動半頁 / Insert 模式刪除至行首)，防止被 CodeMirror historyKeymap 的 Mod-u (undoSelection) 攔截導致誤觸還原或退回上一行
+  bindings.push({
+    key: 'Mod-u',
+    run: (view) => {
+      const cm = getCM(view);
+      if (cm?.state?.vim) {
+        Vim.multiSelectHandleKey(cm, '<C-u>', 'user');
+        return true;
+      }
+      return false;
+    },
+    preventDefault: true,
+  });
+
+  // 0.5 Ctrl + D: 強制轉交給 Vim (<C-d> 向下捲動半頁 / Insert 模式減少縮排)，確保與 Ctrl + U 行為對稱一致
+  bindings.push({
+    key: 'Mod-d',
+    run: (view) => {
+      const cm = getCM(view);
+      if (cm?.state?.vim) {
+        Vim.multiSelectHandleKey(cm, '<C-d>', 'user');
+        return true;
+      }
+      return false;
+    },
+    preventDefault: true,
+  });
+
   // 1. Ctrl + S: 手動存檔 / 智薦歸檔
   if (options.ctrlS !== false) {
     bindings.push({

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { EditorState, Compartment } from '@codemirror/state';
-  import type { Extension } from '@codemirror/state';
   import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection } from '@codemirror/view';
   import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
   import { foldGutter, foldKeymap } from '@codemirror/language';
@@ -14,6 +13,29 @@
   import { createWikiLinkPlugin, createWikiLinkCompletionSource, type WikiLinkCandidate } from '../lib/editor/wikiLinks';
   import { autocompletion } from '@codemirror/autocomplete';
   import { diagnoseText } from '../lib/editor/textProcessor';
+
+  interface CodeEditorProps {
+    content: string;
+    language: SupportedLanguage;
+    vimMode: boolean;
+    vimOverrides?: VimKeyOverrides;
+    cursor: CursorPosition;
+    smearEnabled?: boolean;
+    typewriterMode?: boolean;
+    wikiLinkCandidates?: WikiLinkCandidate[];
+    onChange: (val: string) => void;
+    onCursorChange: (cur: CursorPosition) => void;
+    onManualSave?: () => void;
+    onSaveAs?: () => void;
+    onImeWarning?: (msg: string) => void;
+    onAddTab?: () => void;
+    onCloseTab?: () => void;
+    onSelectionChange?: (selectedText: string) => void;
+    onOpenInlinePrompt?: (coords?: { x: number; y: number } | null) => void;
+    onOpenWikiLink?: (target: string) => void;
+    onRegisterApi?: (handle: { getParagraphScreenCoords: () => { x: number; y: number } | null; scrollToMakeRoom: () => void }) => void;
+    onPasteSuggestion?: (msg: string) => void;
+  }
 
   let {
     content = '',
@@ -43,28 +65,7 @@
     onOpenWikiLink,
     onRegisterApi,
     onPasteSuggestion
-  } = $props<{
-    content: string;
-    language: SupportedLanguage;
-    vimMode: boolean;
-    vimOverrides?: VimKeyOverrides;
-    cursor: CursorPosition;
-    smearEnabled?: boolean;
-    typewriterMode?: boolean;
-    wikiLinkCandidates?: WikiLinkCandidate[];
-    onChange: (val: string) => void;
-    onCursorChange: (cur: CursorPosition) => void;
-    onManualSave?: () => void;
-    onSaveAs?: () => void;
-    onImeWarning?: (msg: string) => void;
-    onAddTab?: () => void;
-    onCloseTab?: () => void;
-    onSelectionChange?: (selectedText: string) => void;
-    onOpenInlinePrompt?: (coords?: { x: number; y: number } | null) => void;
-    onOpenWikiLink?: (target: string) => void;
-    onRegisterApi?: (handle: { getParagraphScreenCoords: () => { x: number; y: number } | null; scrollToMakeRoom: () => void }) => void;
-    onPasteSuggestion?: (msg: string) => void;
-  }>();
+  }: CodeEditorProps = $props();
 
   let editorHost: HTMLDivElement;
   let canvasHost: HTMLCanvasElement;
@@ -135,6 +136,10 @@
         highlightActiveLine(),
         drawSelection(),
         history(),
+        vimOverridesCompartment.of(
+          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt }) : []
+        ),
+        vimCompartment.of(vimMode ? vim() : []),
         keymap.of([
           {
             key: 'Mod-t',
@@ -201,15 +206,11 @@
           },
           ...foldKeymap,
           ...defaultKeymap,
-          ...historyKeymap,
+          ...historyKeymap.filter((b) => b.key !== 'Mod-u' && b.key !== 'Alt-u'),
           indentWithTab,
         ]),
         gruvboxExtension,
         languageCompartment.of(getLanguageExtension(language)),
-        vimOverridesCompartment.of(
-          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt }) : []
-        ),
-        vimCompartment.of(vimMode ? vim() : []),
         createWikiLinkPlugin((target) => onOpenWikiLink?.(target)),
         autocompletion({
           override: [createWikiLinkCompletionSource(() => wikiLinkCandidates)],
@@ -355,7 +356,7 @@
         effects: [
           vimCompartment.reconfigure(vimMode ? vim() : []),
           vimOverridesCompartment.reconfigure(
-            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab }) : []
+            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt }) : []
           ),
         ],
       });
