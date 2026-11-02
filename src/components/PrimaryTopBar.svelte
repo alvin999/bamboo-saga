@@ -5,6 +5,7 @@
   import AlchemyPopover from "./AlchemyPopover.svelte";
   import ExportNotePopover from "./ExportNotePopover.svelte";
   import BrandQuickMenu from "./BrandQuickMenu.svelte";
+  import { MessageSquare, SlidersHorizontal } from "lucide-svelte";
 
   interface PrimaryTopBarProps {
     vimMode: boolean;
@@ -374,7 +375,7 @@
             onclick={onToggleAiChat}
             title="竹語參謀 (AI 問道對話 Alt+I / Ctrl+J)"
           >
-            <span class="material-symbols-outlined text-[16px]">forum</span>
+            <MessageSquare size={15} />
             <span class="btn-label">參謀</span>
           </button>
         {/if}
@@ -392,7 +393,7 @@
         onclick={onOpenSettings}
         title="偏好設定與 API 金鑰 (Ctrl+K)"
       >
-        <span class="material-symbols-outlined text-[17px]">tune</span>
+        <SlidersHorizontal size={16} />
       </button>
     </div>
   </div>

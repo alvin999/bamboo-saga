@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { SupportedLanguage, CursorPosition } from '../types/tab';
+  import { ChevronDown } from 'lucide-svelte';
 
   interface StatusBarProps {
     content?: string;
@@ -35,6 +36,17 @@
 
   const charCount = $derived(content.length);
   const lineCount = $derived(content.split('\n').length);
+
+  const languageLabels: Record<SupportedLanguage, string> = {
+    plaintext: 'PLAINTEXT',
+    markdown: 'MARKDOWN',
+    javascript: 'JAVASCRIPT',
+    python: 'PYTHON',
+    json: 'JSON',
+    sql: 'SQL'
+  };
+
+  const currentLanguageLabel = $derived(languageLabels[language] || language.toUpperCase());
 </script>
 
 <footer class="metaphysical-statusbar">
@@ -47,11 +59,6 @@
     >
       {vimMode ? 'MODE // VIM-HYBRID' : 'MODE // STD-EDIT'}
     </button>
-
-    <div class="vault-tag font-mono" title="所有打字與中文注音皆即時毫秒級持久化入櫃">
-      <span class="vault-amber-dot"></span>
-      <span class="vault-label">VAULT // PRESERVED</span>
-    </div>
 
     <button 
       class="fuzzy-quick-btn font-mono" 
@@ -110,19 +117,23 @@
 
     <div class="lang-selector-group">
       <span class="metric-key">LANG:</span>
-      <select 
-        value={language} 
-        onchange={(e) => onLanguageChange((e.target as HTMLSelectElement).value as SupportedLanguage)}
-        class="lang-dropdown"
-      >
-        <option value="plaintext">PLAINTEXT (智慧染色)</option>
-        <option value="markdown">MARKDOWN</option>
-        <option value="javascript">JAVASCRIPT</option>
-        <option value="python">PYTHON</option>
-        <option value="json">JSON</option>
-        <option value="sql">SQL</option>
-      </select>
-      <span class="material-symbols-outlined text-[13px] text-[#b59e72] arrow-icon">expand_more</span>
+      <div class="lang-combo-dock" title="點擊切換語法染色模式">
+        <span class="lang-current-val">{currentLanguageLabel}</span>
+        <ChevronDown size={11} class="lang-arrow" />
+        <select 
+          value={language} 
+          onchange={(e) => onLanguageChange((e.target as HTMLSelectElement).value as SupportedLanguage)}
+          class="lang-dropdown-native"
+          aria-label="切換語法染色模式"
+        >
+          <option value="plaintext">PLAINTEXT (智慧染色)</option>
+          <option value="markdown">MARKDOWN</option>
+          <option value="javascript">JAVASCRIPT</option>
+          <option value="python">PYTHON</option>
+          <option value="json">JSON</option>
+          <option value="sql">SQL</option>
+        </select>
+      </div>
     </div>
 
     <div class="encoding-badge">UTF-8</div>
@@ -184,32 +195,6 @@
     color: #fabd2f;
     border-color: rgba(250, 189, 47, 0.45);
     background: rgba(250, 189, 47, 0.14);
-  }
-
-  .vault-tag {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 7px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(100, 86, 66, 0.2);
-    border-radius: 4px;
-  }
-
-  .vault-amber-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: #fabd2f;
-    box-shadow: 0 0 5px rgba(250, 189, 47, 0.8);
-    flex-shrink: 0;
-  }
-
-  .vault-label {
-    color: #a89984;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    font-size: 10.5px;
   }
 
   .history-btn, .fuzzy-quick-btn, .backup-quick-btn {
@@ -310,39 +295,62 @@
   .lang-selector-group {
     display: flex;
     align-items: center;
-    gap: 3px;
-    position: relative;
+    gap: 4px;
   }
 
-  .lang-dropdown {
-    background: transparent;
-    border: none;
-    color: #bdae93;
-    font-size: 11px;
-    font-weight: 500;
-    font-family: 'JetBrains Mono', monospace;
+  /* 自適應文字寬度底座：讓下拉選單與箭頭自然貼合文字，消除突兀空白 */
+  .lang-combo-dock {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    position: relative;
     cursor: pointer;
-    outline: none;
-    padding-right: 14px;
-    appearance: none;
-    -webkit-appearance: none;
+    color: #bdae93;
     transition: color 0.12s ease;
   }
 
-  .lang-dropdown:hover {
+  .lang-combo-dock:hover {
     color: #fabd2f;
   }
 
-  .lang-dropdown option {
-    background: #18191a;
-    color: #ebdbb2;
+  .lang-current-val {
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+    pointer-events: none;
   }
 
-  .arrow-icon {
-    position: absolute;
-    right: 0;
-    pointer-events: none;
+  :global(.lang-combo-dock .lang-arrow) {
     color: #7c7365;
+    flex-shrink: 0;
+    pointer-events: none;
+    transition: color 0.12s ease;
+  }
+
+  .lang-combo-dock:hover :global(.lang-arrow) {
+    color: #fabd2f;
+  }
+
+  /* 覆蓋於上方的隱形原生 select：完整支援點擊、鍵盤導覽與原生清單彈窗 */
+  .lang-dropdown-native {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    font-size: 11px;
+    border: none;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .lang-dropdown-native option {
+    background: #18191a;
+    color: #ebdbb2;
+    font-family: 'JetBrains Mono', monospace;
   }
 
   .encoding-badge {
