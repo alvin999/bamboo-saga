@@ -91,13 +91,16 @@ export interface VimKeyOverrides {
   imeWarning: boolean;
 }
 
+export type AlchemyColorTag = 'cinnabar' | 'ochre' | 'olive' | 'sapphire' | 'amethyst' | (string & {});
+
 export interface AlchemyCardConfig {
-  id: string; // 'organize' | 'action_items' | 'code_refactor'
+  id: string; // 'organize' | 'action_items' | 'code_refactor' 或自訂 'custom_...'
   tag: string; // '[ 01 // 凝練 ]'
   title: string; // '結構化結論'
   desc: string; // '自動提煉會議要點、脈絡綱領與決策結論'
   systemPrompt: string; // 心法指導語 / prompt template
-  colorTag: 'cinnabar' | 'ochre' | 'olive';
+  colorTag: AlchemyColorTag;
+  isCustom?: boolean;
 }
 
 export interface OneDriveAccountInfo {

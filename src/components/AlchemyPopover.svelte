@@ -1,7 +1,18 @@
 <script lang="ts">
-  import type { AlchemyCardConfig, TabItem } from '../types/tab';
+  import type { AlchemyCardConfig, AlchemyColorTag, TabItem } from '../types/tab';
   import { getDefaultAlchemyCards } from '../lib/storage/vault';
-  import { Sparkles, Plus, Trash2, Pin, PinOff, Settings, Check, ArrowRight, X, Flame, Pencil, RotateCcw, AlertCircle } from 'lucide-svelte';
+  import { Sparkles, Plus, Trash2, Pin, PinOff, Settings, Check, ArrowRight, X, Flame, Pencil, RotateCcw, AlertCircle, Wand2, ListChecks, Code2 } from 'lucide-svelte';
+
+  interface AlchemyPopoverProps {
+    activeTab: TabItem | null;
+    alchemyCards: Record<string, AlchemyCardConfig>;
+    isRefining?: boolean;
+    onExecuteRefine: (mode: string, customPrompt: string, cardPrompt?: string) => Promise<void>;
+    onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
+    onOpenSettings?: () => void;
+    onShowToast?: (msg: string) => void;
+    isOpen?: boolean;
+  }
 
   let {
     activeTab = null,
@@ -12,16 +23,7 @@
     onOpenSettings,
     onShowToast,
     isOpen = $bindable(false)
-  } = $props<{
-    activeTab: TabItem | null;
-    alchemyCards: Record<string, AlchemyCardConfig>;
-    isRefining?: boolean;
-    onExecuteRefine: (mode: string, customPrompt: string, cardPrompt?: string) => Promise<void>;
-    onSaveAlchemyCards?: (cards: Record<string, AlchemyCardConfig>) => void;
-    onOpenSettings?: () => void;
-    onShowToast?: (msg: string) => void;
-    isOpen?: boolean;
-  }>();
+  }: AlchemyPopoverProps = $props();
 
   let isPinned = $state(false);
   let closeTimer: number | null = null;
@@ -39,7 +41,7 @@
   let formTitle = $state('');
   let formTag = $state('');
   let formDesc = $state('');
-  let formColor = $state('cinnabar');
+  let formColor = $state<AlchemyColorTag>('cinnabar');
   let formPrompt = $state('');
 
   const colorOptions = [
@@ -52,6 +54,14 @@
 
   // 取得所有丹方清單陣列
   const cardList = $derived(Object.values(alchemyCards) as AlchemyCardConfig[]);
+
+  // 依丹方屬性決定視覺引導圖示，強化直覺辨識
+  function getCardIcon(id: string) {
+    if (id === 'action_items') return ListChecks;
+    if (id === 'code_refactor') return Code2;
+    if (id === 'organize') return Sparkles;
+    return Wand2;
+  }
 
   // 處理滑鼠進入
   function handleMouseEnter() {
@@ -152,7 +162,7 @@
     if (editingCardId) {
       // 編輯現有丹方
       const targetCard = alchemyCards[editingCardId];
-      const updated = {
+      const updated: Record<string, AlchemyCardConfig> = {
         ...alchemyCards,
         [editingCardId]: {
           ...targetCard,
@@ -172,7 +182,7 @@
       const nextIndex = cardList.length + 1;
       const tagToUse = formTag.trim() || `[ 0${nextIndex} // 自訂 ]`;
 
-      const updated = {
+      const updated: Record<string, AlchemyCardConfig> = {
         ...alchemyCards,
         [newId]: {
           id: newId,
@@ -253,11 +263,11 @@
   role="region"
   aria-label="意圖煉丹爐操作區"
 >
-  <!-- 觸發按鈕：極簡構成主義包浩斯微光風格 -->
+  <!-- 觸發按鈕：極簡構成主義包浩斯微光風格，突顯 AI 意圖煉丹按鈕特質 -->
   <button 
     class="alchemy-trigger-btn {isOpen ? 'active' : ''} {isRefining ? 'refining-pulse' : ''}"
     onclick={handleTriggerClick}
-    title="意圖煉丹爐 (Hover 展開丹方，點擊可鎖定 / Ctrl+K)"
+    title="AI 意圖煉丹爐 (點選展開丹方，點擊可鎖定常開 / 快捷鍵 Ctrl+K)"
   >
     <span class="alchemy-icon-wrap">
       {#if isRefining}
@@ -266,7 +276,13 @@
         <Sparkles class="alchemy-icon" size={15} />
       {/if}
     </span>
-    <span class="alchemy-title-text">煉丹爐</span>
+    <span class="alchemy-title-text">
+      {#if isRefining}
+        煉丹中...
+      {:else}
+        AI 煉丹
+      {/if}
+    </span>
     {#if isPinned}
       <span class="pin-indicator" title="目前已鎖定展開">●</span>
     {/if}
@@ -287,12 +303,12 @@
         <div class="header-left">
           <span class="header-icon">🧪</span>
           <div class="header-texts">
-            <span class="header-title">意圖煉丹樞紐</span>
+            <span class="header-title">意圖煉丹中樞</span>
             <span class="header-sub">
               {#if activeTab}
                 作用藥帖：<strong>{activeTab.title}</strong>
               {:else}
-                未選取分頁
+                <span class="warn-text">⚠️ 尚未選取筆記分頁</span>
               {/if}
             </span>
           </div>
@@ -301,7 +317,7 @@
           <button 
             class="header-tool-btn {isPinned ? 'is-pinned' : ''}" 
             onclick={() => (isPinned = !isPinned)} 
-            title={isPinned ? '取消鎖定 (自動延遲收合)' : '釘選面板 (固定常開)'}
+            title={isPinned ? '取消鎖定 (滑鼠移出自動延遲收合)' : '釘選面板 (固定常開)'}
           >
             {#if isPinned}
               <Pin class="tool-icon" size={13} />
@@ -321,23 +337,40 @@
 
       <!-- 單次補充心法輸入區 -->
       <div class="prompt-input-row">
-        <input 
-          type="text"
-          class="custom-prompt-input"
-          placeholder="單次煉丹補充指示 (如: 轉為繁中、著重資安...)"
-          bind:value={customPrompt}
-          onkeydown={(e) => {
-            if (e.key === 'Enter' && cardList[0] && !isRefining && !editingCardId && !isAddingNew) {
-              triggerRefine(cardList[0]);
-            }
-          }}
-        />
+        <div class="prompt-input-wrap">
+          <input 
+            type="text"
+            class="custom-prompt-input"
+            placeholder="💬 單次補充指示 (例: 轉為繁中、著重資安、條列重點...)"
+            bind:value={customPrompt}
+            onkeydown={(e) => {
+              if (e.key === 'Enter' && cardList[0] && !isRefining && !editingCardId && !isAddingNew) {
+                triggerRefine(cardList[0]);
+              }
+            }}
+          />
+          {#if customPrompt}
+            <button 
+              type="button" 
+              class="clear-prompt-btn" 
+              onclick={() => customPrompt = ''} 
+              title="清空指示"
+            >
+              <X size={12} />
+            </button>
+          {/if}
+        </div>
+        {#if customPrompt.trim()}
+          <div class="prompt-hint-badge">
+            <Sparkles size={10} /> 已注入單次指示，點擊任一丹方按鈕將協同執行
+          </div>
+        {/if}
       </div>
 
       <!-- 丹方卡片列表與編輯區 -->
       <div class="cards-scroll-area">
         <div class="cards-section-header">
-          <span class="section-label">現有丹方 ({cardList.length})</span>
+          <span class="section-label">丹方效果庫 ({cardList.length})</span>
           {#if !isAddingNew && !editingCardId}
             <div class="header-btn-group">
               <button 
@@ -449,23 +482,22 @@
 
         <div class="cards-grid">
           {#each cardList as card (card.id)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            {@const CardIcon = getCardIcon(card.id)}
             <div 
               class="recipe-card color-{card.colorTag || 'cinnabar'} {isRefining ? 'disabled' : ''} {editingCardId === card.id ? 'is-editing' : ''}"
-              onclick={() => triggerRefine(card)}
-              role="button"
-              tabindex="0"
             >
+              <!-- 頂部：標籤與心法管理工具（次要動作不干擾主執行） -->
               <div class="card-top">
                 <span class="card-tag">{card.tag}</span>
                 <div class="card-actions">
-                  <!-- 編輯丹方按鈕 -->
+                  <!-- 編輯丹方心法按鈕 -->
                   <button 
                     class="card-action-icon-btn edit-btn" 
                     onclick={(e) => handleStartEdit(e, card)} 
-                    title="編輯此丹方心法與標題"
+                    title="檢視與編輯「{card.title}」之 Prompt 心法"
                   >
                     <Pencil size={11} />
+                    <span class="card-action-text">心法</span>
                   </button>
 
                   <!-- 刪除自訂丹方按鈕 -->
@@ -478,14 +510,39 @@
                       <Trash2 size={11} />
                     </button>
                   {/if}
-
-                  <span class="card-run-indicator" title="點擊立即煉丹">
-                    <ArrowRight size={13} />
-                  </span>
                 </div>
               </div>
-              <div class="card-title">{card.title}</div>
-              <div class="card-desc">{card.desc}</div>
+
+              <!-- 主體：左側說明 + 右側超直覺 AI 效果套用按鈕 -->
+              <div class="card-main-row">
+                <div class="card-info-wrap">
+                  <div class="card-title-row">
+                    <span class="card-lead-icon">
+                      <CardIcon size={14} />
+                    </span>
+                    <span class="card-title">{card.title}</span>
+                  </div>
+                  <div class="card-desc">{card.desc}</div>
+                </div>
+
+                <!-- 明確的「套用 AI」實體按鈕型態（僅按鈕可觸發，防誤觸） -->
+                <div class="card-apply-wrap">
+                  <button 
+                    class="card-apply-btn"
+                    onclick={() => triggerRefine(card)}
+                    disabled={isRefining}
+                    title="點擊立即對目前筆記套用此 AI 效果"
+                  >
+                    {#if isRefining}
+                      <Flame size={12} class="spin-flame" />
+                      <span>煉製中...</span>
+                    {:else}
+                      <Wand2 size={12} class="wand-icon" />
+                      <span>{customPrompt.trim() ? '套用 (+指示)' : '套用效果'}</span>
+                    {/if}
+                  </button>
+                </div>
+              </div>
             </div>
           {/each}
         </div>
@@ -493,11 +550,11 @@
 
       <!-- 底部工具列：快速跳轉金鑰與模型設定 -->
       <div class="menu-footer">
-        <span class="footer-hint">提示：點選丹方直接套用，點 ✏️ 可直接編輯心法</span>
+        <span class="footer-hint">💡 點選丹方右側「套用效果」按鈕即刻執行 AI 煉丹，逐段審核安全無憂</span>
         {#if onOpenSettings}
           <button class="footer-settings-btn" onclick={() => { isOpen = false; onOpenSettings(); }}>
             <Settings size={12} />
-            <span>模型與金鑰設定</span>
+            <span>模型與金鑰</span>
           </button>
         {/if}
       </div>
@@ -517,7 +574,7 @@
     align-items: center;
     gap: 6px;
     height: 32px;
-    padding: 0 12px;
+    padding: 0 10px 0 12px;
     background: linear-gradient(135deg, rgba(30, 32, 30, 0.95), rgba(24, 25, 24, 0.95));
     border: 1px solid rgba(212, 155, 53, 0.35);
     border-radius: 4px;
@@ -566,7 +623,7 @@
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    width: 380px;
+    width: 400px;
     background: rgba(22, 24, 23, 0.96);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -670,12 +727,22 @@
   /* 單次補充心法輸入框 */
   .prompt-input-row {
     padding: 10px 14px 6px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .prompt-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
   }
 
   .custom-prompt-input {
     width: 100%;
     height: 32px;
-    padding: 0 10px;
+    padding: 0 28px 0 10px;
     background: rgba(14, 15, 14, 0.85);
     border: 1px solid rgba(80, 69, 52, 0.5);
     border-radius: 4px;
@@ -689,6 +756,40 @@
     border-color: #d49b35;
     background: rgba(18, 20, 18, 0.95);
     box-shadow: 0 0 8px rgba(212, 155, 53, 0.2);
+  }
+
+  .clear-prompt-btn {
+    position: absolute;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: transparent;
+    border: none;
+    color: #a89984;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s ease;
+  }
+
+  .clear-prompt-btn:hover {
+    color: #fb4934;
+    background: rgba(251, 73, 52, 0.15);
+  }
+
+  .prompt-hint-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #b8bb26;
+    background: rgba(184, 187, 38, 0.1);
+    border: 1px solid rgba(184, 187, 38, 0.25);
+    padding: 3px 8px;
+    border-radius: 3px;
+    animation: fadeIn 0.15s ease;
   }
 
   /* 丹方滾動區 */
@@ -971,7 +1072,7 @@
     background: #fabd2f;
   }
 
-  /* 丹方卡片 Grid */
+  /* 丹方卡片 Grid - 按鈕型態重構 */
   .cards-grid {
     display: flex;
     flex-direction: column;
@@ -979,20 +1080,20 @@
   }
 
   .recipe-card {
-    background: rgba(28, 30, 29, 0.85);
-    border: 1px solid rgba(60, 56, 54, 0.6);
+    background: rgba(28, 30, 29, 0.9);
+    border: 1px solid rgba(60, 56, 54, 0.7);
     border-left: 3px solid #cc241d;
-    border-radius: 4px;
+    border-radius: 5px;
     padding: 8px 10px;
-    cursor: pointer;
-    transition: all 0.16s ease;
+    cursor: default;
     user-select: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
 
   .recipe-card:hover {
-    background: rgba(38, 41, 39, 0.95);
-    transform: translateX(2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    background: rgba(33, 35, 34, 0.98);
+    border-color: rgba(90, 82, 75, 0.8);
   }
 
   .recipe-card.is-editing {
@@ -1001,7 +1102,7 @@
   }
 
   .recipe-card.disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     pointer-events: none;
   }
 
@@ -1015,7 +1116,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
   }
 
   .card-tag {
@@ -1034,56 +1135,165 @@
   .card-actions {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
   }
 
   .card-action-icon-btn {
-    background: transparent;
-    border: none;
-    color: #928374;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(146, 131, 116, 0.2);
+    color: #a89984;
     cursor: pointer;
-    padding: 3px;
+    padding: 2px 5px;
     border-radius: 3px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 3px;
+    font-size: 10px;
     transition: all 0.15s ease;
   }
 
   .card-action-icon-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.1);
+    color: #ece7dc;
+    border-color: rgba(146, 131, 116, 0.4);
   }
 
   .card-action-icon-btn.edit-btn:hover {
     color: #fabd2f;
+    border-color: rgba(212, 155, 53, 0.5);
   }
 
   .card-action-icon-btn.del-btn:hover {
     color: #fb4934;
     background: rgba(251, 73, 52, 0.15);
+    border-color: rgba(251, 73, 52, 0.4);
   }
 
-  .card-run-indicator {
-    color: #928374;
-    transition: transform 0.15s ease, color 0.15s ease;
+  .card-action-text {
+    font-size: 9px;
   }
 
-  .recipe-card:hover .card-run-indicator {
-    transform: translateX(3px);
-    color: #d49b35;
+  /* 主體排版：左側說明 + 右側明確按鈕 */
+  .card-main-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .card-info-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+  }
+
+  .card-lead-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    background: rgba(212, 155, 53, 0.12);
+    color: #fabd2f;
+    flex-shrink: 0;
+  }
+
+  .recipe-card.color-cinnabar .card-lead-icon {
+    background: rgba(204, 36, 29, 0.15);
+    color: #fb4934;
+  }
+  .recipe-card.color-ochre .card-lead-icon {
+    background: rgba(215, 153, 33, 0.15);
+    color: #fabd2f;
+  }
+  .recipe-card.color-olive .card-lead-icon {
+    background: rgba(152, 151, 26, 0.15);
+    color: #b8bb26;
+  }
+  .recipe-card.color-sapphire .card-lead-icon {
+    background: rgba(69, 133, 136, 0.15);
+    color: #83a598;
+  }
+  .recipe-card.color-amethyst .card-lead-icon {
+    background: rgba(177, 98, 134, 0.15);
+    color: #d3869b;
   }
 
   .card-title {
     font-size: 13px;
     font-weight: 600;
     color: #ece7dc;
-    margin-bottom: 2px;
+    letter-spacing: 0.3px;
   }
 
   .card-desc {
     font-size: 11px;
     color: #a89984;
     line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 核心套用 AI 按鈕型態 */
+  .card-apply-wrap {
+    flex-shrink: 0;
+  }
+
+  .card-apply-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 10px;
+    background: linear-gradient(135deg, rgba(212, 155, 53, 0.2), rgba(212, 155, 53, 0.08));
+    border: 1px solid rgba(212, 155, 53, 0.55);
+    border-radius: 4px;
+    color: #fabd2f;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  }
+
+  :global(.wand-icon) {
+    transition: transform 0.2s ease;
+  }
+
+  /* 核心按鈕 Hover / Active 反饋（僅滑鼠指向按鈕時觸發） */
+  .card-apply-btn:hover {
+    background: linear-gradient(135deg, #d49b35, #fabd2f);
+    border-color: #fabd2f;
+    color: #1a1a1a;
+    box-shadow: 0 0 14px rgba(212, 155, 53, 0.45);
+    transform: scale(1.04);
+  }
+
+  .card-apply-btn:hover :global(.wand-icon) {
+    transform: rotate(-12deg) scale(1.15);
+  }
+
+  .card-apply-btn:active {
+    transform: scale(0.96) !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
+  .card-apply-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: rgba(80, 69, 52, 0.2);
+    border-color: rgba(80, 69, 52, 0.4);
+    color: #a89984;
   }
 
   /* 底部列 */
@@ -1098,7 +1308,11 @@
 
   .footer-hint {
     font-size: 10px;
-    color: #7c6f64;
+    color: #928374;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 250px;
   }
 
   .footer-settings-btn {
@@ -1110,6 +1324,7 @@
     background: transparent;
     border: none;
     cursor: pointer;
+    white-space: nowrap;
     transition: color 0.15s ease;
   }
 
