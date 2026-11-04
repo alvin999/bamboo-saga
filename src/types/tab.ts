@@ -88,6 +88,7 @@ export interface VimKeyOverrides {
   ctrlV: boolean;
   ctrlA: boolean;
   ctrlF: boolean;
+  ctrlH: boolean;
   imeWarning: boolean;
 }
 

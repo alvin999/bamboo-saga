@@ -12,7 +12,7 @@ export interface VersionCheckResult {
   publishedAt: string;
 }
 
-export const CURRENT_VERSION = 'v0.1.4';
+export const CURRENT_VERSION = 'v0.1.5';
 export const GITHUB_REPO = 'alvin999/bamboo-saga';
 
 /**

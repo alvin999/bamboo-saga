@@ -24,6 +24,8 @@ export interface VimOverrideCallbacks {
   onAddTab?: () => void;
   onCloseTab?: () => void;
   onOpenInlinePrompt?: (coords?: { x: number; y: number } | null) => void;
+  onOpenSearch?: () => void;
+  onOpenReplace?: () => void;
 }
 
 export function buildVimOverrideKeymap(
@@ -224,13 +226,32 @@ export function buildVimOverrideKeymap(
     });
   }
 
-  // 5. Ctrl + F: 呼叫搜尋列
+  // 5. Ctrl + F: 呼叫搜尋列 (優先喚起竹風自訂尋卷條)
   if (options.ctrlF !== false) {
     bindings.push({
       key: 'Mod-f',
       run: (view) => {
-        openSearchPanel(view);
+        if (callbacks?.onOpenSearch) {
+          callbacks.onOpenSearch();
+        } else {
+          openSearchPanel(view);
+        }
         return true;
+      },
+      preventDefault: true,
+    });
+  }
+
+  // 5.1. Ctrl + H: 呼叫取代列 (若覆蓋選項啟用)
+  if (options.ctrlH !== false) {
+    bindings.push({
+      key: 'Mod-h',
+      run: (view) => {
+        if (callbacks?.onOpenReplace) {
+          callbacks.onOpenReplace();
+          return true;
+        }
+        return false;
       },
       preventDefault: true,
     });

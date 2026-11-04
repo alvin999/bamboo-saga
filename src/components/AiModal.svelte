@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import type { RefineryMode } from "../lib/ai/refinery";
   import type {
     TabItem,
@@ -212,11 +213,22 @@
   let fetchModelsSuccess = $state(false);
   let fetchModelsSource = $state<"remote" | "cache" | null>(null);
   let modelFetchTimer: number | null = null;
+  let activeFetchAbortController: AbortController | null = null;
+  let hasLoadedSysInfo = false;
+
+  onDestroy(() => {
+    if (modelFetchTimer) clearTimeout(modelFetchTimer);
+    activeFetchAbortController?.abort();
+  });
 
   async function triggerModelFetch(immediate = false) {
     if (modelFetchTimer) clearTimeout(modelFetchTimer);
+    activeFetchAbortController?.abort();
+    activeFetchAbortController = new AbortController();
+    const currentController = activeFetchAbortController;
 
     const execute = async () => {
+      if (currentController.signal.aborted) return;
       const currentProvider = inputModel;
 
       if (currentProvider === "custom") {
@@ -228,7 +240,9 @@
           const res = await fetchCustomModels(
             inputCustomEndpoint,
             inputCustomKey,
+            currentController.signal
           );
+          if (currentController.signal.aborted) return;
           if (res.success && res.models.length > 0) {
             availableModels = res.models;
             fetchModelsSuccess = true;
@@ -241,10 +255,13 @@
             fetchModelsError = res.error || "連線至本地端點失敗";
           }
         } catch (err: any) {
+          if (currentController.signal.aborted) return;
           availableModels = [];
           fetchModelsError = err.message || "連線異常";
         } finally {
-          isFetchingModels = false;
+          if (!currentController.signal.aborted) {
+            isFetchingModels = false;
+          }
         }
         return;
       }
@@ -269,9 +286,10 @@
       try {
         const res =
           currentProvider === "gemini"
-            ? await fetchGeminiModels(key)
-            : await fetchGroqModels(key);
+            ? await fetchGeminiModels(key, currentController.signal)
+            : await fetchGroqModels(key, currentController.signal);
 
+        if (currentController.signal.aborted) return;
         if (res.success && res.models.length > 0) {
           availableModels = res.models;
           fetchModelsSuccess = true;
@@ -284,10 +302,13 @@
           fetchModelsError = res.error || "探勘模型失敗";
         }
       } catch (err: any) {
+        if (currentController.signal.aborted) return;
         availableModels = [];
         fetchModelsError = err.message || "連線異常";
       } finally {
-        isFetchingModels = false;
+        if (!currentController.signal.aborted) {
+          isFetchingModels = false;
+        }
       }
     };
 
@@ -334,9 +355,11 @@
   });
   let isTogglingContextMenu = $state(false);
 
-  async function loadSystemIntegration() {
+  async function loadSystemIntegration(force = false) {
+    if (!force && hasLoadedSysInfo) return;
     try {
       sysInfo = await getSystemIntegrationInfo();
+      hasLoadedSysInfo = true;
     } catch (e) {
       console.warn("無法載入系統整合資訊:", e);
     }
@@ -365,10 +388,10 @@
     tab: "refine" | "keys" | "keybindings" | "onedrive" | "layout" | "system",
   ) {
     onTabChange?.(tab as any);
-    if (tab === "onedrive") {
+    if (tab === "onedrive" && oneDriveAccounts.length === 0) {
       scanOneDrive();
     }
-    if (tab === "keys" || tab === "system") {
+    if (tab === "system") {
       loadSystemIntegration();
     }
   }
@@ -421,8 +444,16 @@
       isAutoBackup = autoOneDriveBackup;
       inputBackupInterval = backupIntervalMinutes || 30;
       isEnablePeriodic = enablePeriodicBackup ?? true;
-      scanOneDrive();
-      loadSystemIntegration();
+      // 依當前開啟之分頁進行針對性載入，避免非相關分頁之重度 I/O 阻塞主線程
+      if (activeTab === "onedrive") {
+        scanOneDrive();
+      } else if (activeTab === "system") {
+        loadSystemIntegration();
+      }
+    }
+    if (!isOpen && prevIsOpen) {
+      if (modelFetchTimer) clearTimeout(modelFetchTimer);
+      activeFetchAbortController?.abort();
     }
     prevIsOpen = isOpen;
   });
@@ -1152,6 +1183,10 @@
             <label class="override-item">
               <input type="checkbox" bind:checked={inputVimOverrides.ctrlF} />
               <span>Ctrl+F 搜尋</span>
+            </label>
+            <label class="override-item">
+              <input type="checkbox" bind:checked={inputVimOverrides.ctrlH} />
+              <span>Ctrl+H 替換</span>
             </label>
             <label class="override-item">
               <input

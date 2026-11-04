@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "bamboo-saga",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "identifier": "com.bamboosaga.app",
   "build": {
     "frontendDist": "../dist",
@@ -28,7 +28,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "deb", "appimage", "dmg"],
+    "targets": [
+      "nsis",
+      "deb",
+      "appimage",
+      "dmg"
+    ],
     "windows": {
       "nsis": {
         "installMode": "currentUser"
@@ -43,13 +48,21 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["md", "markdown"],
+        "ext": [
+          "md",
+          "markdown"
+        ],
         "name": "Markdown 藥帖",
         "description": "廣零散 筆記藥帖",
         "role": "Editor"
       },
       {
-        "ext": ["txt", "json", "log", "csv"],
+        "ext": [
+          "txt",
+          "json",
+          "log",
+          "csv"
+        ],
         "name": "文字與資料藥帖",
         "description": "廣零散 檢視藥帖",
         "role": "Viewer"

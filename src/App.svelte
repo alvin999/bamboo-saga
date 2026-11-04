@@ -1716,6 +1716,7 @@
             onAddTab={addTab}
             onCloseTab={() => activeTab && closeTab(activeTab.id)}
             onPasteSuggestion={(msg: string) => showToast(msg)}
+            onShowToast={showToast}
           />
         </div>
       {/if}

@@ -63,6 +63,20 @@ export const gruvboxDarkTheme = EditorView.theme(
       outline: '1px solid #cf984a',
       color: '#cf984a !important',
     },
+    /* 搜尋相符項目禪風高亮 */
+    '.cm-searchMatch': {
+      backgroundColor: 'rgba(250, 189, 47, 0.32) !important',
+      outline: '1px solid rgba(250, 189, 47, 0.6) !important',
+      borderRadius: '2px',
+    },
+    '.cm-searchMatch-selected': {
+      backgroundColor: '#fabd2f !important',
+      color: '#1d2021 !important',
+      outline: '2px solid #fe8019 !important',
+      borderRadius: '2px',
+      fontWeight: '700 !important',
+      boxShadow: '0 0 10px rgba(250, 189, 47, 0.85) !important',
+    },
     '.cm-foldGutter': {
       color: '#6d675c',
       width: '18px',

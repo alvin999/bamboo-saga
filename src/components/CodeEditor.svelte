@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { EditorState, Compartment } from '@codemirror/state';
-  import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection } from '@codemirror/view';
+  import { EditorState, Compartment, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+  import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection, Decoration, type DecorationSet, ViewPlugin, type ViewUpdate } from '@codemirror/view';
   import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
   import { foldGutter, foldKeymap } from '@codemirror/language';
   import { vim } from '@replit/codemirror-vim';
@@ -13,6 +13,8 @@
   import { createWikiLinkPlugin, createWikiLinkCompletionSource, type WikiLinkCandidate } from '../lib/editor/wikiLinks';
   import { autocompletion } from '@codemirror/autocomplete';
   import { diagnoseText } from '../lib/editor/textProcessor';
+  import { search, setSearchQuery, SearchQuery } from '@codemirror/search';
+  import EditorSearchBar from './EditorSearchBar.svelte';
 
   interface CodeEditorProps {
     content: string;
@@ -35,6 +37,7 @@
     onOpenWikiLink?: (target: string) => void;
     onRegisterApi?: (handle: { getParagraphScreenCoords: () => { x: number; y: number } | null; scrollToMakeRoom: () => void }) => void;
     onPasteSuggestion?: (msg: string) => void;
+    onShowToast?: (msg: string) => void;
   }
 
   let {
@@ -64,7 +67,8 @@
     onOpenInlinePrompt,
     onOpenWikiLink,
     onRegisterApi,
-    onPasteSuggestion
+    onPasteSuggestion,
+    onShowToast
   }: CodeEditorProps = $props();
 
   let editorHost: HTMLDivElement;
@@ -77,6 +81,266 @@
   const vimCompartment = new Compartment();
   const vimOverridesCompartment = new Compartment();
 
+  // 專屬竹風搜尋高亮狀態與外掛 (解除官方 !panel 阻斷)
+  const setSearchQueryEffect = StateEffect.define<SearchQuery | null>();
+
+  const activeSearchQueryField = StateField.define<SearchQuery | null>({
+    create() {
+      return null;
+    },
+    update(value, tr) {
+      for (const e of tr.effects) {
+        if (e.is(setSearchQueryEffect)) {
+          return e.value;
+        }
+      }
+      return value;
+    },
+  });
+
+  const matchMark = Decoration.mark({ class: 'cm-searchMatch' });
+  const selectedMatchMark = Decoration.mark({ class: 'cm-searchMatch cm-searchMatch-selected' });
+
+  const bambooSearchHighlighter = ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = this.highlight(view);
+      }
+      update(update: ViewUpdate) {
+        const q = update.state.field(activeSearchQueryField);
+        const startQ = update.startState.field(activeSearchQueryField);
+        if (
+          q !== startQ ||
+          update.docChanged ||
+          update.selectionSet ||
+          update.viewportChanged
+        ) {
+          this.decorations = this.highlight(update.view);
+        }
+      }
+      highlight(view: EditorView): DecorationSet {
+        const query = view.state.field(activeSearchQueryField);
+        if (!query || !query.valid) {
+          return Decoration.none;
+        }
+        const builder = new RangeSetBuilder<Decoration>();
+        try {
+          const compiled = query.create();
+          for (const { from, to } of view.visibleRanges) {
+            compiled.highlight(view.state, from, to, (mFrom: number, mTo: number) => {
+              const selected = view.state.selection.ranges.some(
+                (r) => r.from === mFrom && r.to === mTo
+              );
+              builder.add(mFrom, mTo, selected ? selectedMatchMark : matchMark);
+            });
+          }
+        } catch (e) {
+          return Decoration.none;
+        }
+        return builder.finish();
+      }
+    },
+    {
+      decorations: (v) => v.decorations,
+    }
+  );
+
+  // 搜尋列狀態管理 (Ctrl+F 尋卷中樞)
+  let isOpenSearch = $state(false);
+  let searchQuery = $state('');
+  let replaceQuery = $state('');
+  let showReplace = $state(false);
+  let caseSensitive = $state(false);
+  let regexp = $state(false);
+  let wholeWord = $state(false);
+  let matches = $state<Array<{ from: number; to: number }>>([]);
+  let currentIndex = $state(-1);
+
+  export function openSearch(options?: { showReplace?: boolean }) {
+    isOpenSearch = true;
+    if (options?.showReplace !== undefined) {
+      showReplace = options.showReplace;
+    }
+    if (view) {
+      const sel = view.state.selection.main;
+      if (!sel.empty && sel.to - sel.from < 120) {
+        const text = view.state.sliceDoc(sel.from, sel.to);
+        if (!text.includes('\n')) {
+          searchQuery = text;
+        }
+      }
+    }
+    updateSearch(searchQuery);
+  }
+
+  export function closeSearch() {
+    isOpenSearch = false;
+    if (view) {
+      view.dispatch({
+        effects: [
+          setSearchQueryEffect.of(null),
+          setSearchQuery.of(new SearchQuery({ search: '' })),
+        ],
+      });
+      view.focus();
+    }
+  }
+
+  function updateSearch(query: string) {
+    searchQuery = query;
+    if (!view) return;
+    try {
+      const sq = new SearchQuery({
+        search: query,
+        caseSensitive,
+        regexp,
+        wholeWord,
+      });
+      view.dispatch({
+        effects: [
+          setSearchQueryEffect.of(query.trim() ? sq : null),
+          setSearchQuery.of(sq),
+        ],
+      });
+
+      const list: Array<{ from: number; to: number }> = [];
+      if (query.trim()) {
+        const cur = sq.getCursor(view.state.doc);
+        let m;
+        while (!(m = cur.next()).done) {
+          list.push({ from: m.value.from, to: m.value.to });
+          if (list.length >= 3000) break;
+        }
+      }
+      matches = list;
+      updateCurrentIndex();
+    } catch (e) {
+      matches = [];
+      currentIndex = -1;
+    }
+  }
+
+  function updateCurrentIndex() {
+    if (!view || matches.length === 0) {
+      currentIndex = -1;
+      return;
+    }
+    const head = view.state.selection.main.head;
+    let found = matches.findIndex((m) => m.from <= head && m.to >= head);
+    if (found === -1) {
+      found = matches.findIndex((m) => m.from >= head);
+      if (found === -1) {
+        found = matches.length - 1;
+      }
+    }
+    currentIndex = Math.max(0, found);
+  }
+
+  function handleFindNext() {
+    if (!view || matches.length === 0) {
+      onShowToast?.('⚠️ 查無相符內容');
+      return;
+    }
+    let nextIdx = currentIndex + 1;
+    let didWrap = false;
+    if (nextIdx >= matches.length) {
+      nextIdx = 0;
+      didWrap = true;
+    }
+    currentIndex = nextIdx;
+    const target = matches[nextIdx];
+    view.dispatch({
+      selection: { anchor: target.from, head: target.to },
+      effects: EditorView.scrollIntoView(target.from, { y: 'center' }),
+    });
+    if (didWrap) {
+      onShowToast?.('🔁 已重新從頭開始搜尋（折返至第 1 筆）');
+    }
+  }
+
+  function handleFindPrevious() {
+    if (!view || matches.length === 0) {
+      onShowToast?.('⚠️ 查無相符內容');
+      return;
+    }
+    let prevIdx = currentIndex - 1;
+    let didWrap = false;
+    if (prevIdx < 0) {
+      prevIdx = matches.length - 1;
+      didWrap = true;
+    }
+    currentIndex = prevIdx;
+    const target = matches[prevIdx];
+    view.dispatch({
+      selection: { anchor: target.from, head: target.to },
+      effects: EditorView.scrollIntoView(target.from, { y: 'center' }),
+    });
+    if (didWrap) {
+      onShowToast?.(`🔁 已折返至手稿末尾（第 ${matches.length} 筆）`);
+    }
+  }
+
+  function handleReplaceNext() {
+    if (!view || matches.length === 0) {
+      onShowToast?.('⚠️ 查無相符內容可供取代');
+      return;
+    }
+    let targetIdx = currentIndex;
+    if (targetIdx < 0 || targetIdx >= matches.length) {
+      targetIdx = 0;
+    }
+    const target = matches[targetIdx];
+    const insertLen = replaceQuery.length;
+
+    view.dispatch({
+      changes: { from: target.from, to: target.to, insert: replaceQuery },
+      selection: { anchor: target.from, head: target.from + insertLen },
+    });
+
+    updateSearch(searchQuery);
+
+    if (matches.length === 0) {
+      onShowToast?.('✨ 已完成最後一筆取代，手稿已無相符項目');
+      return;
+    }
+
+    let nextIdx = targetIdx;
+    let didWrap = false;
+    if (nextIdx >= matches.length) {
+      nextIdx = 0;
+      didWrap = true;
+    }
+    currentIndex = nextIdx;
+    const nextTarget = matches[nextIdx];
+    view.dispatch({
+      selection: { anchor: nextTarget.from, head: nextTarget.to },
+      effects: EditorView.scrollIntoView(nextTarget.from, { y: 'center' }),
+    });
+
+    if (didWrap) {
+      onShowToast?.('🔁 已取代並折返至第 1 筆');
+    } else {
+      onShowToast?.('✨ 已取代 1 筆內容');
+    }
+  }
+
+  function handleReplaceAll() {
+    if (!view || matches.length === 0) {
+      onShowToast?.('⚠️ 查無相符內容可供取代');
+      return;
+    }
+    const count = matches.length;
+    const changes = matches.map((m) => ({
+      from: m.from,
+      to: m.to,
+      insert: replaceQuery,
+    }));
+    view.dispatch({ changes });
+    updateSearch(searchQuery);
+    onShowToast?.(`✨ 已完成全部取代，共更換 ${count} 筆內容`);
+  }
+
   onMount(() => {
     // 1. 初始化 Smear Canvas 殘影渲染器
     if (canvasHost) {
@@ -88,6 +352,9 @@
       if (update.docChanged) {
         const docText = update.state.doc.toString();
         onChange(docText);
+        if (isOpenSearch) {
+          updateSearch(searchQuery);
+        }
       }
 
       if (update.selectionSet || update.docChanged || update.geometryChanged) {
@@ -137,10 +404,29 @@
         drawSelection(),
         history(),
         vimOverridesCompartment.of(
-          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt }) : []
+          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt, onOpenSearch: () => openSearch(), onOpenReplace: () => openSearch({ showReplace: true }) }) : []
         ),
         vimCompartment.of(vimMode ? vim() : []),
+        search(),
+        activeSearchQueryField,
+        bambooSearchHighlighter,
         keymap.of([
+          {
+            key: 'Mod-f',
+            run: () => {
+              openSearch();
+              return true;
+            },
+            preventDefault: true,
+          },
+          {
+            key: 'Mod-h',
+            run: () => {
+              openSearch({ showReplace: true });
+              return true;
+            },
+            preventDefault: true,
+          },
           {
             key: 'Mod-t',
             run: () => {
@@ -248,6 +534,8 @@
     onRegisterApi?.({
       getParagraphScreenCoords,
       scrollToMakeRoom,
+      openSearch,
+      closeSearch,
     });
 
     // 視窗 resize 處理
@@ -356,7 +644,7 @@
         effects: [
           vimCompartment.reconfigure(vimMode ? vim() : []),
           vimOverridesCompartment.reconfigure(
-            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt }) : []
+            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt, onOpenSearch: () => openSearch(), onOpenReplace: () => openSearch({ showReplace: true }) }) : []
           ),
         ],
       });
@@ -365,6 +653,28 @@
 </script>
 
 <div class="editor-container" class:is-typewriter={typewriterMode}>
+  <EditorSearchBar
+    isOpen={isOpenSearch}
+    {showReplace}
+    {searchQuery}
+    {replaceQuery}
+    totalMatches={matches.length}
+    {currentIndex}
+    {caseSensitive}
+    {regexp}
+    {wholeWord}
+    onQueryChange={(q) => updateSearch(q)}
+    onReplaceQueryChange={(r) => (replaceQuery = r)}
+    onToggleReplace={() => (showReplace = !showReplace)}
+    onToggleCaseSensitive={() => { caseSensitive = !caseSensitive; updateSearch(searchQuery); }}
+    onToggleRegexp={() => { regexp = !regexp; updateSearch(searchQuery); }}
+    onToggleWholeWord={() => { wholeWord = !wholeWord; updateSearch(searchQuery); }}
+    onFindNext={handleFindNext}
+    onFindPrevious={handleFindPrevious}
+    onReplaceNext={handleReplaceNext}
+    onReplaceAll={handleReplaceAll}
+    onClose={closeSearch}
+  />
   <div class="editor-surface" bind:this={editorHost}></div>
   <canvas class="smear-canvas" bind:this={canvasHost}></canvas>
 </div>

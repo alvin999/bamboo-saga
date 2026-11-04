@@ -24,7 +24,7 @@ const CACHE_KEY_PREFIX = 'bamboo_cached_models_';
  * 探勘 Google Gemini 支援的模型清單
  * 端點: GET https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}
  */
-export async function fetchGeminiModels(apiKey: string): Promise<FetchModelsResult> {
+export async function fetchGeminiModels(apiKey: string, externalSignal?: AbortSignal): Promise<FetchModelsResult> {
   const cleanKey = apiKey.trim();
   if (!cleanKey) {
     return { success: false, models: [], error: '請輸入 Google Gemini API Key' , source: 'remote' };
@@ -33,6 +33,13 @@ export async function fetchGeminiModels(apiKey: string): Promise<FetchModelsResu
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 秒超時保護
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        clearTimeout(timeoutId);
+        return { success: false, models: [], error: '已取消請求', source: 'remote' };
+      }
+      externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
 
     const resp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`,
@@ -84,7 +91,7 @@ export async function fetchGeminiModels(apiKey: string): Promise<FetchModelsResu
  * 探勘 Groq 支援的模型清單
  * 端點: GET https://api.groq.com/openai/v1/models
  */
-export async function fetchGroqModels(apiKey: string): Promise<FetchModelsResult> {
+export async function fetchGroqModels(apiKey: string, externalSignal?: AbortSignal): Promise<FetchModelsResult> {
   const cleanKey = apiKey.trim();
   if (!cleanKey) {
     return { success: false, models: [], error: '請輸入 Groq API Key', source: 'remote' };
@@ -93,6 +100,13 @@ export async function fetchGroqModels(apiKey: string): Promise<FetchModelsResult
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        clearTimeout(timeoutId);
+        return { success: false, models: [], error: '已取消請求', source: 'remote' };
+      }
+      externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
 
     const resp = await fetch('https://api.groq.com/openai/v1/models', {
       headers: {
@@ -154,7 +168,7 @@ export function normalizeEndpoint(rawUrl: string): string {
 /**
  * 探勘自訂 / 本地端點支援的模型清單（支援 Ollama、LM Studio、LocalAI 等 OpenAI 相容服務）
  */
-export async function fetchCustomModels(endpoint: string, apiKey?: string): Promise<FetchModelsResult> {
+export async function fetchCustomModels(endpoint: string, apiKey?: string, externalSignal?: AbortSignal): Promise<FetchModelsResult> {
   const cleanEndpoint = normalizeEndpoint(endpoint);
 
   const headers: Record<string, string> = {
@@ -167,6 +181,13 @@ export async function fetchCustomModels(endpoint: string, apiKey?: string): Prom
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 秒超時保護
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        clearTimeout(timeoutId);
+        return { success: false, models: [], error: '已取消請求', source: 'remote' };
+      }
+      externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
 
     // 1. 優先嘗試標準 OpenAI 規範: GET ${endpoint}/models
     let modelsUrl = `${cleanEndpoint}/models`;
