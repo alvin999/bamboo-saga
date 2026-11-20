@@ -79,15 +79,17 @@ export function buildVimOverrideKeymap(
     preventDefault: true,
   });
 
-  // 0.1 Ctrl + W / Cmd + W: 收合新簡 (關閉分頁)
-  bindings.push({
-    key: 'Mod-w',
-    run: () => {
-      callbacks?.onCloseTab?.();
-      return true;
-    },
-    preventDefault: true,
-  });
+  // 0.1 Ctrl + W / Cmd + W: 收合新簡 (關閉分頁)，若取消覆蓋則保留 Vim <C-w> (Insert 刪詞 / Normal 視窗指令)
+  if (options.ctrlW !== false) {
+    bindings.push({
+      key: 'Mod-w',
+      run: () => {
+        callbacks?.onCloseTab?.();
+        return true;
+      },
+      preventDefault: true,
+    });
+  }
 
   // 0.2 Backspace: 在 Vim Normal 模式下等同於 "h" (左移一格)，嚴禁刪除文字；Insert 模式正常放行刪除
   bindings.push({
@@ -179,12 +181,15 @@ export function buildVimOverrideKeymap(
     });
   }
 
-  // 3. Ctrl + V: 貼上系統剪貼簿
+  // 3. Ctrl + V: 貼上系統剪貼簿 (若瀏覽器不支援 Clipboard API 則交由原生 paste 事件處理)
   if (options.ctrlV !== false) {
     bindings.push({
       key: 'Mod-v',
       run: (view) => {
-        navigator.clipboard?.readText().then((text) => {
+        if (!navigator.clipboard?.readText) {
+          return false;
+        }
+        navigator.clipboard.readText().then((text) => {
           if (text) {
             const sel = view.state.selection.main;
             view.dispatch({
@@ -196,6 +201,26 @@ export function buildVimOverrideKeymap(
           console.warn('[Vim Override] Clipboard read failed:', err);
         });
         return true;
+      },
+    });
+  }
+
+  // 3.1 Ctrl + X: 剪下選取文字到系統剪貼簿 (無選取時放行)
+  if (options.ctrlX !== false) {
+    bindings.push({
+      key: 'Mod-x',
+      run: (view) => {
+        const sel = view.state.selection.main;
+        if (!sel.empty) {
+          const selectedText = view.state.sliceDoc(sel.from, sel.to);
+          navigator.clipboard?.writeText(selectedText);
+          view.dispatch({
+            changes: { from: sel.from, to: sel.to, insert: '' },
+            selection: { anchor: sel.from },
+          });
+          return true;
+        }
+        return false;
       },
     });
   }

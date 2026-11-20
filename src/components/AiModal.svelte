@@ -1205,12 +1205,18 @@
           </div>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" class:disabled-group={!inputVimMode}>
           <div class="label-with-tool">
-            <span class="form-label">Vim 模式快捷鍵衝突攔截覆蓋</span>
+            <div class="label-title-row">
+              <span class="form-label">Vim 模式快捷鍵衝突攔截覆蓋</span>
+              {#if !inputVimMode}
+                <span class="mode-hint-pill">標準模式無需設定（僅於 VIM 模式生效）</span>
+              {/if}
+            </div>
             <button
               type="button"
               class="text-link-btn reset-link"
+              disabled={!inputVimMode}
               onclick={handleResetVimOverrides}
             >
               <RotateCcw size={12} />
@@ -1220,37 +1226,108 @@
 
           <div class="overrides-grid">
             <label class="override-item">
-              <input type="checkbox" bind:checked={inputVimOverrides.ctrlS} />
-              <span>Ctrl+S 立即存檔</span>
-            </label>
-            <label class="override-item">
-              <input type="checkbox" bind:checked={inputVimOverrides.ctrlC} />
-              <span>Ctrl+C 系統剪貼簿</span>
-            </label>
-            <label class="override-item">
-              <input type="checkbox" bind:checked={inputVimOverrides.ctrlV} />
-              <span>Ctrl+V 系統貼上</span>
-            </label>
-            <label class="override-item">
-              <input type="checkbox" bind:checked={inputVimOverrides.ctrlA} />
-              <span>Ctrl+A 全選</span>
-            </label>
-            <label class="override-item">
-              <input type="checkbox" bind:checked={inputVimOverrides.ctrlF} />
-              <span>Ctrl+F 搜尋</span>
-            </label>
-            <label class="override-item">
-              <input type="checkbox" bind:checked={inputVimOverrides.ctrlH} />
-              <span>Ctrl+H 替換</span>
+              <input
+                type="checkbox"
+                disabled={!inputVimMode}
+                bind:checked={inputVimOverrides.ctrlS}
+              />
+              <span class="override-text">
+                <span>Ctrl+S 立即存檔</span>
+                <span class="override-sub">取消則保留 Vim 原生鍵</span>
+              </span>
             </label>
             <label class="override-item">
               <input
                 type="checkbox"
+                disabled={!inputVimMode}
+                bind:checked={inputVimOverrides.ctrlC}
+              />
+              <span class="override-text">
+                <span>Ctrl+C 系統剪貼簿</span>
+                <span class="override-sub">取消則為 Vim 中斷指令</span>
+              </span>
+            </label>
+            <label class="override-item">
+              <input
+                type="checkbox"
+                disabled={!inputVimMode}
+                bind:checked={inputVimOverrides.ctrlV}
+              />
+              <span class="override-text">
+                <span>Ctrl+V 系統貼上</span>
+                <span class="override-sub">取消則為 Vim 區塊選取</span>
+              </span>
+            </label>
+            <label class="override-item">
+              <input
+                type="checkbox"
+                disabled={!inputVimMode}
+                bind:checked={inputVimOverrides.ctrlX}
+              />
+              <span class="override-text">
+                <span>Ctrl+X 系統剪下</span>
+                <span class="override-sub">取消則為 Vim 數字遞減</span>
+              </span>
+            </label>
+            <label class="override-item">
+              <input
+                type="checkbox"
+                disabled={!inputVimMode}
+                bind:checked={inputVimOverrides.ctrlA}
+              />
+              <span class="override-text">
+                <span>Ctrl+A 全選</span>
+                <span class="override-sub">取消則為 Vim 數字遞增</span>
+              </span>
+            </label>
+            <label class="override-item">
+              <input
+                type="checkbox"
+                disabled={!inputVimMode}
+                bind:checked={inputVimOverrides.ctrlF}
+              />
+              <span class="override-text">
+                <span>Ctrl+F 搜尋</span>
+                <span class="override-sub">取消則為 Vim 向下翻頁</span>
+              </span>
+            </label>
+            <label class="override-item">
+              <input
+                type="checkbox"
+                disabled={!inputVimMode}
+                bind:checked={inputVimOverrides.ctrlH}
+              />
+              <span class="override-text">
+                <span>Ctrl+H 替換</span>
+                <span class="override-sub">取消則為 Vim 退格刪字</span>
+              </span>
+            </label>
+            <label class="override-item">
+              <input
+                type="checkbox"
+                disabled={!inputVimMode}
+                bind:checked={inputVimOverrides.ctrlW}
+              />
+              <span class="override-text">
+                <span>Ctrl+W 關閉分頁</span>
+                <span class="override-sub">取消則為 Vim 刪詞/視窗鍵</span>
+              </span>
+            </label>
+            <label class="override-item override-item-full">
+              <input
+                type="checkbox"
+                disabled={!inputVimMode}
                 bind:checked={inputVimOverrides.imeAutoSwitch}
               />
-              <span>Vim 模式自動暫停中文輸入法</span>
+              <span class="override-text">
+                <span>Vim 模式自動暫停中文輸入法</span>
+                <span class="override-sub">Normal / Visual 模式自動切回英文，防注音外溢</span>
+              </span>
             </label>
           </div>
+          <p class="overrides-tip">
+            💡 提示：Vim 模式下 <code>Ctrl+D</code> / <code>Ctrl+U</code> 已預設保留為半頁向下 / 向上捲動。
+          </p>
         </div>
 
         <footer class="modal-footer">
@@ -2125,6 +2202,60 @@
 
   .override-item input[type="checkbox"] {
     accent-color: #fabd2f;
+  }
+
+  .disabled-group .overrides-grid {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  .disabled-group .reset-link {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .label-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .mode-hint-pill {
+    font-size: 11px;
+    color: #9b8f7a;
+    background: rgba(155, 143, 122, 0.12);
+    border: 1px solid rgba(155, 143, 122, 0.25);
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  .override-item-full {
+    grid-column: 1 / -1;
+  }
+
+  .override-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .override-sub {
+    font-size: 11px;
+    color: #8a7f6d;
+  }
+
+  .overrides-tip {
+    margin: 8px 0 0;
+    font-size: 11.5px;
+    color: #8a7f6d;
+  }
+
+  .overrides-tip code {
+    color: #fabd2f;
+    background: rgba(250, 189, 47, 0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
   }
 
   /* 防護卡片與狀態指示 */

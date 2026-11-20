@@ -86,9 +86,11 @@ export interface VimKeyOverrides {
   ctrlS: boolean;
   ctrlC: boolean;
   ctrlV: boolean;
+  ctrlX: boolean;
   ctrlA: boolean;
   ctrlF: boolean;
   ctrlH: boolean;
+  ctrlW: boolean;
   imeAutoSwitch: boolean;
 }
 

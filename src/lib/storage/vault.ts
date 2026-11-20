@@ -20,8 +20,11 @@ export const DEFAULT_VIM_OVERRIDES: VimKeyOverrides = {
   ctrlS: true,
   ctrlC: true,
   ctrlV: true,
+  ctrlX: true,
   ctrlA: true,
   ctrlF: true,
+  ctrlH: true,
+  ctrlW: true,
   imeAutoSwitch: true,
 };
 

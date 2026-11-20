@@ -10,6 +10,7 @@
   import { getLanguageExtension } from '../lib/editor/languageSupport';
   import { SmearCursorRenderer } from '../lib/canvas/smearCursor';
   import { buildVimOverrideKeymap } from '../lib/editor/vimOverrides';
+  import { getDefaultVimOverrides } from '../lib/storage/vault';
   import { createWikiLinkPlugin, createWikiLinkCompletionSource, type WikiLinkCandidate } from '../lib/editor/wikiLinks';
   import { autocompletion } from '@codemirror/autocomplete';
   import { diagnoseText } from '../lib/editor/textProcessor';
@@ -43,14 +44,7 @@
     content = '',
     language = 'plaintext' as SupportedLanguage,
     vimMode = false,
-    vimOverrides = {
-      ctrlS: true,
-      ctrlC: true,
-      ctrlV: true,
-      ctrlA: true,
-      ctrlF: true,
-      imeAutoSwitch: true,
-    } as VimKeyOverrides,
+    vimOverrides = getDefaultVimOverrides(),
     cursor = { line: 1, ch: 0 },
     smearEnabled = true,
     typewriterMode = false,
