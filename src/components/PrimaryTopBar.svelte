@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { RefineryMode } from "../lib/ai/refinery";
-  import type { TabItem, AlchemyCardConfig } from "../types/tab";
+  import type { TabItem, AlchemyCardConfig, VimKeyOverrides } from "../types/tab";
   import ShortcutCheatSheet from "./ShortcutCheatSheet.svelte";
   import AlchemyPopover from "./AlchemyPopover.svelte";
   import ExportNotePopover from "./ExportNotePopover.svelte";
@@ -9,6 +9,7 @@
 
   interface PrimaryTopBarProps {
     vimMode: boolean;
+    vimOverrides?: VimKeyOverrides;
     smearEnabled?: boolean;
     workbenchWidth?: "zen" | "full";
     autoOneDriveBackup?: boolean;
@@ -55,6 +56,7 @@
 
   let {
     vimMode = $bindable(false),
+    vimOverrides,
     smearEnabled = true,
     workbenchWidth = "zen",
     autoOneDriveBackup = false,
@@ -400,6 +402,8 @@
 
   <ShortcutCheatSheet
     isOpen={isCheatSheetOpen}
+    {vimMode}
+    {vimOverrides}
     onClose={() => (isCheatSheetOpen = false)}
     onNavigateToSettings={onOpenKeybindings || onOpenSettings}
   />

@@ -1601,6 +1601,7 @@
   <!-- 主頂欄 (Primary Constructivist Command Bar)：56px 高度、懸停快捷中樞、檔案瀏覽功能、主頂分頁與意圖煉丹樞紐 -->
   <PrimaryTopBar 
     bind:vimMode={appState.vimMode}
+    vimOverrides={appState.vimOverrides}
     {smearEnabled}
     workbenchWidth={appState.layoutConfig?.workbenchWidth || 'zen'}
     autoOneDriveBackup={appState.autoOneDriveBackup}

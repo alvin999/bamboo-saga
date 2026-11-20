@@ -1,9 +1,10 @@
 <script lang="ts">
-  import type { TabItem } from '../types/tab';
+  import type { TabItem, VimKeyOverrides } from '../types/tab';
   import ShortcutCheatSheet from './ShortcutCheatSheet.svelte';
 
   let { 
     vimMode = $bindable(false),
+    vimOverrides,
     tabs = [],
     activeTabId = '',
     onSelectTab,
@@ -16,6 +17,7 @@
     isSaved = true
   } = $props<{
     vimMode: boolean;
+    vimOverrides?: VimKeyOverrides;
     tabs: TabItem[];
     activeTabId: string;
     onSelectTab: (id: string) => void;
@@ -169,6 +171,8 @@
 
   <ShortcutCheatSheet 
     isOpen={isCheatSheetOpen}
+    {vimMode}
+    {vimOverrides}
     onClose={() => (isCheatSheetOpen = false)}
     onNavigateToSettings={onOpenKeybindings || onOpenSettings}
   />

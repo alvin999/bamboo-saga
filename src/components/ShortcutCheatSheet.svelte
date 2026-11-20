@@ -1,18 +1,32 @@
 <script lang="ts">
-  import { DEFAULT_SHORTCUT_GROUPS } from '../lib/constants/shortcuts';
+  import { buildShortcutGroups } from '../lib/constants/shortcuts';
+  import { getDefaultVimOverrides } from '../lib/storage/vault';
   import type { ShortcutGroup } from '../types/shortcut';
+  import type { VimKeyOverrides } from '../types/tab';
 
   let {
     isOpen = false,
+    vimMode = false,
+    vimOverrides = getDefaultVimOverrides(),
     onClose,
     onNavigateToSettings
   } = $props<{
     isOpen: boolean;
+    vimMode?: boolean;
+    vimOverrides?: VimKeyOverrides;
     onClose: () => void;
     onNavigateToSettings?: () => void;
   }>();
 
-  const groups: ShortcutGroup[] = DEFAULT_SHORTCUT_GROUPS;
+  const groups: ShortcutGroup[] = $derived(buildShortcutGroups(vimMode, vimOverrides));
+
+  const vimNativeCount = $derived.by(() => {
+    if (!vimMode) return 0;
+    const keys: Array<Exclude<keyof VimKeyOverrides, 'imeAutoSwitch'>> = [
+      'ctrlS', 'ctrlC', 'ctrlV', 'ctrlX', 'ctrlA', 'ctrlF', 'ctrlH', 'ctrlW'
+    ];
+    return keys.filter((k) => vimOverrides?.[k] === false).length;
+  });
 
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {
@@ -41,6 +55,9 @@
         <div class="header-title-group">
           <span class="material-symbols-outlined header-icon">keyboard</span>
           <span id="cheatsheet-title" class="header-title">竹語快捷鍵指南 // CHEAT-SHEET</span>
+          <span class="mode-status-badge {vimMode ? 'vim-active' : 'std-active'}">
+            {vimMode ? 'VIM-HYBRID' : 'STD'}
+          </span>
         </div>
         <button class="close-btn" onclick={onClose} title="關閉說明 (ESC)">
           <span class="material-symbols-outlined text-[16px]">close</span>
@@ -49,19 +66,31 @@
 
       <!-- 快捷鍵分組清單 -->
       <div class="popover-body">
-        {#each groups as group}
+        {#each groups as group (group.category)}
           <div class="shortcut-group">
             <div class="group-header">
-              <span class="group-title">{group.title}</span>
+              <div class="group-title-wrap">
+                <span class="group-title">{group.title}</span>
+                {#if group.subtitle}
+                  <span class="group-subtitle">{group.subtitle}</span>
+                {/if}
+              </div>
               <span class="group-count">{group.items.length} 項</span>
             </div>
 
             <div class="group-items">
-              {#each group.items as item}
-                <div class="shortcut-row">
+              {#each group.items as item (item.id)}
+                <div class="shortcut-row {item.category === 'vim' ? 'vim-row' : ''}">
                   <div class="shortcut-info">
-                    <span class="item-label">{item.label}</span>
-                    <span class="item-desc">{item.description}</span>
+                    <div class="item-label-row">
+                      <span class="item-label">{item.label}</span>
+                      {#if item.badge === 'Vim 原生' || item.badge === '竹語保留' || item.badge === '竹語客製'}
+                        <span class="item-badge {item.badge === 'Vim 原生' ? 'badge-vim-native' : 'badge-bamboo'}">
+                          {item.badge}
+                        </span>
+                      {/if}
+                    </div>
+                    <span class="item-desc" title={item.description}>{item.description}</span>
                   </div>
 
                   <div class="shortcut-keys">
@@ -79,8 +108,14 @@
       <!-- 底部映射提示與快速設定按鈕 -->
       <footer class="popover-footer">
         <div class="footer-hint">
-          <span class="pulse-indicator"></span>
-          <span>已與系統按鍵偏好映射，支援未來客製化鍵位</span>
+          <span class="pulse-indicator {vimMode ? 'vim-pulse' : ''}"></span>
+          {#if vimMode}
+            <span>
+              已同步 VIM-HYBRID 偏好設定{vimNativeCount > 0 ? `（保留 ${vimNativeCount} 項 Vim 原生鍵）` : '（系統覆蓋優先）'}
+            </span>
+          {:else}
+            <span>已同步 STD 標準模式偏好設定</span>
+          {/if}
         </div>
 
         <button class="settings-link-btn" onclick={handleNavigate} title="前往偏好設定調整按鍵與 VIM 模式">
@@ -168,6 +203,24 @@
     font-family: 'JetBrains Mono', monospace;
   }
 
+  .mode-status-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(125, 174, 163, 0.35);
+    color: #7daea3;
+    background: rgba(125, 174, 163, 0.12);
+  }
+
+  .mode-status-badge.vim-active {
+    border-color: rgba(212, 155, 53, 0.5);
+    color: #e9b95d;
+    background: rgba(212, 155, 53, 0.16);
+  }
+
   .close-btn {
     background: transparent;
     border: none;
@@ -218,11 +271,26 @@
     border-bottom: 1px dashed rgba(235, 219, 178, 0.08);
   }
 
+  .group-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .group-title {
     font-size: 11px;
     color: #d49b35;
     font-weight: 600;
     letter-spacing: 0.04em;
+  }
+
+  .group-subtitle {
+    font-size: 9px;
+    color: #7daea3;
+    background: rgba(125, 174, 163, 0.1);
+    border: 1px solid rgba(125, 174, 163, 0.25);
+    padding: 1px 5px;
+    border-radius: 3px;
   }
 
   .group-count {
@@ -247,6 +315,10 @@
     transition: background 0.12s;
   }
 
+  .shortcut-row.vim-row {
+    border-left: 2px solid rgba(212, 155, 53, 0.4);
+  }
+
   .shortcut-row:hover {
     background: rgba(212, 155, 53, 0.08);
   }
@@ -258,10 +330,37 @@
     max-width: 60%;
   }
 
+  .item-label-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
   .item-label {
     font-size: 12px;
     color: #ece7dc;
     font-weight: 500;
+  }
+
+  .item-badge {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 3px;
+    letter-spacing: 0.03em;
+  }
+
+  .badge-vim-native {
+    color: #e9b95d;
+    background: rgba(212, 155, 53, 0.16);
+    border: 1px solid rgba(212, 155, 53, 0.4);
+  }
+
+  .badge-bamboo {
+    color: #7daea3;
+    background: rgba(125, 174, 163, 0.14);
+    border: 1px solid rgba(125, 174, 163, 0.35);
   }
 
   .item-desc {
@@ -321,6 +420,11 @@
     border-radius: 50%;
     background: #7daea3;
     box-shadow: 0 0 5px rgba(125, 174, 163, 0.6);
+  }
+
+  .pulse-indicator.vim-pulse {
+    background: #d49b35;
+    box-shadow: 0 0 5px rgba(212, 155, 53, 0.7);
   }
 
   .settings-link-btn {
