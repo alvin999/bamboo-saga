@@ -48,6 +48,7 @@
     removeRecentFolder
   } from './lib/storage/recent';
   import { recordSnapshot, pruneOldSnapshots } from './lib/storage/localHistory';
+  import { checkForAppUpdates, getAutoCheckUpdatePref } from './lib/updater';
   import type { SnapshotReason } from './types/history';
   import { loadSecureKeys, saveSecureKeys, type SecurityMode } from './lib/security/keyVault';
   import { 
@@ -63,6 +64,7 @@
   let isAiModalOpen = $state(false);
   let isAlchemyOpen = $state(false);
   let aiModalTab = $state<'refine' | 'keys' | 'keybindings' | 'onedrive' | 'settings' | 'layout' | 'system'>('refine');
+  let newAppVersionTag = $state<string | null>(null);
   let isFileBrowserOpen = $state(false);
   let isFuzzyModalOpen = $state(false);
   let isLocalHistoryOpen = $state(false);
@@ -477,6 +479,20 @@
         }
       }
     }, 60 * 1000);
+
+    // 啟動靜默檢查更新（延遲 3.5 秒執行，不佔用冷啟動資源）
+    if (getAutoCheckUpdatePref()) {
+      window.setTimeout(async () => {
+        try {
+          const res = await checkForAppUpdates();
+          if (res.hasUpdate) {
+            newAppVersionTag = res.latestVersion;
+          }
+        } catch {
+          // 靜默跳過網路失敗
+        }
+      }, 3500);
+    }
 
     // 全域快速鍵：
     // Ctrl+K: AI 煉丹爐
@@ -1738,6 +1754,11 @@
       }}
       selectionText={currentSelectionText}
       onOpenTextTools={() => (isTextToolsOpen = true)}
+      newVersionTag={newAppVersionTag}
+      onOpenUpdate={() => {
+        aiModalTab = 'system';
+        isAiModalOpen = true;
+      }}
     />
 
     <!-- 本機歷史紀錄與 Diff 對比對話盒 (Alt+H) -->

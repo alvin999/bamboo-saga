@@ -1163,6 +1163,8 @@ async fn save_caves_cache(cache: HashMap<String, Vec<VaultFileItem>>) -> Result<
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // 熱傳遞：將現有視窗拉回前景並聚焦
             if let Some(window) = app.get_webview_window("main") {

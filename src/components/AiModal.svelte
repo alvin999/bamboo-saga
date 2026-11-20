@@ -64,23 +64,78 @@
   } from "../lib/security/keyVault";
   import {
     checkForAppUpdates,
-    CURRENT_VERSION,
+    getAppCurrentVersion,
+    getAutoCheckUpdatePref,
+    setAutoCheckUpdatePref,
+    downloadAndInstallUpdate,
+    restartApp,
     type VersionCheckResult,
   } from "../lib/updater";
 
   let isCheckingUpdates = $state(false);
+  let isInstallingUpdate = $state(false);
+  let updateProgress = $state<number | null>(null);
+  let updateReadyToRestart = $state(false);
   let updateResult = $state<VersionCheckResult | null>(null);
   let updateError = $state<string | null>(null);
+  let autoCheckUpdate = $state(getAutoCheckUpdatePref());
+  let appVersionStr = $state("載入中...");
+
+  $effect(() => {
+    getAppCurrentVersion().then((v) => {
+      appVersionStr = v;
+    });
+  });
+
+  function handleToggleAutoCheckUpdate(e: Event) {
+    const checked = (e.target as HTMLInputElement).checked;
+    autoCheckUpdate = checked;
+    setAutoCheckUpdatePref(checked);
+  }
 
   async function handleCheckUpdates() {
     isCheckingUpdates = true;
     updateError = null;
+    updateReadyToRestart = false;
+    updateProgress = null;
     try {
       updateResult = await checkForAppUpdates();
     } catch (err: any) {
       updateError = err?.message || "檢查更新失敗，請確認網路連線。";
     } finally {
       isCheckingUpdates = false;
+    }
+  }
+
+  async function handleDownloadAndInstall() {
+    if (!updateResult?.updateHandle) return;
+    isInstallingUpdate = true;
+    updateError = null;
+    updateProgress = 0;
+    try {
+      await downloadAndInstallUpdate(updateResult.updateHandle, (downloaded, total) => {
+        if (total && total > 0) {
+          updateProgress = Math.min(100, Math.round((downloaded / total) * 100));
+        } else {
+          updateProgress = 50;
+        }
+      });
+      updateProgress = 100;
+      updateReadyToRestart = true;
+    } catch (err: any) {
+      console.error("[Updater] 下載安裝失敗:", err);
+      updateError = err?.message || "下載更新失敗，請稍後重試。";
+    } finally {
+      isInstallingUpdate = false;
+    }
+  }
+
+  async function handleRelaunchApp() {
+    try {
+      await restartApp();
+    } catch (err: any) {
+      console.error("[Updater] 重啟應用程式失敗:", err);
+      updateError = "重啟應用程式失敗，請手動關閉並重啟竹風。";
     }
   }
 
@@ -1515,6 +1570,113 @@
             </div>
           </div>
         {/if}
+
+        <!-- 軟體版本與自動更新中樞 -->
+        <div class="form-group" style="margin-top: 18px;">
+          <span class="form-label">竹風版本與軟體更新</span>
+          <div class="system-integration-card">
+            <div class="integration-row" style="border-bottom: 1px solid rgba(100, 86, 66, 0.2); padding-bottom: 12px; margin-bottom: 12px;">
+              <div class="integration-info">
+                <div class="integration-title">
+                  啟動時自動檢查新版本
+                </div>
+                <div class="integration-desc">
+                  應用程式啟動時於背景輕量檢查 GitHub Release，並於狀態列顯示新版提醒。
+                </div>
+              </div>
+              <label class="switch-toggle-label">
+                <input
+                  type="checkbox"
+                  checked={autoCheckUpdate}
+                  onchange={handleToggleAutoCheckUpdate}
+                />
+                <span class="switch-toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="integration-row">
+              <div class="integration-info">
+                <div class="integration-title" style="display: flex; align-items: center; gap: 8px;">
+                  <span>目前版本：{appVersionStr}</span>
+                  {#if updateResult?.hasUpdate}
+                    <span class="status-pill active" style="font-size: 11px;">最新：{updateResult.latestVersion}</span>
+                  {/if}
+                </div>
+                <div class="integration-desc">
+                  {#if updateError}
+                    <span style="color: #fb4934;">⚠️ {updateError}</span>
+                  {:else if updateReadyToRestart}
+                    <span style="color: #b8bb26;">✨ 新版本已就緒！重啟後即可套用。</span>
+                  {:else if isInstallingUpdate}
+                    <span style="color: #fabd2f;">正在下載更新... {updateProgress !== null ? `${updateProgress}%` : ''}</span>
+                  {:else if updateResult?.hasUpdate}
+                    <span>{updateResult.releaseNotes.slice(0, 120)}...</span>
+                  {:else if updateResult && !updateResult.hasUpdate}
+                    <span style="color: #b8bb26;">✓ 目前已是最新版本</span>
+                  {:else}
+                    <span>隨時檢查是否有最新的丹方優化與修復。</span>
+                  {/if}
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 8px; align-items: center;">
+                {#if updateReadyToRestart}
+                  <button
+                    type="button"
+                    class="context-menu-toggle-btn enabled"
+                    onclick={handleRelaunchApp}
+                  >
+                    ⚡ 立即重啟套用
+                  </button>
+                {:else if updateResult?.hasUpdate && updateResult.updateHandle}
+                  <button
+                    type="button"
+                    class="context-menu-toggle-btn enabled"
+                    disabled={isInstallingUpdate}
+                    onclick={handleDownloadAndInstall}
+                  >
+                    {#if isInstallingUpdate}
+                      下載中 {updateProgress !== null ? `${updateProgress}%` : ''}...
+                    {:else}
+                      📥 下載並更新
+                    {/if}
+                  </button>
+                {:else if updateResult?.hasUpdate && !updateResult.updateHandle}
+                  <a
+                    href={updateResult.releaseUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="context-menu-toggle-btn enabled"
+                    style="text-decoration: none; display: inline-flex; align-items: center;"
+                  >
+                    🌐 前往 GitHub 下載
+                  </a>
+                {:else}
+                  <button
+                    type="button"
+                    class="context-menu-toggle-btn"
+                    disabled={isCheckingUpdates}
+                    onclick={handleCheckUpdates}
+                  >
+                    {#if isCheckingUpdates}
+                      檢查中...
+                    {:else}
+                      🔍 檢查更新
+                    {/if}
+                  </button>
+                {/if}
+              </div>
+            </div>
+
+            {#if isInstallingUpdate && updateProgress !== null}
+              <div style="margin-top: 10px; width: 100%; height: 6px; background: rgba(0,0,0,0.4); border-radius: 3px; overflow: hidden;">
+                <div
+                  style="width: {updateProgress}%; height: 100%; background: #b8bb26; transition: width 0.2s ease;"
+                ></div>
+              </div>
+            {/if}
+          </div>
+        </div>
 
         <footer class="modal-footer">
           <div class="telemetry">

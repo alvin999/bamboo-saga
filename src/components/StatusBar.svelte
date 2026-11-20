@@ -14,6 +14,8 @@
     onOpenBackup?: () => void;
     selectionText?: string;
     onOpenTextTools?: () => void;
+    newVersionTag?: string | null;
+    onOpenUpdate?: () => void;
   }
 
   let {
@@ -27,7 +29,9 @@
     onOpenFuzzy,
     onOpenBackup,
     selectionText = '',
-    onOpenTextTools
+    onOpenTextTools,
+    newVersionTag = null,
+    onOpenUpdate
   }: StatusBarProps = $props();
 
   const selectedLineCount = $derived(
@@ -135,6 +139,17 @@
         </select>
       </div>
     </div>
+
+    {#if newVersionTag}
+      <button 
+        class="update-badge-btn font-mono" 
+        onclick={onOpenUpdate}
+        title="發現新版本 {newVersionTag}，點擊檢視更新並安裝"
+      >
+        <span class="update-pulse-dot"></span>
+        <span class="update-badge-text">🎋 {newVersionTag} 可更新</span>
+      </button>
+    {/if}
 
     <div class="encoding-badge">UTF-8</div>
   </div>
@@ -357,5 +372,49 @@
     color: #7c7365;
     font-size: 10.5px;
     padding: 1px 4px;
+  }
+
+  .update-badge-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(184, 187, 38, 0.14);
+    border: 1px solid rgba(184, 187, 38, 0.4);
+    color: #b8bb26;
+    font-size: 10.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .update-badge-btn:hover {
+    background: rgba(184, 187, 38, 0.25);
+    border-color: #b8bb26;
+    color: #ebdbb2;
+    transform: translateY(-0.5px);
+    box-shadow: 0 0 8px rgba(184, 187, 38, 0.3);
+  }
+
+  .update-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #b8bb26;
+    box-shadow: 0 0 6px #b8bb26;
+    animation: pulseGlow 1.8s infinite;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(0.85);
+    }
   }
 </style>
