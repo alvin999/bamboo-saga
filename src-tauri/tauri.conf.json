@@ -33,7 +33,8 @@
       "nsis",
       "deb",
       "appimage",
-      "dmg"
+      "dmg",
+      "app"
     ],
     "windows": {
       "nsis": {
