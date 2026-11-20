@@ -67,16 +67,14 @@ jobs:
             > *Scatter thoughts on bamboo slips; forge an immortal saga with AI.*
             
             ### ✨ 本次更新亮點 (Highlights)
-            * 🔍 **全新竹風尋卷條 (Zen-styled Find & Search Bar)**：
-              - 專屬浮動膠囊面板：右上角半透明竹炭黑毛玻璃與沉香琥珀金微光邊框，完美融入竹風包浩斯設計風格。
-              - 動態序號徽章：即時統計「當前序號 / 總相符數」（如 `3 / 12`），無相符時動態警示。
-              - 雙向折返告警：搜尋抵達文末或文首循環時，自動觸發「🔁 已重新從頭開始搜尋（折返至第 1 筆）」與「🔁 已折返至手稿末尾」Toast 提示。
-              - 解除官方限制之高對比相符高亮：自主打造 `bambooSearchHighlighter` 外掛，全篇匹配項目半透明琥珀標記，當前選中項綻放耀眼金光光暈。
-            * 📝 **靈動替換支援 (Find & Replace with Smooth Expand)**：
-              - 可折疊雙層面板：支援左側箭頭按鈕隨時展開/收折替換為輸入框，或直接以 `Ctrl+H` 隨時喚起替換。
-              - 單筆與批次取代：支援 Enter 單筆替換並流暢跳轉下一個，Alt+Enter 全部取代並即時統計回報更換筆數。
-            * ⚙️ **Vim 快捷鍵衝突覆蓋擴充 (Vim Key Overrides)**：
-              - 偏好設定新增「Ctrl+H 替換」開關，兼顧資深 Vim 使用者之原生退格刪字習慣與現代 GUI 編輯心流。
+            * ⌨️ **跨平台 Vim 模式無視中文輸入法（Zed-like IME Auto-suspend）**：
+              - **Linux (Arch Hyprland / Ubuntu / WebKitGTK)**：在 Normal / Visual 模式下底層動態掛起 WebKitGTK 輸入法上下文，完美相容 Wayland text-input-v3，徹底解決 fcitx5 與 IBus 在 hjkl 移動或下指令時誤寫注音問題。
+              - **Windows (10 / 11)**：透過 Win32 IMM32 API 於 Normal 模式自動切換為英數，返回 Insert 模式時自動記憶並還原中文狀態。
+              - **macOS**：整合 Carbon HIToolbox，切換模式自動協調 ASCII 輸入源與中文還原。
+              - **極簡靜默體驗**：拿除多餘的告警提示 Toast，底層安靜攔截未消費之組字輸入，心流不中斷。
+              - **偏好設定重構**：更新為 `imeAutoSwitch`「Vim 模式自動暫停中文輸入法」。
+            * 🔍 **延續 v0.1.5 全新竹風尋卷條與替換中樞 (Find & Replace)**：
+              - 浮動膠囊面板、動態序號計數、單筆替換與批次取代全數穩定運作。
 
             ### 📥 各平台安裝說明 (Installation Guide)
             * **🪟 Windows (10 / 11)**：下載最新版 `bamboo-saga_*_x64-setup.exe` 雙擊安裝。若遇 SmartScreen 提示，點擊「其他資訊」➔「仍要執行」即可。

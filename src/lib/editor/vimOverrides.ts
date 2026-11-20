@@ -3,7 +3,9 @@ import { keymap, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { selectAll, cursorCharLeft, cursorCharRight } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import { getCM, Vim } from '@replit/codemirror-vim';
+import { invoke } from '@tauri-apps/api/core';
 import { VimKeyOverrides } from '../../types/tab';
+import { isTauriEnvironment } from '../storage/fsBridge';
 
 /**
  * 檢查 CodeMirror 是否處於 Vim Normal 指令模式 (非 Insert / Visual / Replace 模式)
@@ -20,7 +22,6 @@ function isVimNormalMode(view: EditorView): boolean {
 export interface VimOverrideCallbacks {
   onManualSave?: () => void;
   onSaveAs?: () => void;
-  onImeWarning?: (text: string) => void;
   onAddTab?: () => void;
   onCloseTab?: () => void;
   onOpenInlinePrompt?: (coords?: { x: number; y: number } | null) => void;
@@ -262,65 +263,124 @@ export function buildVimOverrideKeymap(
     extensions.push(Prec.highest(keymap.of(bindings)));
   }
 
-  // 6. 中文注音防誤觸外掛 (支援新酷音、微軟注音、日文等全系列 IME)
-  if (options.imeWarning) {
-    let lastWarningTime = 0;
-    const triggerWarning = () => {
-      const now = Date.now();
-      if (now - lastWarningTime > 2000) {
-        lastWarningTime = now;
-        callbacks?.onImeWarning?.('⚠️ 目前處於中文輸入模式。');
+  // 6. 原生 IME 自動切換與靜默防誤觸外掛 (支援 Linux WebKitGTK / Windows IMM32 / macOS HIToolbox)
+  if (options.imeAutoSwitch !== false) {
+    const syncNativeIme = (enabled: boolean) => {
+      if (!isTauriEnvironment()) return;
+      invoke('set_ime_enabled', { enabled }).catch((err) => {
+        console.warn('[Vim IME] set_ime_enabled failed:', err);
+      });
+    };
+
+    const shouldDisableImeForView = (targetView: EditorView): boolean => {
+      if (!targetView.hasFocus) return false;
+      const cm = getCM(targetView);
+      if (cm?.state?.vim) {
+        return !cm.state.vim.insertMode;
       }
+      return isVimNormalMode(targetView);
     };
 
     extensions.push(
       ViewPlugin.fromClass(
         class {
-          private compHandler: (e: CompositionEvent) => void;
           private beforeInputHandler: (e: InputEvent) => void;
-          private keyHandler: (e: KeyboardEvent) => void;
+          private focusHandler: () => void;
+          private blurHandler: () => void;
+          private modeChangeHandler: () => void;
+          private cmInstance: any = null;
+          private lastImeEnabled: boolean | null = null;
           private view: EditorView;
 
           constructor(view: EditorView) {
             this.view = view;
 
-            // 1. 監聽組字開始 (微軟注音、新酷音等 IME 開啟組字時)
-            this.compHandler = () => {
-              if (isVimNormalMode(this.view)) {
-                triggerWarning();
+            const updateImeState = () => {
+              // 僅在編輯器取得焦點且處於 Vim Normal / Visual 模式時停用原生輸入法
+              const shouldDisable = shouldDisableImeForView(this.view);
+              const targetEnabled = !shouldDisable;
+              if (targetEnabled !== this.lastImeEnabled) {
+                this.lastImeEnabled = targetEnabled;
+                syncNativeIme(targetEnabled);
               }
             };
 
-            // 2. 核心架構防禦：攔截所有 DOM beforeinput 文字寫入 (純事件邏輯，不依賴 hardcode 字元集)
-            // 在 Vim Normal 指令模式下，任何企圖向 DOM 插入文字的行為一律嚴格阻止，徹底杜絕注音外溢寫入
+            this.modeChangeHandler = () => {
+              updateImeState();
+            };
+
+            this.focusHandler = () => {
+              this.attachCmModeListener();
+              updateImeState();
+            };
+
+            this.blurHandler = () => {
+              // 焦點離開編輯器（例如點進搜尋列或 AI 對話框）時立即恢復輸入法
+              if (this.lastImeEnabled === false) {
+                this.lastImeEnabled = true;
+                syncNativeIme(true);
+              }
+            };
+
+            // 核心架構防禦：靜默攔截所有 DOM beforeinput 文字寫入，杜絕切換瞬間的注音外溢寫入
             this.beforeInputHandler = (e: InputEvent) => {
               if (isVimNormalMode(this.view)) {
                 e.preventDefault();
-                triggerWarning();
               }
             };
 
-            // 3. 監聽 keydown 狀態 (標準 IME 鍵位時主動提醒)
-            this.keyHandler = (e: KeyboardEvent) => {
-              if (!isVimNormalMode(this.view)) return;
-              if (e.ctrlKey || e.altKey || e.metaKey) return;
-
-              if (e.isComposing || e.key === 'Process' || e.keyCode === 229) {
-                triggerWarning();
-              }
-            };
-
-            view.contentDOM.addEventListener('compositionstart', this.compHandler);
             view.contentDOM.addEventListener('beforeinput', this.beforeInputHandler as EventListener, true);
-            view.contentDOM.addEventListener('keydown', this.keyHandler, true);
+            view.contentDOM.addEventListener('focus', this.focusHandler);
+            view.contentDOM.addEventListener('blur', this.blurHandler);
+
+            this.attachCmModeListener();
+            updateImeState();
+          }
+
+          private attachCmModeListener() {
+            if (this.cmInstance) return;
+            const cm = getCM(this.view);
+            if (cm?.on) {
+              this.cmInstance = cm;
+              cm.on('vim-mode-change', this.modeChangeHandler);
+            }
+          }
+
+          update(_update: ViewUpdate) {
+            this.attachCmModeListener();
+            const shouldDisable = shouldDisableImeForView(this.view);
+            const targetEnabled = !shouldDisable;
+            if (targetEnabled !== this.lastImeEnabled) {
+              this.lastImeEnabled = targetEnabled;
+              syncNativeIme(targetEnabled);
+            }
           }
 
           destroy() {
-            this.view.contentDOM.removeEventListener('compositionstart', this.compHandler);
             this.view.contentDOM.removeEventListener('beforeinput', this.beforeInputHandler as EventListener, true);
-            this.view.contentDOM.removeEventListener('keydown', this.keyHandler, true);
+            this.view.contentDOM.removeEventListener('focus', this.focusHandler);
+            this.view.contentDOM.removeEventListener('blur', this.blurHandler);
+            if (this.cmInstance?.off) {
+              this.cmInstance.off('vim-mode-change', this.modeChangeHandler);
+            }
+            if (this.lastImeEnabled === false) {
+              syncNativeIme(true);
+            }
           }
         }
+      )
+    );
+
+    // 前端最後一道防線：靜默攔截未被 codemirror-vim 消費的非 Vim 文字輸入 (如 WebKitGTK 不可取消的 IME 組字寫入)
+    extensions.push(
+      Prec.low(
+        EditorView.inputHandler.of((view) => {
+          const cm = getCM(view);
+          if (isVimNormalMode(view) && !cm?.curOp?.isVimOp) {
+            return true;
+          }
+          return false;
+        })
       )
     );
   }

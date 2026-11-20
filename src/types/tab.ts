@@ -89,7 +89,7 @@ export interface VimKeyOverrides {
   ctrlA: boolean;
   ctrlF: boolean;
   ctrlH: boolean;
-  imeWarning: boolean;
+  imeAutoSwitch: boolean;
 }
 
 export type AlchemyColorTag = 'cinnabar' | 'ochre' | 'olive' | 'sapphire' | 'amethyst' | (string & {});

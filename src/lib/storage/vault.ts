@@ -22,7 +22,7 @@ export const DEFAULT_VIM_OVERRIDES: VimKeyOverrides = {
   ctrlV: true,
   ctrlA: true,
   ctrlF: true,
-  imeWarning: true,
+  imeAutoSwitch: true,
 };
 
 export const DEFAULT_ALCHEMY_CARDS: Record<string, AlchemyCardConfig> = {

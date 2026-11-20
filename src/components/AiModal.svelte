@@ -1191,9 +1191,9 @@
             <label class="override-item">
               <input
                 type="checkbox"
-                bind:checked={inputVimOverrides.imeWarning}
+                bind:checked={inputVimOverrides.imeAutoSwitch}
               />
-              <span>中文注音防呆告警</span>
+              <span>Vim 模式自動暫停中文輸入法</span>
             </label>
           </div>
         </div>

@@ -1292,7 +1292,8 @@ pub fn run() {
             purge_os_secure_keys,
             load_caves_cache,
             save_caves_cache,
-            trash_vault_file
+            trash_vault_file,
+            set_ime_enabled
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -1316,6 +1317,179 @@ pub fn run() {
             let _ = (app_handle, event);
         }
     });
+}
+
+/// 跨平台原生 IME 控制：在 Vim Normal/Visual 模式暫時停用系統輸入法，切回 Insert 模式時自動還原先前狀態
+#[tauri::command]
+fn set_ime_enabled(window: tauri::WebviewWindow, enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::cell::RefCell;
+        use webkit2gtk::WebViewExt;
+
+        thread_local! {
+            static SAVED_IM_CONTEXT: RefCell<Option<webkit2gtk::InputMethodContext>> = const { RefCell::new(None) };
+        }
+
+        window
+            .with_webview(move |webview| {
+                let wv = webview.inner();
+                if !enabled {
+                    SAVED_IM_CONTEXT.with(|cell| {
+                        let mut slot = cell.borrow_mut();
+                        if slot.is_none() {
+                            if let Some(ctx) = wv.input_method_context() {
+                                *slot = Some(ctx);
+                            }
+                        }
+                    });
+                    // 傳入 None 以直接通知 WebKitGTK / Wayland text-input-v3 停用輸入法上下文（通吃 fcitx5 / IBus）
+                    wv.set_input_method_context(None::<&webkit2gtk::InputMethodContext>);
+                } else {
+                    let saved = SAVED_IM_CONTEXT.with(|cell| cell.borrow_mut().take());
+                    if let Some(ctx) = saved {
+                        wv.set_input_method_context(Some(&ctx));
+                    }
+                }
+            })
+            .map_err(|e| format!("無法取得 Linux WebView 控制權: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        static IME_DISABLED: AtomicBool = AtomicBool::new(false);
+        static WAS_IME_OPEN: AtomicBool = AtomicBool::new(false);
+
+        #[link(name = "imm32")]
+        unsafe extern "system" {
+            fn ImmGetDefaultIMEWnd(hwnd: isize) -> isize;
+        }
+
+        #[link(name = "user32")]
+        unsafe extern "system" {
+            fn GetFocus() -> isize;
+            fn SendMessageW(hwnd: isize, msg: u32, wparam: usize, lparam: isize) -> isize;
+        }
+
+        const WM_IME_CONTROL: u32 = 0x0283;
+        const IMC_GETOPENSTATUS: usize = 0x0005;
+        const IMC_SETOPENSTATUS: usize = 0x0006;
+
+        let win_clone = window.clone();
+        window
+            .run_on_main_thread(move || {
+                let mut hwnd = unsafe { GetFocus() };
+                if hwnd == 0 {
+                    hwnd = win_clone.hwnd().map(|h| h.0 as isize).unwrap_or(0);
+                }
+                if hwnd == 0 {
+                    return;
+                }
+                let ime_hwnd = unsafe { ImmGetDefaultIMEWnd(hwnd) };
+                if ime_hwnd == 0 {
+                    return;
+                }
+
+                if !enabled {
+                    // 僅在初次由啟用轉為停用時記錄原本是否為中文模式，避免重複進入 Normal 模式覆蓋狀態
+                    if !IME_DISABLED.swap(true, Ordering::SeqCst) {
+                        let is_open =
+                            unsafe { SendMessageW(ime_hwnd, WM_IME_CONTROL, IMC_GETOPENSTATUS, 0) }
+                                != 0;
+                        WAS_IME_OPEN.store(is_open, Ordering::SeqCst);
+                    }
+                    unsafe {
+                        SendMessageW(ime_hwnd, WM_IME_CONTROL, IMC_SETOPENSTATUS, 0);
+                    }
+                } else if IME_DISABLED.swap(false, Ordering::SeqCst) {
+                    if WAS_IME_OPEN.swap(false, Ordering::SeqCst) {
+                        unsafe {
+                            SendMessageW(ime_hwnd, WM_IME_CONTROL, IMC_SETOPENSTATUS, 1);
+                        }
+                    }
+                }
+            })
+            .map_err(|e| format!("無法於主執行緒切換 Windows IME: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::c_void;
+        use std::sync::Mutex;
+
+        static SAVED_INPUT_SOURCE: Mutex<usize> = Mutex::new(0);
+
+        #[link(name = "Carbon", kind = "framework")]
+        unsafe extern "C" {
+            fn TISCopyCurrentKeyboardInputSource() -> *mut c_void;
+            fn TISCopyCurrentASCIICapableKeyboardInputSource() -> *mut c_void;
+            fn TISSelectInputSource(input_source: *mut c_void) -> i32;
+        }
+
+        #[link(name = "CoreFoundation", kind = "framework")]
+        unsafe extern "C" {
+            fn CFEqual(cf1: *const c_void, cf2: *const c_void) -> u8;
+            fn CFRelease(cf: *const c_void);
+        }
+
+        window
+            .run_on_main_thread(move || {
+                if !enabled {
+                    let mut saved = match SAVED_INPUT_SOURCE.lock() {
+                        Ok(guard) => guard,
+                        Err(_) => return,
+                    };
+                    if *saved != 0 {
+                        return;
+                    }
+                    unsafe {
+                        let current = TISCopyCurrentKeyboardInputSource();
+                        if current.is_null() {
+                            return;
+                        }
+                        let ascii = TISCopyCurrentASCIICapableKeyboardInputSource();
+                        if !ascii.is_null() {
+                            let already_ascii = CFEqual(current, ascii) != 0;
+                            if !already_ascii {
+                                *saved = current as usize;
+                                TISSelectInputSource(ascii);
+                            } else {
+                                CFRelease(current);
+                            }
+                            CFRelease(ascii);
+                        } else {
+                            CFRelease(current);
+                        }
+                    }
+                } else {
+                    let prev_ptr = match SAVED_INPUT_SOURCE.lock() {
+                        Ok(mut guard) => {
+                            let val = *guard;
+                            *guard = 0;
+                            val
+                        }
+                        Err(_) => return,
+                    };
+                    if prev_ptr != 0 {
+                        unsafe {
+                            let prev = prev_ptr as *mut c_void;
+                            TISSelectInputSource(prev);
+                            CFRelease(prev);
+                        }
+                    }
+                }
+            })
+            .map_err(|e| format!("無法於主執行緒切換 macOS 輸入法: {}", e))?;
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    {
+        let _ = (window, enabled);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

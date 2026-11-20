@@ -1371,10 +1371,6 @@
     }, 2600);
   }
 
-  function handleImeWarning(msg: string) {
-    showToast(msg);
-  }
-
   // VIM / STD MODE 自動即時持久化切換
   function handleToggleVimMode(explicitMode?: boolean) {
     appState.vimMode = typeof explicitMode === 'boolean' ? explicitMode : !appState.vimMode;
@@ -1712,7 +1708,6 @@
             }}
             onManualSave={handleManualSave}
             onSaveAs={handleSaveAs}
-            onImeWarning={handleImeWarning}
             onAddTab={addTab}
             onCloseTab={() => activeTab && closeTab(activeTab.id)}
             onPasteSuggestion={(msg: string) => showToast(msg)}

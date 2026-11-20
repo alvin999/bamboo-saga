@@ -29,7 +29,6 @@
     onCursorChange: (cur: CursorPosition) => void;
     onManualSave?: () => void;
     onSaveAs?: () => void;
-    onImeWarning?: (msg: string) => void;
     onAddTab?: () => void;
     onCloseTab?: () => void;
     onSelectionChange?: (selectedText: string) => void;
@@ -50,7 +49,7 @@
       ctrlV: true,
       ctrlA: true,
       ctrlF: true,
-      imeWarning: true,
+      imeAutoSwitch: true,
     } as VimKeyOverrides,
     cursor = { line: 1, ch: 0 },
     smearEnabled = true,
@@ -60,7 +59,6 @@
     onCursorChange,
     onManualSave,
     onSaveAs,
-    onImeWarning,
     onAddTab,
     onCloseTab,
     onSelectionChange,
@@ -404,7 +402,7 @@
         drawSelection(),
         history(),
         vimOverridesCompartment.of(
-          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt, onOpenSearch: () => openSearch(), onOpenReplace: () => openSearch({ showReplace: true }) }) : []
+          vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onAddTab, onCloseTab, onOpenInlinePrompt, onOpenSearch: () => openSearch(), onOpenReplace: () => openSearch({ showReplace: true }) }) : []
         ),
         vimCompartment.of(vimMode ? vim() : []),
         search(),
@@ -644,7 +642,7 @@
         effects: [
           vimCompartment.reconfigure(vimMode ? vim() : []),
           vimOverridesCompartment.reconfigure(
-            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onImeWarning, onAddTab, onCloseTab, onOpenInlinePrompt, onOpenSearch: () => openSearch(), onOpenReplace: () => openSearch({ showReplace: true }) }) : []
+            vimMode ? buildVimOverrideKeymap(vimOverrides, { onManualSave, onSaveAs, onAddTab, onCloseTab, onOpenInlinePrompt, onOpenSearch: () => openSearch(), onOpenReplace: () => openSearch({ showReplace: true }) }) : []
           ),
         ],
       });
