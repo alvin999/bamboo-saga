@@ -506,12 +506,15 @@
     transform: translateY(1px);
   }
 
-  /* 下拉快顯面板：加寬、增加留白、降低邊框壓迫感 */
+  /* 下拉快顯面板：加寬、增加留白、降低邊框壓迫感，支援超出高度時捲動 */
   .quick-menu-dropdown {
     position: absolute;
     top: calc(100% + 8px);
     left: 0;
     width: 344px;
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: rgba(22, 24, 23, 0.97);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -526,6 +529,19 @@
     flex-direction: column;
     gap: 10px;
     animation: menuFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .quick-menu-dropdown > * {
+    flex-shrink: 0;
+  }
+
+  .quick-menu-dropdown::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .quick-menu-dropdown::-webkit-scrollbar-thumb {
+    background: rgba(80, 69, 52, 0.5);
+    border-radius: 3px;
   }
 
   @keyframes menuFadeIn {
