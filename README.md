@@ -14,15 +14,15 @@
 
 | 作業系統 | 推薦下載檔案 | 說明 |
 | :--- | :--- | :--- |
-| **🪟 Windows (10 / 11)** | [`bamboo-saga_0.1.3_x64-setup.exe`](https://github.com/alvin999/bamboo-saga/releases/latest) | NSIS 獨立安裝檔（免 UAC 權限，隨開隨用） |
-| **🍎 macOS (Apple Silicon)** | [`bamboo-saga_0.1.3_aarch64.dmg`](https://github.com/alvin999/bamboo-saga/releases/latest) | 支援 M1 / M2 / M3 / M4 系列晶片 |
-| **🐧 Linux (通用免安裝)** | [`bamboo-saga_0.1.3_amd64.AppImage`](https://github.com/alvin999/bamboo-saga/releases/latest) | Arch / Ubuntu / Fedora 等所有發行版直接執行 |
-| **🐧 Linux (Debian / Ubuntu)** | [`bamboo-saga_0.1.3_amd64.deb`](https://github.com/alvin999/bamboo-saga/releases/latest) | 自動註冊桌面圖示與標準 MIME 關聯 |
+| **🪟 Windows (10 / 11)** | [`bamboo-saga_x.x.x_x64-setup.exe`](https://github.com/alvin999/bamboo-saga/releases/latest) | NSIS 獨立安裝檔（免 UAC 權限，隨開隨用） |
+| **🍎 macOS (Apple Silicon)** | [`bamboo-saga_x.x.x_aarch64.dmg`](https://github.com/alvin999/bamboo-saga/releases/latest) | 支援 M1 / M2 / M3 / M4 系列晶片 |
+| **🐧 Linux (通用免安裝)** | [`bamboo-saga_x.x.x_amd64.AppImage`](https://github.com/alvin999/bamboo-saga/releases/latest) | Arch / Ubuntu / Fedora 等所有發行版直接執行 |
+| **🐧 Linux (Debian / Ubuntu)** | [`bamboo-saga_x.x.x_amd64.deb`](https://github.com/alvin999/bamboo-saga/releases/latest) | 自動註冊桌面圖示與標準 MIME 關聯 |
 
 ### 平台安裝與首次開啟說明 (Platform Notes)
 
 #### 🪟 Windows
-1. 雙擊執行 `bamboo-saga_0.1.3_x64-setup.exe`，依照精靈指示完成安裝。
+1. 雙擊執行 `bamboo-saga_x.x.x_x64-setup.exe`，依照精靈指示完成安裝。
 2. *若彈出 Windows Defender SmartScreen「已保護您的電腦」提示*：請點擊 **「其他資訊」➔「仍要執行」** 即可。
 
 #### 🍎 macOS
@@ -37,12 +37,12 @@
 #### 🐧 Linux
 * **AppImage（免安裝最推薦）**：
    ```bash
-   chmod +x bamboo-saga_0.1.3_amd64.AppImage
-   ./bamboo-saga_0.1.3_amd64.AppImage
+   chmod +x bamboo-saga_x.x.x_amd64.AppImage
+   ./bamboo-saga_x.x.x_amd64.AppImage
    ```
 * **Debian / Ubuntu 套件**：
    ```bash
-   sudo dpkg -i bamboo-saga_0.1.3_amd64.deb
+   sudo dpkg -i bamboo-saga_x.x.x_amd64.deb
   ```
 * **Arch Linux**：
   推薦直接執行 AppImage，或於本機源碼執行 `npm run tauri build` 產出原生二進位檔。
@@ -168,21 +168,3 @@
 | **視覺特效層** | **HTML5 Canvas 2D** | 獨立於 DOM 渲染之外的 60fps Smear Cursor 物理粒子拖尾畫布。 |
 | **AI 推論雙引擎** | **Groq API + Gemini API** | Groq (`llama-3.3-70b`) 負責毫秒級即時排版；Gemini (`gemini-2.5-flash`) 負責長篇會議總結與問答。 |
 
----
-
-## 🔄 AI 煉丹與 Rollback 狀態流轉設計
-
-
-```text
-[原始手稿 (散帖)] 
-       │
-       ├── 1. 觸發「✨ 收散成丹」或「💬 AI 問答」
-       ▼
-[建立快照 Snapshot #N] ──(推入 Undo/Rollback Stack)
-       │
-       ├── 2. 寫入 AI 整理結果，頂部浮現【🔍 審核列】
-       ▼
-┌────────────────────────────────────────────────────────┐
-│ ✨ 已套用 AI 整理結果  [✅ 確認收丹]  [⏪ 一鍵退回原稿] │
-└────────────────────────────────────────────────────────┘
-```
